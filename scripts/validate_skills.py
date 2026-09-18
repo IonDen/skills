@@ -59,6 +59,8 @@ def check_skill(skill_md: Path) -> list[str]:
 def main(root: Path = ROOT) -> int:
     skills = sorted((root / "skills").glob("*/SKILL.md"))
     problems = [p for s in skills for p in check_skill(s)]
+    if not skills:
+        problems.append(f"no skills found under {root / 'skills'}")
     for p in problems:
         print("FAIL", p)
     if not problems:

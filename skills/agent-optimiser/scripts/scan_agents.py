@@ -56,7 +56,8 @@ NO_WRITE_DECL = re.compile(
     r"read[\s-]only"
     r"|\b(?:never|do not|does not|don'?t|doesn'?t|without)\b(?!\s+forget)"
     r"(?:\s+\w+){0,2}?\s+(?:writ|edit|modif|chang|implement)\w*"
-    r"\s+(?:the\s+)?(?:code|files?|codebase|source|implementation|anything)\b", re.I)
+    r"\s+(?:\w+\s+){0,2}?(?:code|files?|codebase|source|implementation|anything"
+    r"|disk|repo(?:sitory)?|fixes)\b", re.I)
 EMPHASIS = re.compile(r"\b(MUST|MUST NOT|NEVER|ALWAYS|DO NOT|CRITICAL|"
                       r"IMPORTANT|MANDATORY|REQUIRED)\b")
 
@@ -113,7 +114,7 @@ def parse_agent(path: Path):
     tools: list[str] = []
     if tools_raw is not None:
         # Accept `A, B`, `[A, B]`, `"A, B"` and `- item` lists; drop `# comments`.
-        flat = re.sub(r"#[^\n]*", "", tools_raw).replace("\n", ",")
+        flat = re.sub(r"(?:^|\s)#[^\n]*", "", tools_raw, flags=re.M).replace("\n", ",")
         for tok in flat.split(","):
             tok = tok.strip().strip("[]\"'").strip().lstrip("-").strip().strip("\"'")
             if tok:

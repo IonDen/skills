@@ -207,3 +207,30 @@ def test_readable_report_lists_agent_and_flags(scan, agent_file):
     out = subprocess.run([sys.executable, str(scan.__file__), str(p)],
                          capture_output=True, text=True, check=True).stdout
     assert "Scanned 1 agent(s)" in out and "NO_TOOLS_FIELD" in out and "WEAK_TRIGGER" in out
+
+
+def test_read_only_declaration_recall_on_common_phrasings(scan, agent_file):
+    # Bug caught: a tail that demands a bare noun right after the verb misses "do not write any code".
+    fm = "description: Use when x\ntools: Read, Edit, Write\n"
+    phrasings = [
+        "Do not write any code.", "It does not modify any files.", "Never change existing files.",
+        "Don't edit user files.", "Do not write to disk.", "It does not write to the repository.",
+        "Never implement fixes yourself.", "You never make changes to the codebase.",
+    ]
+    for i, body in enumerate(phrasings):
+        assert "WRITE_ON_READONLY" in flags_of(scan, agent_file(f"r{i}", fm, body + "\n")), body
+    for i, body in enumerate(["Run the tests without changing them first.",
+                              "Do not forget to write comprehensive logs.",
+                              "Never implement a recommendation without reading the plan."]):
+        assert "WRITE_ON_READONLY" not in flags_of(scan, agent_file(f"n{i}", fm, body + "\n")), body
+
+
+def test_hash_inside_a_tool_specifier_is_not_a_comment(scan, agent_file):
+    # Bug caught: stripping from any `#` truncates `Bash(echo "#x")`.
+    p = agent_file("a", 'description: Use when x\ntools: Bash(echo "#x"), Read  # trailing comment\n')
+    assert scan.parse_agent(p)["tools"] == ['Bash(echo "#x")', "Read"]
+
+
+def test_task_output_is_dead_not_legacy(scan):
+    # Bug caught: listing TaskOutput in both sets makes the catalog and the scanner disagree.
+    assert "TaskOutput" in scan.SUBAGENT_DEAD_TOOLS and "TaskOutput" not in scan.LEGACY_TOOL_NAMES

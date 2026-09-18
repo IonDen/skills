@@ -13,7 +13,7 @@ Rules:
     line 1, or a symlink -> SKIP, file untouched.
 
 The field is inserted right after the `name:` line so it stays visible. Line
-endings are preserved and the file is replaced atomically.
+endings are preserved (a leading BOM is not) and the file is replaced atomically.
 
 Usage:
     python bump_version.py AGENT.md [AGENT.md ...] [--set X.Y.Z] [--dry-run]
@@ -25,6 +25,7 @@ import argparse
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 VER_RE = re.compile(
@@ -76,10 +77,19 @@ def process(path: Path, force: str | None, dry: bool) -> str:
 
     if dry:
         return f"DRY  {path.name}: {old} -> {new_ver}"
-    tmp = path.with_name(path.name + ".tmp")
-    with tmp.open("w", encoding="utf-8", newline="") as fh:
-        fh.write("".join(new_lines))
-    os.replace(tmp, path)
+    # A fresh, exclusively created temp file in the same directory: a pre-planted
+    # symlink at a predictable name cannot redirect the write.
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write("".join(new_lines))
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     return f"OK   {path.name}: {old} -> {new_ver}"
 
 

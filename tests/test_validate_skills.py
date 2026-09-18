@@ -65,3 +65,9 @@ def test_spec_length_limits(validate, tmp_path):
     long_desc_root = tmp_path / "second"
     make_skill(long_desc_root, "fine-name", description="x" * 1025)
     assert validate.main(long_desc_root) == 1
+
+
+def test_empty_skills_tree_fails(validate, tmp_path):
+    # Bug caught: returning 0 when the glob finds nothing lets a moved directory pass CI.
+    (tmp_path / "skills").mkdir()
+    assert validate.main(tmp_path) == 1

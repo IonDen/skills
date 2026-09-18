@@ -24,9 +24,9 @@ default, kept for compatibility)
 
 **Legacy names** you may still meet in older agent files (`LEGACY_TOOL_NAME`): `Task`
 (now `Agent`), `LS` (use `Glob`/`Read`), `NotebookRead` (`Read`), `MultiEdit` (`Edit`),
-`BashOutput` (`Monitor`), `KillShell` (`TaskStop`), `TaskOutput` (deprecated: read the
-output file with `Read`). Suggest the current name and flag; verify against the
-installed version before deleting anything.
+`BashOutput` (`Monitor`), `KillShell` (`TaskStop`). Suggest the current name and flag;
+verify against the installed version before deleting anything. (`TaskOutput` is
+deprecated outright and sits on the blacklist below.)
 
 **Never usable by a subagent — flag as dead entries in `tools`** (the documented
 universal blacklist, `DEAD_TOOL_ENTRY`): `AskUserQuestion`, `EndConversation`,

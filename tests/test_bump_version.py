@@ -100,3 +100,15 @@ def test_crlf_line_endings_are_preserved(bump, tmp_path):
     bump.process(p, None, False)
     data = p.read_bytes()
     assert b"version: 1.1.0\r\n" in data and b"\nbody\r\n" in data and b"\n\n" not in data
+
+
+def test_preplanted_tmp_symlink_cannot_redirect_the_write(bump, tmp_path):
+    # Bug caught: opening a fixed `<name>.md.tmp` path follows a symlink planted there.
+    outside = tmp_path / "outside.txt"
+    outside.write_text("untouched\n")
+    agent = tmp_path / "t.md"
+    agent.write_text("---\nname: t\n---\nbody\n")
+    (tmp_path / "t.md.tmp").symlink_to(outside)
+    bump.process(agent, None, False)
+    assert outside.read_text() == "untouched\n"
+    assert not agent.is_symlink() and "version: 1.1.0" in agent.read_text()

@@ -234,3 +234,52 @@ def test_hash_inside_a_tool_specifier_is_not_a_comment(scan, agent_file):
 def test_task_output_is_dead_not_legacy(scan):
     # Bug caught: listing TaskOutput in both sets makes the catalog and the scanner disagree.
     assert "TaskOutput" in scan.SUBAGENT_DEAD_TOOLS and "TaskOutput" not in scan.LEGACY_TOOL_NAMES
+
+
+# --- external audit R1/R2/R3/R5 -------------------------------------------
+
+def test_exit_plan_mode_is_allowed_under_plan_permission_mode(scan, agent_file):
+    # Bug caught (R1): ignoring permissionMode flags ExitPlanMode on a planner that needs it.
+    planner = agent_file("a", "description: Use when x\ntools: Read, ExitPlanMode\npermissionMode: plan\n")
+    other = agent_file("b", "description: Use when x\ntools: Read, ExitPlanMode\n")
+    assert "DEAD_TOOL_ENTRY" not in flags_of(scan, planner)
+    assert "ExitPlanMode" in flags_of(scan, other)["DEAD_TOOL_ENTRY"]["message"]
+
+
+def test_parameterised_tools_keep_their_arguments(scan, agent_file):
+    # Bug caught (R5): splitting on every comma turns Agent(worker, researcher) into two tokens.
+    a = agent_file("a", "description: Use when x\ntools: Agent(worker, researcher), Read\n")
+    b = agent_file("b", 'description: Use when x\ntools: ["Agent(worker, researcher)", "Read"]\n')
+    c = agent_file("c", "description: Use when x\ntools:\n  - Bash(git diff:*, git log:*)\n  - Read\n")
+    assert scan.parse_agent(a)["tools"] == ["Agent(worker, researcher)", "Read"]
+    assert scan.parse_agent(b)["tools"] == ["Agent(worker, researcher)", "Read"]
+    assert scan.parse_agent(c)["tools"] == ["Bash(git diff:*, git log:*)", "Read"]
+    assert "NESTED_AGENT_TOOL" in flags_of(scan, a)
+
+
+def test_quoted_scalars_are_decoded_before_validation(scan, agent_file):
+    # Bug caught (R5): validating the raw YAML text flags name: "reviewer" and misses description: "".
+    quoted = agent_file("a", 'description: "Use when x"\ntools: Read\n')
+    (quoted.parent / "q.md").write_text('---\nname: "reviewer"\ndescription: ""\ntools: Read\n---\nbody\n')
+    q = scan.parse_agent(quoted.parent / "q.md")
+    assert q["name"] == "reviewer" and q["description"] == ""
+    fl = {f["code"] for f in scan.flag_agent(q, scan.DEFAULT_BODY_LINES, scan.DEFAULT_DESC_CHARS)}
+    assert "NAME_FORMAT" not in fl and "MISSING_DESCRIPTION" in fl
+    assert scan.parse_agent(quoted)["description"] == "Use when x"
+
+
+def test_omit_claude_md_is_surfaced(scan, agent_file):
+    # Bug caught (R2): not parsing omitClaudeMd lets the "re-pasted rules" trim delete the only copy.
+    p = agent_file("a", "description: Use when x\ntools: Read\nomitClaudeMd: true\n")
+    a = scan.parse_agent(p)
+    assert a["omit_claude_md"] is True
+    assert flags_of(scan, p)["OMITS_CLAUDE_MD"]["severity"] == "info"
+    assert scan.parse_agent(agent_file("b", "description: Use when x\ntools: Read\n"))["omit_claude_md"] is False
+
+
+def test_readable_report_labels_the_metric_as_definition_text(scan, agent_file):
+    # Bug caught (R3): calling the chars/4 sum "tokens/launch" claims a runtime cost it never measures.
+    p = agent_file("a", "description: Use when x\ntools: Read\n")
+    out = subprocess.run([sys.executable, str(scan.__file__), str(p)],
+                         capture_output=True, text=True, check=True).stdout
+    assert "definition text" in out and "tokens/launch" not in out

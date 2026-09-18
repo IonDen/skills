@@ -6,7 +6,7 @@ Audits Claude Code subagent files (`.claude/agents/*.md`) and proposes fixes tha
 
 ```bash
 npx skills add IonDen/skills --skill agent-optimiser -g -a claude-code -y
-npx skills add IonDen/skills --skill agent-optimiser -g -a codex --copy -y   # Codex does not follow symlinks
+npx skills add IonDen/skills --skill agent-optimiser -g -a codex -y          # add --copy for real files instead of symlinks
 ```
 
 ## Use

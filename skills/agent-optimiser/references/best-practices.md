@@ -14,6 +14,9 @@ skill fills.
 - A subagent starts fresh: its system prompt + tool schemas + the full CLAUDE.md
   hierarchy + a git snapshot load **on every launch**. Bloat is paid per
   invocation and multiplied across parallel/chained agents.
+- What the scanner measures is definition text only (frontmatter + body, chars/4).
+  Tool schemas, inherited CLAUDE.md, skills and memory are outside it, so its totals
+  rank agents and show a before/after of the file; they are not launch cost.
 - Tool definitions are the dominant avoidable cost. Anthropic's tool-search docs
   put a typical multi-server MCP setup at **~55k tokens** of definitions and report
   **over 85%** saved by loading only the tools a task needs. Claude Code defers MCP
@@ -41,8 +44,9 @@ skill fills.
   from a memory-enabled agent; doing so silently breaks memory upkeep. `NotebookEdit`
   is still droppable (memory files are Markdown, not notebooks).
 - `[med] DEAD_TOOL_ENTRY` — tools on the documented subagent blacklist
-  (`AskUserQuestion`, `EndConversation`, `EnterPlanMode`, `ExitPlanMode`, `ScheduleWakeup`,
-  `TaskOutput`, `WaitForMcpServers`, `Workflow`). Remove.
+  (`AskUserQuestion`, `EndConversation`, `EnterPlanMode`, `ScheduleWakeup`, `TaskOutput`,
+  `WaitForMcpServers`, `Workflow`, and `ExitPlanMode` unless the agent sets
+  `permissionMode: plan`, which the scanner checks). Remove.
 - `[med] LEGACY_TOOL_NAME` — a name from an older release (`Task`, `LS`, `MultiEdit`,
   `NotebookRead`, `BashOutput`, `KillShell`). Rename to the current tool after checking
   the installed version.
@@ -67,11 +71,12 @@ skill fills.
   session. Keep the triggers + 1–2 tight examples; cut the rest.
 
 **model** (defaults to `inherit` when omitted)
-- `[low] MODEL_INHERIT` — fine if intentional. But pin `haiku` for mechanical/
-  read-only agents, and pin `sonnet`/`opus`/`fable` for agents whose competence
-  requirement is fixed regardless of session model (don't let a planner silently run
-  on Haiku).
-- Read-only/mechanical agent on `opus` → over-provisioned; recommend `haiku`/`sonnet`.
+- `[low] MODEL_INHERIT` — fine if intentional. But pin `haiku` for mechanical
+  agents, and pin `sonnet`/`opus`/`fable` for agents whose competence requirement is
+  fixed regardless of session model (don't let a planner silently run on Haiku).
+- A mechanical agent on `opus` is a downgrade candidate; a read-only agent is not
+  automatically one (security review, architecture analysis). Any model change is a
+  candidate until compared on the agent's real task.
 - Haiku lacks MCP tool-search (`tool_reference`); a Haiku agent relying on many
   deferred MCP tools won't get on-demand loading.
 
@@ -87,8 +92,11 @@ skill fills.
 
 - `[high]` **Single responsibility** — one agent, one job. "Writes AND reviews AND
   commits" should be split. Reward explicit negative scoping ("only X; does not Y").
-- `[high]` **No CLAUDE.md duplication** — custom subagents already inherit the full
-  CLAUDE.md hierarchy. Re-pasting global rules / generic coding standards is dead weight.
+- `[high]` **No CLAUDE.md duplication** — custom subagents inherit the CLAUDE.md
+  hierarchy unless `omitClaudeMd: true` is set. Re-pasting rules that are provably
+  inherited is dead weight; a rule you cannot find in a loaded CLAUDE.md is not a
+  duplicate, and on an `omitClaudeMd` agent (`[info] OMITS_CLAUDE_MD`) the body may be
+  the only place those rules exist. Locate the source before cutting.
 - `[med] MEMORY_BOILERPLATE` — when `memory:` is set, the harness auto-injects memory
   read/write instructions + the top of `MEMORY.md`. A hand-written "Persistent Agent
   Memory" section (often ~45 lines, and identical across an author's agents) largely

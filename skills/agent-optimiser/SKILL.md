@@ -26,9 +26,11 @@ correct. Read `references/best-practices.md` for the rationale behind each flag 
 `references/tool-catalog.md` for the tool list and archetype → tools map — consult
 both before proposing tool changes.
 
-All paths below are relative to this skill's directory (in Claude Code that is
-`${CLAUDE_SKILL_DIR}`; in Codex, the `agent-optimiser/` folder under `~/.codex/skills/`
-or the project's `.agents/skills/`).
+All paths below are relative to this skill's directory: in Claude Code that is
+`${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from
+(`~/.agents/skills/agent-optimiser/`, a project's `.agents/skills/agent-optimiser/`,
+or the older `~/.codex/skills/`). Resolve scripts from that directory, not from a
+guessed home path.
 
 ## Workflow
 
@@ -70,10 +72,14 @@ floor in `tool-catalog.md`. Then:
 - Keep anything *plausibly* used — when in doubt, keep it and **flag it as a question**
   ("body never edits files — drop `Edit`/`Write`? keep `Bash`?") rather than removing
   silently. Breaking an agent costs far more than a slightly wide list.
-- Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`, plan/schedule
-  tools) outright — subagents can never use them. Rename legacy names (`Task` →
-  `Agent`). `Agent` itself is a question, not a removal: nested subagents are on by
-  default, so keep it when the body delegates and ask when it doesn't.
+- Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`,
+  `ScheduleWakeup`, `EnterPlanMode`) outright — subagents can never use them. Rename
+  legacy names (`Task` → `Agent`). Two tools are conditional, not dead: `ExitPlanMode`
+  is valid when the agent sets `permissionMode: plan` (the scanner already honours
+  this), and `Agent` is valid when the body delegates — nested subagents are on by
+  default, so keep it in that case and ask otherwise. A parameterised form such as
+  `Agent(worker, researcher)` is one tool that also restricts which subagents may be
+  spawned; never split or drop its arguments.
 - **Memory exception:** if frontmatter sets `memory:`, the agent needs `Edit` + `Write`
   to maintain its memory files — keep them even on an otherwise read-only agent. Never
   propose stripping them; it silently breaks memory upkeep. (`NotebookEdit` is still
@@ -85,8 +91,12 @@ floor in `tool-catalog.md`. Then:
 - Duplicated boilerplate across agents (the scanner lists it) — usually a hand-written
   "Persistent Agent Memory" section, redundant when `memory:` is set because the
   harness injects it. Trim to one line.
-- CLAUDE.md / global rules re-pasted into the body — subagents already inherit
-  CLAUDE.md; remove.
+- CLAUDE.md / global rules re-pasted into the body. Before calling a passage a
+  duplicate, find the matching rule in a CLAUDE.md that this agent actually loads
+  (project or user level) and quote where it lives. If the agent sets
+  `omitClaudeMd: true` (the scanner reports `OMITS_CLAUDE_MD`), it inherits nothing
+  and the body may hold the only copy: keep it. A section merely titled "global
+  rules" with no matching inherited source is not a duplicate.
 - Over-long bodies (>~150 lines for a single-purpose agent), over-explaining,
   excessive ALL-CAPS MUST/NEVER, contradictions, signposting filler.
 - Preserve meaning. Trimming must not drop a real instruction; if unsure whether a
@@ -95,17 +105,22 @@ floor in `tool-catalog.md`. Then:
 **Description.** Ensure concrete triggers ("use when…/after…"), a proactive cue if
 it should auto-fire, and no runaway multi-example bloat (it loads session-wide).
 
-**Model.** Match to job: `haiku` for mechanical/read-only, `sonnet`/`opus`/`fable`
-where competence is fixed; flag read-only agents pinned to `opus`, and complex agents left
-on default `inherit` that could silently run on a weak session model.
+**Model.** Match to job. `haiku` suits mechanical work (formatting, mechanical
+checks, lookups); read-only is not by itself a reason to downgrade — a security
+review or an architecture analysis reads only and still needs a strong model. Flag
+complex agents left on default `inherit` that could silently run on a weak session
+model. Present any model change as a candidate to verify on the agent's real task,
+not as a saving; without a before/after comparison on that task it is a guess.
 
 **Frontmatter hygiene.** Name lowercase-hyphenated; required fields present; tool
 names valid (treat unknown names as possibly MCP/plugin — verify, don't assume typo).
 
 ### 4. Report and STOP
 
-Present one section per agent using the template below, then a portfolio summary
-with total estimated token savings. Stop and ask for approval. If the user wants
+Present one section per agent using the template below, then a portfolio summary.
+Stop and ask for approval. No agent file changes before that answer, even when the
+request sounds like "make them cheaper"; only an explicit "apply" (or a prompt that
+authorises edits up front) moves to step 5. If the user wants
 per-finding control, let them accept/reject individually.
 
 ### 5. Apply approved changes, then bump versions
@@ -126,7 +141,7 @@ Use this exact structure per agent:
 
 ```
 ## <agent-name>  (<path>)
-Current: model <model> · <tools state> · body <N> lines · ~<T> tokens/launch
+Current: model <model> · <tools state> · body <N> lines · definition text ~<T> tok
 Version: <current> → <proposed>
 
 Findings
@@ -134,29 +149,39 @@ Findings
 - [med]  <code>: <issue> → <proposed fix>
   ...
 
-Proposed `tools`: <comma list>   (was: <old or "inherit-all">)
+Tool policy: <old: "inherit-all" or N tools> → <proposed comma list>
   ? <uncertain tool>: keep or drop? — <reason it's uncertain>
+  (schema cost of the removed tools is not measured by the scanner)
 
-Proposed trims: <bullet list of sections/lines to cut, with ~token savings>
+Proposed trims: <bullet list of sections/lines to cut, with ~definition-text tokens each>
 
-Est. savings: ~<X> tokens/launch  (<old> → <new>)
+Definition text: ~<old> → ~<new> tok (chars/4 of the file; not a launch-cost measurement)
+Model: <unchanged | candidate: <model>, verify on the agent's task before adopting>
 ```
 
 End with:
 
 ```
 ## Summary
-<n> agents audited · est. total savings ~<X> tokens/launch
+<n> agents audited · definition text ~<old> → ~<new> tok · <k> agents move from
+inherit-all to an allowlist (tool-schema savings real but unmeasured here)
 Apply all / pick per-agent / adjust?
 ```
+
+The two numbers are different things: definition text is what the scanner measures
+(and an allowlist makes it slightly *larger*, since the `tools` line adds characters);
+the tool-schema reduction is the larger runtime effect and is reported as a policy
+change, not a token figure, unless you measured it.
 
 ## Principles
 
 - **Conservative on tools, aggressive on dead weight.** Never strip a tool the agent
   might need without flagging it; freely cut duplicated boilerplate and re-pasted
   global rules.
-- **Measure, don't guess.** Lead with the scanner's numbers; quote token deltas. The
-  estimate is chars/4 — good enough to rank and to show a before/after, not a bill.
+- **Measure, don't guess, and say what was measured.** The scanner counts definition
+  text (chars/4): frontmatter plus body. It does not see tool schemas, inherited
+  CLAUDE.md, loaded skills or memory, so never present its total as launch cost or
+  its delta as savings. Rank with it, show before/after with it, label it.
 - **Preserve behaviour.** The optimised agent must do the same job — just leaner.
 - **One agent, one job.** If an agent does several jobs, say so and suggest splitting,
   but don't split without the user's go-ahead.

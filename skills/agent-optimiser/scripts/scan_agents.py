@@ -69,6 +69,64 @@ def est_tokens(text: str) -> int:
     return round(len(text) / 4)
 
 
+def _scalar(raw: str) -> str:
+    """Decode a plain or quoted single-line YAML scalar (strip matching quotes)."""
+    v = raw.strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        return v[1:-1]
+    return v
+
+
+def _truthy(raw: str) -> bool:
+    return _scalar(raw).lower() in {"true", "yes", "on", "1"}
+
+
+def _split_tools(raw: str) -> list[str]:
+    """Tokenize a `tools` value: comma/newline separated, `[...]` flow lists,
+    quoted items, `- item` block lists and `# comments`. Parentheses protect
+    their contents, so `Agent(worker, researcher)` and `Bash(git diff:*, git log:*)`
+    stay one tool each (quotes inside them are kept verbatim); quotes at the top
+    level are decoration and are dropped."""
+    tokens: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    i, n = 0, len(raw)
+    while i < n:
+        ch = raw[i]
+        if depth == 0 and ch in "\"'":
+            pass  # top-level quoting is decoration
+        elif ch == "#" and depth == 0 and (i == 0 or raw[i - 1] in " \t\n"):
+            while i < n and raw[i] != "\n":
+                i += 1
+            continue
+        elif ch == "(":
+            depth += 1
+            buf.append(ch)
+        elif ch == ")":
+            depth = max(depth - 1, 0)
+            buf.append(ch)
+        elif depth == 0 and ch in ",\n[]":
+            tokens.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    tokens.append("".join(buf))
+    out = []
+    for tok in tokens:
+        tok = tok.strip()
+        if tok.startswith("-"):
+            tok = tok[1:].strip()
+        if tok:
+            out.append(tok)
+    return out
+
+
+def _base_name(tool: str) -> str:
+    """`Agent(worker)` -> `Agent`; `mcp__x__y` unchanged."""
+    return tool.split("(", 1)[0].strip()
+
+
 def _memory_value(raw: str) -> str:
     """`memory: false/no/off/0` means disabled; return "" for those."""
     v = raw.strip().strip("\"'")
@@ -111,23 +169,19 @@ def parse_agent(path: Path):
         return None
 
     tools_raw = fields.get("tools")
-    tools: list[str] = []
-    if tools_raw is not None:
-        # Accept `A, B`, `[A, B]`, `"A, B"` and `- item` lists; drop `# comments`.
-        flat = re.sub(r"(?:^|\s)#[^\n]*", "", tools_raw, flags=re.M).replace("\n", ",")
-        for tok in flat.split(","):
-            tok = tok.strip().strip("[]\"'").strip().lstrip("-").strip().strip("\"'")
-            if tok:
-                tools.append(tok)
+    tools = _split_tools(tools_raw) if tools_raw is not None else []
     # An empty list (`tools: []`) is treated like a missing field: nothing is granted
     # explicitly, so the agent still inherits everything.
     has_tools = bool(tools)
 
-    desc = fields.get("description", "")
+    desc_raw = fields.get("description", "")
+    desc = _scalar(desc_raw) if "\n" not in desc_raw else desc_raw
     return {
         "path": str(path),
-        "name": fields.get("name", "").strip(),
-        "model": fields.get("model", "").strip(),  # "" => inherit (default)
+        "name": _scalar(fields.get("name", "")),
+        "model": _scalar(fields.get("model", "")),  # "" => inherit (default)
+        "permission_mode": _scalar(fields.get("permissionMode", "")),
+        "omit_claude_md": _truthy(fields.get("omitClaudeMd", "")),
         "memory": _memory_value(fields.get("memory", "")),
         "has_tools": has_tools,
         "tools": tools,
@@ -155,22 +209,24 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             "No `tools` field: inherits ALL tools every launch. Propose a "
             "minimal explicit allowlist (token + accuracy win).")
     else:
-        dead = [t for t in a["tools"] if t in SUBAGENT_DEAD_TOOLS]
+        bases = [_base_name(t) for t in a["tools"]]
+        dead = [t for t in bases if t in SUBAGENT_DEAD_TOOLS
+                and not (t == "ExitPlanMode" and a["permission_mode"] == "plan")]
         if dead:
             add("med", "DEAD_TOOL_ENTRY",
                 f"Tools a subagent can never use: {', '.join(dead)}. Remove.")
-        legacy = [t for t in a["tools"] if t in LEGACY_TOOL_NAMES]
+        legacy = [t for t in bases if t in LEGACY_TOOL_NAMES]
         if legacy:
             add("med", "LEGACY_TOOL_NAME",
                 "Names from older releases: " + "; ".join(
                     f"{t} -> {LEGACY_TOOL_NAMES[t]}" for t in legacy)
                 + ". Rename (verify against the installed version first).")
-        if "Agent" in a["tools"]:
+        if "Agent" in bases:
             add("low", "NESTED_AGENT_TOOL",
                 "Lists `Agent`: fine if the body delegates to sub-subagents (nesting is "
                 "on by default, up to three layers); dead at the depth limit or with "
                 "nesting off. Keep or drop? Ask, don't strip.")
-        stripped = [t for t in a["tools"] if t in BACKGROUND_STRIPPED_TOOLS]
+        stripped = [t for t in bases if t in BACKGROUND_STRIPPED_TOOLS]
         if stripped:
             add("low", "BACKGROUND_STRIPPED",
                 f"Removed from background subagents (the default): {', '.join(stripped)}. "
@@ -183,7 +239,7 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         # Read-only contradiction. A memory-enabled agent (memory: set) legitimately
         # needs Edit + Write to maintain its memory files, so those are justified
         # there and only the rest (e.g. NotebookEdit) is suspect.
-        write_tools = [t for t in a["tools"] if t in WRITE_FILE_TOOLS]
+        write_tools = [t for t in bases if t in WRITE_FILE_TOOLS]
         if write_tools and NO_WRITE_DECL.search(a["body"]):
             mem = bool(a["memory"])
             justified = {"Edit", "Write"} if mem else set()
@@ -194,6 +250,11 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
                 add("med", "WRITE_ON_READONLY",
                     f"Body declares it doesn't write code, yet grants {', '.join(suspect)}. "
                     f"Drop unless it truly writes.{extra}")
+
+    if a["omit_claude_md"]:
+        add("info", "OMITS_CLAUDE_MD",
+            "`omitClaudeMd: true`: this agent does NOT inherit CLAUDE.md, so rules "
+            "written into its body may be the only copy. Do not trim them as duplicates.")
 
     if not a["model"]:
         add("low", "MODEL_INHERIT",
@@ -310,15 +371,17 @@ def main():
             a.pop("body", None)
             a.pop("_paragraphs", None)
         print(json.dumps({"agents": agents, "duplicate_blocks": dups,
-                          "count": len(agents)}, indent=2))
+                          "count": len(agents),
+                          "metric": "definition text, chars/4; tool schemas and "
+                                    "inherited context are not measured"}, indent=2))
         return
 
     if not agents:
         print("No agent files found in:", ", ".join(paths))
         return
 
-    sev_order = {"high": 0, "med": 1, "low": 2}
-    print(f"Scanned {len(agents)} agent(s)\n" + "=" * 60)
+    sev_order = {"high": 0, "med": 1, "low": 2, "info": 3}
+    print(f"Scanned {len(agents)} agent(s); token figures are definition text only\n" + "=" * 60)
     for a in agents:
         tools = (f"{len(a['tools'])} tools" if a["has_tools"]
                  else "NO tools field (inherits all)")
@@ -326,8 +389,9 @@ def main():
         total = a["frontmatter_tokens"] + a["body_tokens"]
         print(f"\n● {a['name']}  [{model}]  {tools}")
         print(f"  {a['path']}")
-        print(f"  desc ~{a['desc_tokens']} tok | body {a['body_lines']} lines "
-              f"~{a['body_tokens']} tok | total ~{total} tok")
+        print(f"  definition text: desc ~{a['desc_tokens']} tok | body {a['body_lines']} lines "
+              f"~{a['body_tokens']} tok | total ~{total} tok "
+              "(chars/4 of the file; tool schemas and inherited context not counted)")
         for fl in sorted(a["flags"], key=lambda f: sev_order[f["severity"]]):
             print(f"    [{fl['severity']:>4}] {fl['code']}: {fl['message']}")
         if not a["flags"]:

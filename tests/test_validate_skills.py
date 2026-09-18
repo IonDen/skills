@@ -71,3 +71,29 @@ def test_empty_skills_tree_fails(validate, tmp_path):
     # Bug caught: returning 0 when the glob finds nothing lets a moved directory pass CI.
     (tmp_path / "skills").mkdir()
     assert validate.main(tmp_path) == 1
+
+
+# --- external audit R6 ------------------------------------------------------
+
+def test_quoted_empty_description_fails(validate, tmp_path):
+    # Bug caught (R6): matching raw text lets description: "" through as non-empty.
+    make_skill(tmp_path, "good-skill", description='""')
+    assert validate.main(tmp_path) == 1
+
+
+def test_malformed_yaml_frontmatter_fails(validate, tmp_path):
+    # Bug caught (R6): a regex parser accepts `description: [unterminated`.
+    make_skill(tmp_path, "good-skill", description="[unterminated")
+    assert validate.main(tmp_path) == 1
+
+
+def test_openai_yaml_fields_must_be_nested_under_interface(validate, tmp_path):
+    # Bug caught (R6): a root-level display_name: satisfies a line regex but not Codex.
+    make_skill(tmp_path, "good-skill", openai="display_name: X\nshort_description: Y\n")
+    assert validate.main(tmp_path) == 1
+
+
+def test_openai_yaml_values_must_be_non_empty_strings(validate, tmp_path):
+    # Bug caught (R6): `display_name:` with no value passes a presence check.
+    make_skill(tmp_path, "good-skill", openai="interface:\n  display_name:\n  short_description: Y\n")
+    assert validate.main(tmp_path) == 1

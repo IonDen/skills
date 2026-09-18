@@ -11,11 +11,11 @@ Any agent, with the [skills CLI](https://github.com/vercel-labs/skills):
 ```bash
 npx skills add IonDen/skills                      # pick skills interactively
 npx skills add IonDen/skills --skill agent-optimiser -g -a claude-code -y
-npx skills add IonDen/skills --skill agent-optimiser -g -a codex --copy -y
+npx skills add IonDen/skills --skill agent-optimiser -g -a codex -y
 npx skills update
 ```
 
-Codex does not follow symlinks, so pass `--copy` for it.
+Codex reads skills from `~/.agents/skills/` (user) and `.agents/skills/` (project) and follows symlinked skill folders; pass `--copy` if you would rather have real files.
 
 Claude Code, as a plugin:
 
@@ -36,7 +36,7 @@ Claude Code, as a plugin:
 python3 -m pytest tests -q
 ```
 
-The scripts are plain Python 3.10+ with no dependencies. Every test names the one-line bug that would make it fail.
+The skill's own scripts are plain Python 3.10+ with no dependencies. The repository validator and the tests need `pyyaml` and `pytest`. Every test names the one-line bug that would make it fail.
 
 ## License
 

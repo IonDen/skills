@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "ionden-skills",
+  "description": "Agent skills for Claude Code and Codex by Denis Ineshin.",
+  "version": "0.1.0",
+  "author": { "name": "Denis Ineshin", "url": "https://github.com/IonDen" },
+  "homepage": "https://github.com/IonDen/skills",
+  "repository": "https://github.com/IonDen/skills",
+  "license": "MIT",
+  "keywords": ["agents", "skills", "claude-code", "codex"],
+  "skills": ["./skills/agent-optimiser"]
+}

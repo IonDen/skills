@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
+  "name": "ionden",
+  "owner": { "name": "Denis Ineshin", "url": "https://github.com/IonDen" },
+  "description": "Denis Ineshin's agent skills as an installable Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "ionden-skills",
+      "source": "./",
+      "license": "MIT",
+      "description": "Agent skills for Claude Code and Codex."
+    }
+  ]
+}

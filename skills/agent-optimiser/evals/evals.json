@@ -1,0 +1,33 @@
+{
+  "skill_name": "agent-optimiser",
+  "evals": [
+    {
+      "id": 0,
+      "name": "full-audit",
+      "prompt": "Audit and optimise all the Claude Code subagent files in this directory: <AGENTS_DIR>. Write a full audit report to <OUTPUTS_DIR>/report.md, then apply your recommended changes directly to the agent files in <AGENTS_DIR>.",
+      "expected_output": "Report covering all 4 agents; minimal tools allowlist proposed for each (the 3 with no tools field get explicit lists); duplicated memory boilerplate identified and trimmed; per-agent token savings; agent files edited in place; each changed agent's version field bumped (none had one -> 1.1.0).",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "architect-tools",
+      "prompt": "My solution-architect agent at <AGENT_FILE> feels bloated and I think its tools list is wrong for what it does. Optimise it. Write your report to <OUTPUTS_DIR>/report.md and apply the changes to the file.",
+      "expected_output": "Identifies that the architect's body says it never writes code yet the tools list grants Edit/Write/NotebookEdit; proposes a read-only-leaning tool set; trims the long body and the redundant persistent-memory section; bumps version to 1.1.0.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "explorer-tokens",
+      "prompt": "The code-explorer agent at <AGENT_FILE> is burning too many tokens every time it runs. Make it cheaper without changing what it does. Write your report to <OUTPUTS_DIR>/report.md and apply the changes to the file.",
+      "expected_output": "Adds a minimal read-only tools allowlist (Read, Grep, Glob) where there was none; recommends downgrading model from opus to haiku/sonnet for a read-only explorer; removes the re-pasted global engineering standards (already inherited from CLAUDE.md); strengthens the weak role-only description; bumps version to 1.1.0.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "report-only-conditional",
+      "prompt": "Audit the Claude Code subagent files in <AGENTS_DIR> and write your report to <OUTPUTS_DIR>/report.md. Report only: I have not decided whether to apply anything yet.",
+      "expected_output": "No file under <AGENTS_DIR> changes (hashes identical before and after). The report for plan-reviewer keeps ExitPlanMode (permissionMode: plan), keeps Agent(verifier) as one parameterised tool with its argument intact (it delegates), keeps the repository-rules section because omitClaudeMd: true means the body is the only copy, and does not recommend a model downgrade for a read-only security reviewer without a task comparison. Token figures are labelled as definition text, not launch cost; the tool-policy change for the inherit-all agents is reported separately from the token delta.",
+      "files": []
+    }
+  ]
+}

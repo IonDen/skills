@@ -21,7 +21,9 @@ skill fills.
 - It's not only cost: the same docs note tool-selection **accuracy degrades as the
   tool list grows** (tens of tools). A tight allowlist makes the agent *more correct*,
   not just cheaper.
-- Tripwires for "too many tools": 10+ tools, or tool defs >10k tokens.
+- The scanner's trim point (`MANY_TOOLS`) is more than 10 tools on one agent: a
+  single-purpose agent rarely needs more, and every extra schema costs tokens and
+  selection accuracy.
 - An agent's *result* also costs the parent's context — instruct a concise summary,
   not a dump.
 
@@ -38,9 +40,18 @@ skill fills.
   "use the Write and Edit tools to update your memory files." Never strip `Edit`/`Write`
   from a memory-enabled agent; doing so silently breaks memory upkeep. `NotebookEdit`
   is still droppable (memory files are Markdown, not notebooks).
-- `[med] DEAD_TOOL_ENTRY` — tools on the documented subagent blacklist (`Agent`/`Task`,
-  `AskUserQuestion`, `EndConversation`, `EnterPlanMode`, `ExitPlanMode`, `ScheduleWakeup`,
+- `[med] DEAD_TOOL_ENTRY` — tools on the documented subagent blacklist
+  (`AskUserQuestion`, `EndConversation`, `EnterPlanMode`, `ExitPlanMode`, `ScheduleWakeup`,
   `TaskOutput`, `WaitForMcpServers`, `Workflow`). Remove.
+- `[med] LEGACY_TOOL_NAME` — a name from an older release (`Task`, `LS`, `MultiEdit`,
+  `NotebookRead`, `BashOutput`, `KillShell`). Rename to the current tool after checking
+  the installed version.
+- `[low] NESTED_AGENT_TOOL` — lists `Agent`. Nested subagents are on by default, so this
+  is legitimate for an agent that delegates; it is dead at the depth limit or with
+  nesting off. Ask keep-or-drop; never strip silently (see tool-catalog.md).
+- `[low] BACKGROUND_STRIPPED` — a tool the harness removes from background subagents
+  (`TaskCreate`/`TaskGet`/`TaskUpdate`/`TaskList`, `ListAgents`, `LSP`, MCP resource
+  tools). Only useful if the agent is launched in the foreground.
 - `[med] MANY_TOOLS` — >10 entries on a single-purpose agent; trim to what the body
   uses, or use `disallowedTools` if intent is "all except writes".
 - `[med]` Bash needed only for narrow ops (read-only git, SQL) → keep `Bash` but
@@ -57,8 +68,9 @@ skill fills.
 
 **model** (defaults to `inherit` when omitted)
 - `[low] MODEL_INHERIT` — fine if intentional. But pin `haiku` for mechanical/
-  read-only agents, and pin `sonnet`/`opus` for agents whose competence requirement
-  is fixed regardless of session model (don't let a planner silently run on Haiku).
+  read-only agents, and pin `sonnet`/`opus`/`fable` for agents whose competence
+  requirement is fixed regardless of session model (don't let a planner silently run
+  on Haiku).
 - Read-only/mechanical agent on `opus` → over-provisioned; recommend `haiku`/`sonnet`.
 - Haiku lacks MCP tool-search (`tool_reference`); a Haiku agent relying on many
   deferred MCP tools won't get on-demand loading.
@@ -94,8 +106,7 @@ skill fills.
 
 - Scope: project agents (`.claude/agents/`) should be checked into VCS for the team;
   a user-global agent that hardcodes one project's paths is mis-scoped.
-- `Task tool` references still work (aliased to `Agent` since v2.1.63) but can be
-  modernised.
+- `Task` is the old name of the `Agent` tool; rename when you touch the file.
 - Precedence (high→low): managed → `--agents` CLI → project → user → plugin.
 
 ## Tensions / judgement calls

@@ -18,20 +18,35 @@ automatically a typo.
 `Edit`, `Write`, `NotebookEdit`, `Bash`, `PowerShell`, `WebFetch`, `WebSearch`,
 `Skill`, `Monitor`, `TaskStop`, `SendMessage`, `EnterWorktree`, `ExitWorktree`
 
-**Task-list / coordination** (safe): `TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`,
-`ListAgents`, `TodoWrite` (disabled by default, kept for compatibility)
+**Task-list / coordination** (safe, but stripped from background subagents, see below):
+`TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`, `ListAgents`; `TodoWrite` (disabled by
+default, kept for compatibility)
 
-**Legacy names** you may still meet in older agent files: `LS`, `NotebookRead`,
-`MultiEdit`, `BashOutput`, `KillShell`, `TaskOutput` (deprecated: read the output
-file with `Read`). They are not in the current reference; suggest the current
-equivalent (`Glob`/`Read`, `Read`, `Edit`, `Monitor`, `TaskStop`) and flag, don't
-silently delete.
+**Legacy names** you may still meet in older agent files (`LEGACY_TOOL_NAME`): `Task`
+(now `Agent`), `LS` (use `Glob`/`Read`), `NotebookRead` (`Read`), `MultiEdit` (`Edit`),
+`BashOutput` (`Monitor`), `KillShell` (`TaskStop`), `TaskOutput` (deprecated: read the
+output file with `Read`). Suggest the current name and flag; verify against the
+installed version before deleting anything.
 
 **Never usable by a subagent — flag as dead entries in `tools`** (the documented
-universal blacklist): `AskUserQuestion`, `EndConversation`, `EnterPlanMode`,
-`ExitPlanMode` (unless `permissionMode: plan`), `ScheduleWakeup`, `TaskOutput`,
-`WaitForMcpServers`, `Workflow`, and `Agent` / `Task` once the nesting depth limit
-is reached — in practice a subagent cannot spawn subagents, so treat both as dead.
+universal blacklist, `DEAD_TOOL_ENTRY`): `AskUserQuestion`, `EndConversation`,
+`EnterPlanMode`, `ExitPlanMode` (unless `permissionMode: plan`), `ScheduleWakeup`,
+`TaskOutput`, `WaitForMcpServers`, `Workflow`.
+
+**`Agent` is conditional, not dead** (`NESTED_AGENT_TOOL`). Nested subagents are on by
+default, up to three layers below the main conversation; at the depth limit, or with
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1`, the harness withholds `Agent`. So a reviewer
+that dispatches a verifier per finding legitimately lists `Agent`, and the docs' own
+advice for keeping a subagent from spawning is to omit it. Treat it as a keep-or-drop
+question: keep if the body delegates, drop if it never does.
+
+**Background subagents lose some tools** (`BACKGROUND_STRIPPED`). Subagents run in the
+background by default and then keep only `Read`, `Grep`, `Glob`, `Bash`, `PowerShell`,
+`Edit`, `Write`, `NotebookEdit`, `WebFetch`, `WebSearch`, `TodoWrite`, `Skill`,
+`ToolSearch`, `EnterWorktree`, `ExitWorktree`, `Monitor`, `TaskStop`, `SendMessage`,
+`Artifact`. `TaskCreate`/`TaskGet`/`TaskUpdate`/`TaskList`, `ListAgents`, `LSP`,
+`ListMcpResourcesTool` and `ReadMcpResourceTool` are removed whether inherited or
+listed, so granting them only helps an agent launched in the foreground.
 
 MCP tools are named `mcp__<server>__<tool>`. Claude Code defers MCP tool definitions
 by default (only names and server instructions enter context until a tool is used),

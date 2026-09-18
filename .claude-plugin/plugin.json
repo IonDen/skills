@@ -7,6 +7,5 @@
   "homepage": "https://github.com/IonDen/skills",
   "repository": "https://github.com/IonDen/skills",
   "license": "MIT",
-  "keywords": ["agents", "skills", "claude-code", "codex"],
-  "skills": ["./skills/agent-optimiser"]
+  "keywords": ["agents", "skills", "claude-code", "codex"]
 }

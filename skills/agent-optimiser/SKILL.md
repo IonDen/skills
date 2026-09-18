@@ -20,14 +20,15 @@ Audit Claude Code subagent files and propose token-economy + quality fixes, then
 apply the approved ones and bump each changed agent's version.
 
 **The biggest win** is the `tools` field: an agent with no `tools` inherits *every*
-tool available to subagents, loading all schemas on every launch, and tool-selection
-accuracy degrades past a few dozen tools. A tight allowlist is cheaper *and* more
+tool available to subagents, loading all schemas on every launch, and every extra
+schema costs tokens and selection accuracy. A tight allowlist is cheaper *and* more
 correct. Read `references/best-practices.md` for the rationale behind each flag and
 `references/tool-catalog.md` for the tool list and archetype → tools map — consult
 both before proposing tool changes.
 
 All paths below are relative to this skill's directory (in Claude Code that is
-`${CLAUDE_SKILL_DIR}`; in Codex, `~/.codex/skills/agent-optimiser/`).
+`${CLAUDE_SKILL_DIR}`; in Codex, the `agent-optimiser/` folder under `~/.codex/skills/`
+or the project's `.agents/skills/`).
 
 ## Workflow
 
@@ -69,8 +70,10 @@ floor in `tool-catalog.md`. Then:
 - Keep anything *plausibly* used — when in doubt, keep it and **flag it as a question**
   ("body never edits files — drop `Edit`/`Write`? keep `Bash`?") rather than removing
   silently. Breaking an agent costs far more than a slightly wide list.
-- Remove dead entries (`Agent`/`Task`, `AskUserQuestion`, `Workflow`, plan/schedule
-  tools) outright — subagents can never use them.
+- Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`, plan/schedule
+  tools) outright — subagents can never use them. Rename legacy names (`Task` →
+  `Agent`). `Agent` itself is a question, not a removal: nested subagents are on by
+  default, so keep it when the body delegates and ask when it doesn't.
 - **Memory exception:** if frontmatter sets `memory:`, the agent needs `Edit` + `Write`
   to maintain its memory files — keep them even on an otherwise read-only agent. Never
   propose stripping them; it silently breaks memory upkeep. (`NotebookEdit` is still
@@ -92,8 +95,8 @@ floor in `tool-catalog.md`. Then:
 **Description.** Ensure concrete triggers ("use when…/after…"), a proactive cue if
 it should auto-fire, and no runaway multi-example bloat (it loads session-wide).
 
-**Model.** Match to job: `haiku` for mechanical/read-only, `sonnet`/`opus` where
-competence is fixed; flag read-only agents pinned to `opus`, and complex agents left
+**Model.** Match to job: `haiku` for mechanical/read-only, `sonnet`/`opus`/`fable`
+where competence is fixed; flag read-only agents pinned to `opus`, and complex agents left
 on default `inherit` that could silently run on a weak session model.
 
 **Frontmatter hygiene.** Name lowercase-hyphenated; required fields present; tool

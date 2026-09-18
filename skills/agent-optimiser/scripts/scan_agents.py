@@ -9,8 +9,9 @@ sizes, estimates tokens (~chars/4), and raises heuristic flags.
 Usage:
     python scan_agents.py [PATH ...] [--json] [--body-lines N] [--desc-chars N]
 
-PATH may be an agent .md file or a directory (searched recursively; only files
-with frontmatter containing both `name` and `description` are treated as agents).
+PATH may be an agent .md file or a directory (searched recursively; a file with
+frontmatter carrying `name` is treated as an agent, and a missing `description`
+is reported as a flag rather than silently dropping the file).
 With no PATH, scans ~/.claude/agents and ./.claude/agents. SKILL.md files are
 skipped when walking a directory (they carry the same frontmatter but are skills).
 
@@ -27,12 +28,23 @@ from pathlib import Path
 
 # --- Tool classification (mirror of references/tool-catalog.md) --------------
 # Tools a SUBAGENT can never use even if listed -> dead entries in `tools`.
-# Documented "universal blacklist" for subagents (code.claude.com/docs/en/sub-agents)
-# plus `Task`, the pre-2.1.63 alias of `Agent`. `ExitPlanMode` is usable only with
-# `permissionMode: plan`; `Agent` only while nested subagents are below the depth limit.
+# Documented "universal blacklist" for subagents (code.claude.com/docs/en/sub-agents).
+# `ExitPlanMode` is usable only with `permissionMode: plan`. `Agent` is NOT here:
+# nested subagents are on by default (up to three layers), so a fan-out agent may
+# legitimately list it; it is surfaced as a question instead (NESTED_AGENT_TOOL).
 SUBAGENT_DEAD_TOOLS = {
-    "Agent", "Task", "AskUserQuestion", "EndConversation", "EnterPlanMode",
-    "ExitPlanMode", "ScheduleWakeup", "TaskOutput", "WaitForMcpServers", "Workflow",
+    "AskUserQuestion", "EndConversation", "EnterPlanMode", "ExitPlanMode",
+    "ScheduleWakeup", "TaskOutput", "WaitForMcpServers", "Workflow",
+}
+# Names from older Claude Code releases that no longer appear in the tools reference.
+LEGACY_TOOL_NAMES = {
+    "Task": "Agent", "LS": "Glob or Read", "NotebookRead": "Read",
+    "MultiEdit": "Edit", "BashOutput": "Monitor", "KillShell": "TaskStop",
+}
+# Removed from background subagents (the default) whether inherited or listed.
+BACKGROUND_STRIPPED_TOOLS = {
+    "TaskCreate", "TaskGet", "TaskUpdate", "TaskList", "ListAgents", "LSP",
+    "ListMcpResourcesTool", "ReadMcpResourceTool",
 }
 # File-writing tools (presence on an agent that declares it doesn't write is a smell).
 WRITE_FILE_TOOLS = {"Edit", "Write", "NotebookEdit"}
@@ -42,8 +54,9 @@ WRITE_FILE_TOOLS = {"Edit", "Write", "NotebookEdit"}
 # so we key off the body declaration.
 NO_WRITE_DECL = re.compile(
     r"read[\s-]only"
-    r"|\b(?:never|do not|does not|don'?t|doesn'?t|without)\b"
-    r"(?:\s+\w+){0,2}?\s+(?:writ|edit|modif|chang|implement)\w*", re.I)
+    r"|\b(?:never|do not|does not|don'?t|doesn'?t|without)\b(?!\s+forget)"
+    r"(?:\s+\w+){0,2}?\s+(?:writ|edit|modif|chang|implement)\w*"
+    r"\s+(?:the\s+)?(?:code|files?|codebase|source|implementation|anything)\b", re.I)
 EMPHASIS = re.compile(r"\b(MUST|MUST NOT|NEVER|ALWAYS|DO NOT|CRITICAL|"
                       r"IMPORTANT|MANDATORY|REQUIRED)\b")
 
@@ -55,9 +68,15 @@ def est_tokens(text: str) -> int:
     return round(len(text) / 4)
 
 
+def _memory_value(raw: str) -> str:
+    """`memory: false/no/off/0` means disabled; return "" for those."""
+    v = raw.strip().strip("\"'")
+    return "" if v.lower() in {"", "false", "no", "off", "0", "none"} else v
+
+
 def parse_agent(path: Path):
     """Return a dict of parsed fields, or None if the file isn't an agent."""
-    raw = path.read_text(encoding="utf-8", errors="replace")
+    raw = path.read_text(encoding="utf-8-sig", errors="replace")
     if not raw.lstrip().startswith("---"):
         return None
     # Split frontmatter / body on the first two `---` fences.
@@ -76,7 +95,7 @@ def parse_agent(path: Path):
     # previous value (covers block scalars + the escaped multi-line description).
     fields: dict[str, str] = {}
     cur = None
-    key_re = re.compile(r"^([A-Za-z_][\w-]*):\s?(.*)$")
+    key_re = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*)$")
     for l in fm_lines:
         m = key_re.match(l)
         if m and not l.startswith((" ", "\t", "-")):
@@ -91,22 +110,24 @@ def parse_agent(path: Path):
         return None
 
     tools_raw = fields.get("tools")
-    has_tools = tools_raw is not None and tools_raw.strip() != ""
     tools: list[str] = []
-    if has_tools:
-        # Inline comma list and/or `- item` YAML list.
-        flat = tools_raw.replace("\n", ",")
+    if tools_raw is not None:
+        # Accept `A, B`, `[A, B]`, `"A, B"` and `- item` lists; drop `# comments`.
+        flat = re.sub(r"#[^\n]*", "", tools_raw).replace("\n", ",")
         for tok in flat.split(","):
-            tok = tok.strip().lstrip("-").strip()
+            tok = tok.strip().strip("[]\"'").strip().lstrip("-").strip().strip("\"'")
             if tok:
                 tools.append(tok)
+    # An empty list (`tools: []`) is treated like a missing field: nothing is granted
+    # explicitly, so the agent still inherits everything.
+    has_tools = bool(tools)
 
     desc = fields.get("description", "")
     return {
         "path": str(path),
         "name": fields.get("name", "").strip(),
         "model": fields.get("model", "").strip(),  # "" => inherit (default)
-        "memory": fields.get("memory", "").strip(),
+        "memory": _memory_value(fields.get("memory", "")),
         "has_tools": has_tools,
         "tools": tools,
         "description": desc,
@@ -137,10 +158,27 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         if dead:
             add("med", "DEAD_TOOL_ENTRY",
                 f"Tools a subagent can never use: {', '.join(dead)}. Remove.")
+        legacy = [t for t in a["tools"] if t in LEGACY_TOOL_NAMES]
+        if legacy:
+            add("med", "LEGACY_TOOL_NAME",
+                "Names from older releases: " + "; ".join(
+                    f"{t} -> {LEGACY_TOOL_NAMES[t]}" for t in legacy)
+                + ". Rename (verify against the installed version first).")
+        if "Agent" in a["tools"]:
+            add("low", "NESTED_AGENT_TOOL",
+                "Lists `Agent`: fine if the body delegates to sub-subagents (nesting is "
+                "on by default, up to three layers); dead at the depth limit or with "
+                "nesting off. Keep or drop? Ask, don't strip.")
+        stripped = [t for t in a["tools"] if t in BACKGROUND_STRIPPED_TOOLS]
+        if stripped:
+            add("low", "BACKGROUND_STRIPPED",
+                f"Removed from background subagents (the default): {', '.join(stripped)}. "
+                "Keep only if the agent is launched in the foreground.")
         if len(a["tools"]) > 10:
             add("med", "MANY_TOOLS",
-                f"{len(a['tools'])} tools listed; tool-selection accuracy "
-                "degrades past ~30-50. Trim to what the body actually uses.")
+                f"{len(a['tools'])} tools listed; a single-purpose agent rarely needs more "
+                "than ~10, and every extra schema costs tokens and selection accuracy. "
+                "Trim to what the body actually uses.")
         # Read-only contradiction. A memory-enabled agent (memory: set) legitimately
         # needs Edit + Write to maintain its memory files, so those are justified
         # there and only the rest (e.g. NotebookEdit) is suspect.
@@ -171,7 +209,7 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
                 f"description is {a['desc_chars']} chars (~{a['desc_tokens']} tok); "
                 "it loads session-wide for routing. Keep triggers + 1-2 tight examples.")
         if not re.search(
-                r"\b(use when|use this|after|whenever|proactiv|immediately)\b",
+                r"\b(use when|use this|after|whenever|proactive(?:ly)?|immediately)\b",
                 a["description"], re.I):
             add("med", "WEAK_TRIGGER",
                 "description lacks explicit trigger conditions ('use when...', "
@@ -232,7 +270,10 @@ def gather(paths: list[str]) -> list[Path]:
         elif pth.is_dir():
             # SKILL.md also carries `name` + `description` frontmatter but is a
             # skill, not an agent; a directory walk must not audit it as one.
-            out.extend(f for f in sorted(pth.rglob("*.md")) if f.name != "SKILL.md")
+            # A symlinked file could pull content from outside the scanned tree
+            # into the report; only plain files are agents.
+            out.extend(f for f in sorted(pth.rglob("*.md"))
+                       if f.name != "SKILL.md" and not f.is_symlink())
     # de-dup, preserve order
     seen, uniq = set(), []
     for f in out:

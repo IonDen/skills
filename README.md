@@ -30,6 +30,8 @@ Claude Code, as a plugin:
 |---|---|
 | [agent-optimiser](skills/agent-optimiser/) | You want your Claude Code subagents (`.claude/agents/*.md`) cheaper to launch and more reliable to trigger: it audits every agent for a missing or bloated `tools` allowlist, dead tool entries, duplicated boilerplate, weak descriptions and an over- or under-provisioned model, then applies the fixes you approve and bumps each edited agent's version. |
 
+![agent-optimiser: scan, judge, report and stop, apply; one agent goes from an inherit-all tools field to a six-tool allowlist and from about 2,210 to about 1,056 tokens of definition text](docs/images/agent-optimiser-workflow.svg)
+
 ## Development
 
 ```bash

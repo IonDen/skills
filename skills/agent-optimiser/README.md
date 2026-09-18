@@ -2,6 +2,10 @@
 
 Audits Claude Code subagent files (`.claude/agents/*.md`) and proposes fixes that make each agent cheaper to launch and more likely to trigger correctly: a minimal `tools` allowlist, trimmed system prompts, sharper descriptions, a model that fits the job. It reports first and edits only what you approve.
 
+![How agent-optimiser works and what to expect: a scan, judge, report-then-stop, apply pipeline, and a before/after of one agent from a recorded run](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/agent-optimiser-workflow.svg)
+
+The lower half of the picture is one agent from a recorded run. The token figures are definition text, characters divided by four over the agent file; the allowlist also stops every unused tool schema loading at launch, which the scanner does not count.
+
 ## Install
 
 ```bash

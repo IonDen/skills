@@ -1,0 +1,6 @@
+{
+  "probe-min-sonnet": {"description": "Probe. Use only when asked by name.", "prompt": "Reply with the single word ok and nothing else.", "model": "sonnet", "tools": ["Read", "Grep", "Glob"]},
+  "probe-all-sonnet": {"description": "Probe. Use only when asked by name.", "prompt": "Reply with the single word ok and nothing else.", "model": "sonnet"},
+  "probe-skill-haiku": {"description": "Probe. Use only when asked by name.", "prompt": "Reply with the single word ok and nothing else.", "model": "haiku", "tools": ["Read", "Grep", "Glob", "Skill"]},
+  "probe-bash-haiku": {"description": "Probe. Use only when asked by name.", "prompt": "Reply with the single word ok and nothing else.", "model": "haiku", "tools": ["Read", "Grep", "Glob", "Bash", "Edit", "Write"]}
+}

@@ -1,0 +1,4 @@
+{
+  "probe-all": {"description": "Probe agent with every tool inherited. Use only when asked by name.", "prompt": "Reply with the single word ok and nothing else.", "model": "haiku"},
+  "probe-min": {"description": "Probe agent with a minimal allowlist. Use only when asked by name.", "prompt": "Reply with the single word ok and nothing else.", "model": "haiku", "tools": ["Read", "Grep", "Glob"]}
+}

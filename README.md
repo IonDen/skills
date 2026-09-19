@@ -30,7 +30,7 @@ Claude Code, as a plugin:
 |---|---|
 | [agent-optimiser](skills/agent-optimiser/) | You want your Claude Code subagents (`.claude/agents/*.md`) cheaper to launch and more reliable to trigger: it audits every agent for a missing or bloated `tools` allowlist, dead tool entries, duplicated boilerplate, weak descriptions and an over- or under-provisioned model, then applies the fixes you approve and bumps each edited agent's version. |
 
-![agent-optimiser: scan, judge, report and stop, apply; one agent goes from an inherit-all tools field to a six-tool allowlist and from about 2,210 to about 1,056 tokens of definition text](docs/images/agent-optimiser-workflow.svg)
+![What a subagent costs to launch before and after agent-optimiser, measured on Claude Code 2.1.278: on Haiku a no-tools-field agent costs 18,437 tokens against 10,241 with a three-tool allowlist; on Sonnet 31,882 against 13,401; three real agents optimised by the skill dropped 31%, 13% and 3% with equivalent task results](docs/images/agent-optimiser-workflow.svg)
 
 ## Development
 

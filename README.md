@@ -1,8 +1,16 @@
-# skills
+# Agent skills for Claude Code and OpenAI Codex
 
 [![skills.sh](https://skills.sh/b/IonDen/skills)](https://skills.sh/IonDen/skills)
+[![validate](https://github.com/IonDen/skills/actions/workflows/validate.yml/badge.svg)](https://github.com/IonDen/skills/actions/workflows/validate.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Agent skills I use day to day with Claude Code and Codex. Each skill is a folder under `skills/` with a `SKILL.md`, and any references, scripts and evals it needs. They are published here when I could not find a good public equivalent.
+A small catalogue of agent skills I use day to day. Each skill is a folder with a `SKILL.md` that Claude Code and Codex load only when a task needs it. A skill lands here when I could not find a good public equivalent.
+
+## Skills
+
+| Skill | What it does |
+|---|---|
+| [agent-optimiser](skills/agent-optimiser/) | A subagent optimizer for Claude Code. It audits your `.claude/agents/*.md` files and cuts what each agent costs to launch: a tight `tools` allowlist, less prompt bloat, a model that fits the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
 
 ## Install
 
@@ -24,21 +32,13 @@ Claude Code, as a plugin:
 /plugin install ionden-skills@ionden
 ```
 
-## Skills
-
-| Skill | Use when |
-|---|---|
-| [agent-optimiser](skills/agent-optimiser/) | You want your Claude Code subagents (`.claude/agents/*.md`) cheaper to launch and more reliable to trigger: it audits every agent for a missing or bloated `tools` allowlist, dead tool entries, duplicated boilerplate, weak descriptions and an over- or under-provisioned model, then applies the fixes you approve and bumps each edited agent's version. |
-
-![What a subagent costs to launch before and after agent-optimiser, measured on Claude Code 2.1.278: on Haiku a no-tools-field agent costs 18,437 tokens against 10,241 with a three-tool allowlist; on Sonnet 31,882 against 13,401; three real agents optimised by the skill dropped 31%, 13% and 3% with equivalent task results](docs/images/agent-optimiser-workflow.svg)
-
 ## Development
 
 ```bash
 python3 -m pytest tests -q
 ```
 
-The skill's own scripts are plain Python 3.10+ with no dependencies. The repository validator and the tests need `pyyaml` and `pytest`. Every test names the one-line bug that would make it fail.
+The skills' own scripts are plain Python 3.10+ with no dependencies. The repository validator and the tests need `pyyaml` and `pytest`. Every test names the one-line bug that would make it fail.
 
 ## License
 

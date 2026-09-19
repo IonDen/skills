@@ -5,12 +5,12 @@ description: >-
   definitions (.claude/agents/*.md) — set a proper `tools` allowlist (an agent
   with no `tools` field inherits every tool on each launch), cut bloated or
   duplicated system prompts, tighten descriptions so they trigger reliably, and
-  right-size the model. Triggers: "optimise my agents", "audit my subagents",
-  "my agent uses too many tokens", "fix the tools list", "review .claude/agents",
-  "make my agents cheaper".
+  right-size the model. Triggers: "optimise my agents", "optimize my subagents",
+  "audit my subagents", "subagent optimizer", "my agent uses too many tokens",
+  "fix the tools list", "review .claude/agents", "make my agents cheaper".
 license: MIT
 metadata:
-  version: "1.2.0"
+  version: "1.2.1"
   author: IonDen
 ---
 

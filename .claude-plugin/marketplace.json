@@ -1,14 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
   "name": "ionden",
-  "owner": { "name": "Denis Ineshin", "url": "https://github.com/IonDen" },
-  "description": "Denis Ineshin's agent skills as an installable Claude Code plugin.",
+  "owner": {
+    "name": "Denis Ineshin",
+    "url": "https://github.com/IonDen"
+  },
+  "description": "Denis Ineshin's agent skills for Claude Code and OpenAI Codex, installable as a Claude Code plugin.",
   "plugins": [
     {
       "name": "ionden-skills",
       "source": "./",
       "license": "MIT",
-      "description": "Agent skills for Claude Code and Codex."
+      "description": "Agent skills for Claude Code and OpenAI Codex, starting with agent-optimiser: a subagent optimizer that cuts launch token cost."
     }
   ]
 }

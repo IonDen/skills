@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="IonDen/skills: agent skills for Claude Code and OpenAI Codex. agent-optimiser cuts the launch cost of Claude Code subagents; measured on a real agent, 20,122 to 13,962 tokens.">
+  <rect width="1280" height="640" fill="#ffffff"/>
+  <rect x="0" y="0" width="1280" height="10" fill="#0d9488"/>
+  <style>
+    .k { font: 500 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #64748b; }
+    .t { font: 700 64px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .s { font: 400 32px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #475569; }
+    .h { font: 600 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .v { font: 700 30px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .c { font: 400 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #64748b; }
+  </style>
+  <text class="k" x="80" y="110">IonDen/skills</text>
+  <text class="t" x="80" y="195">Agent skills for Claude Code</text>
+  <text class="t" x="80" y="270">and OpenAI Codex</text>
+  <text class="s" x="80" y="330">SKILL.md folders you install with npx skills add or as a plugin</text>
+
+  <text class="h" x="80" y="420">agent-optimiser: launch tokens of one real subagent</text>
+  <!-- scale: 22,000 tokens = 820 px -->
+  <rect x="80"  y="445" width="539.8" height="44" fill="#dc2626" rx="4"/>
+  <text class="v" x="636" y="478">20,122 before</text>
+  <rect x="80"  y="503" width="374.5" height="44" fill="#0d9488" rx="4"/>
+  <text class="v" x="471" y="536">13,962 after (−31%)</text>
+  <text class="c" x="80" y="590">bash-git-ops on Haiku 4.5, Claude Code 2.1.278, same task and result before and after</text>
+</svg>

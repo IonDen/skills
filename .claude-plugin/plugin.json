@@ -1,11 +1,23 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ionden-skills",
-  "description": "Agent skills for Claude Code and Codex by Denis Ineshin.",
+  "description": "Agent skills for Claude Code and OpenAI Codex. agent-optimiser audits Claude Code subagents for tool allowlists, prompt bloat and launch token cost.",
   "version": "0.1.0",
-  "author": { "name": "Denis Ineshin", "url": "https://github.com/IonDen" },
+  "author": {
+    "name": "Denis Ineshin",
+    "url": "https://github.com/IonDen"
+  },
   "homepage": "https://github.com/IonDen/skills",
   "repository": "https://github.com/IonDen/skills",
   "license": "MIT",
-  "keywords": ["agents", "skills", "claude-code", "codex"]
+  "keywords": [
+    "agent-skills",
+    "claude-code",
+    "claude-skills",
+    "codex",
+    "subagents",
+    "token-optimization",
+    "prompt-engineering",
+    "developer-tools"
+  ]
 }

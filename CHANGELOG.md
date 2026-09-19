@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-19 (discoverability)
+
+- READMEs lead with what the repository and `agent-optimiser` are for, in the terms people search with (Claude Code, OpenAI Codex, subagent optimizer, token cost), and carry the measured launch-cost figures up front. `agent-optimiser` 1.2.1 adds US-spelling triggers ("optimize my subagents", "subagent optimizer") to its description. Plugin manifests get fuller descriptions and keywords. A 1280×640 social preview card is in `docs/images/`.
+
 ## 2026-09-19
 
 - `agent-optimiser`: measured launch cost. A controlled probe on Claude Code 2.1.278 puts a no-`tools`-field subagent at 18,437 input tokens on Haiku 4.5 and 31,882 on Sonnet 5, against 10,241 and 13,401 with a three-tool allowlist. Three real agents optimised by the skill dropped 31%, 13% and 3% on the same task with equivalent results. Table, harness and the optimised files are under `evals/recorded/2026-09-19-launch-cost/`; the README diagram now shows these numbers.

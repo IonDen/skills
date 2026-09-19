@@ -2,7 +2,7 @@
 
 ## 2026-09-19 (discoverability)
 
-- READMEs lead with what the repository and `agent-optimiser` are for, in the terms people search with (Claude Code, OpenAI Codex, subagent optimizer, token cost), and carry the measured launch-cost figures up front. `agent-optimiser` 1.2.1 adds US-spelling triggers ("optimize my subagents", "subagent optimizer") to its description. Plugin manifests get fuller descriptions and keywords. A 1280×640 social preview card is in `docs/images/`.
+- The repository README is now a short catalogue: what the repository is, the skills table first, then install. The `agent-optimiser` README leads with what the skill is for, in the terms people search with (Claude Code, OpenAI Codex, subagent optimizer, token cost), and carries the launch-cost diagram and figures. `agent-optimiser` 1.2.1 adds US-spelling triggers ("optimize my subagents", "subagent optimizer") to its description. Plugin manifests get fuller descriptions and keywords. A 1280×640 social preview card is in `docs/images/`.
 
 ## 2026-09-19
 

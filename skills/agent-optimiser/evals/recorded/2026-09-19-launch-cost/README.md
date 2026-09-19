@@ -35,7 +35,8 @@ On Sonnet 5 and Opus 5 the base prompt is larger than on Haiku, and any agent th
 
 ```bash
 cd skills/agent-optimiser/evals/measure
-# controlled probe (two definitions in probe-agents.json)
+# controlled probe: probe-agents.json holds probe-all / probe-min on Haiku;
+# probe-agents-2.json holds the Sonnet pair and the Bash/Edit/Write and Skill cells (swap the agent name in the prompt)
 claude -p "Use the Agent tool to launch the probe-all agent with the prompt 'say ok'. Then reply with the single word done." \
   --model haiku --agents "$(cat probe-agents.json)" --strict-mcp-config --mcp-config '{"mcpServers":{}}' --max-turns 4 --output-format json < /dev/null > /dev/null
 # then read the subagent transcript under ~/.claude/projects/<cwd-slug>/<session>/subagents/*.jsonl:

@@ -15,10 +15,10 @@ Ground rules applied (from the brief):
 - Never delete an instruction that changes behaviour. Trimmed text is limited to the
   harness-injected persistent-memory block (all three agents set `memory: user`),
   cross-agent duplicated boilerplate, and description example bloat. I checked
-  `~/.claude/CLAUDE.md` for re-pasted global rules before cutting anything:
-  the global file has a gated-git rule (line 16: `push --force`, history rewrite,
-  `reset --hard`, … need explicit go-ahead on the main thread) and a plain-commit-message
-  rule (line 18), but the agent bodies do not re-paste them — they carry their own,
+  the user-level CLAUDE.md for re-pasted global rules before cutting anything:
+  the global file has a gated-git rule (force-push, history rewrite, hard reset need an
+  explicit go-ahead on the main thread) and a plain-commit-message rule, but the agent
+  bodies do not re-paste them — they carry their own,
   differently worded guidance — so nothing was cut on "duplicate of CLAUDE.md" grounds.
 - `model` fields left as they are.
 
@@ -52,11 +52,11 @@ Findings
 - [info] Description already has a trigger ("Use this agent when…"); body has an
   Output Format section; no CLAUDE.md re-paste found (see ground rules).
 - [obs]  Body line 57 "Follow conventional commit format when appropriate (feat:, fix:,
-  chore:)" sits in tension with the global rule "Commit messages: plain" (CLAUDE.md
-  line 18). It is not a duplicate and it does change behaviour, so it stays; recorded
+  chore:)" sits in tension with the global rule "Commit messages: plain" (a user-level
+  CLAUDE.md rule). It is not a duplicate and it does change behaviour, so it stays; recorded
   as open question Q1.
 - [obs]  Body lines 38 and 59 ask the agent to *confirm intent* before force-push /
-  hard reset, whereas the global rule (CLAUDE.md line 16) moves those ops to the main
+  hard reset, whereas the global rule (a user-level CLAUDE.md rule) moves those ops to the main
   thread entirely. Not a re-paste; left as is; recorded as open question Q2.
 
 Tool policy: inherit-all → `Bash, Read, Grep, Glob, Edit, Write`
@@ -98,9 +98,8 @@ Tool policy: inherit-all → `Read, Edit, Write, Grep, Glob, Bash, Skill`
     syntactically correct and logically sound" (Quality Standards) plausibly needs a
     compile/test/lint run. Kept (Q3).
   ? Skill: keep or drop? — the body never invokes a skill, but this user-scope agent
-    inherits the workspace CLAUDE.md, which requires every coding task to invoke
-    `user-mlx-developer` + `test-driven-development` (and `writing-tests-that-can-fail`
-    for tests). Without `Skill` it cannot comply. Kept (Q4).
+    inherits a workspace CLAUDE.md that requires coding tasks to invoke specific
+    skills. Without `Skill` it cannot comply. Kept (Q4).
   NotebookEdit: not granted — the body never mentions notebooks.
   (schema cost of the removed tools is not measured by the scanner)
 
@@ -147,8 +146,7 @@ Tool policy: 15 tools → `Glob, Grep, Read, Edit, Write, WebFetch, WebSearch, S
     Phase C ("Evaluate 2-3 viable architectural approaches") plausibly needs library /
     pattern research; the catalogue lists them as the architect's research add-on. Kept (Q6).
   ? Skill: keep or drop? — not named in the body, but the inherited workspace CLAUDE.md
-    routes planning through `superpowers:brainstorming` / `superpowers:writing-plans`
-    and MLX design through `user-mlx-developer`. Kept (Q7).
+    routes planning and domain design through skills. Kept (Q7).
   ? EnterWorktree: keep or drop? — never mentioned in the body; the one plausible use is
     inspecting another branch during Phase A without disturbing the user's checkout.
     The skill's net check says granted-but-unused → drop, but no reference classifies
@@ -184,25 +182,24 @@ Apply all / pick per-agent / adjust?  → Edits were authorised up front; applie
   18). Not a duplicate and behaviour-bearing, so kept. Do you want the prefix advice
   removed so the body cannot be read as licensing a format the global rule forbids?
 - Q2 (bash-git-ops, body): lines 38/59 tell the agent to confirm intent / warn before
-  force-push, hard reset, history rewrite; the global rule (CLAUDE.md line 16) says
+  force-push, hard reset, history rewrite; the global rule (a user-level CLAUDE.md rule) says
   those ops need explicit go-ahead and run on the main thread, never in this agent.
   Kept as is. Do you want the body to say "report BLOCKED" for gated ops instead?
 - Q3 (plan-driven-coder, tools): keep `Bash`? Kept — plausibly needed to run
   tests/linters to satisfy "ensure code is syntactically correct".
 - Q4 (plan-driven-coder, tools): keep `Skill`? Kept — needed to honour the inherited
-  workspace rule that every coding task invokes `user-mlx-developer` +
-  `test-driven-development`.
+  workspace rule that every coding task invokes specific skills.
 - Q5 (solution-architect, tools): `TaskCreate/TaskGet/TaskUpdate/TaskList` were
   dropped (unused by the body; stripped in background launches). If you launch this
   agent in the foreground and want it to file tasks, they should be re-added.
 - Q6 (solution-architect, tools): keep `WebFetch, WebSearch`? Kept — plausible for
   Phase C research; drop if the architect should stay offline.
 - Q7 (solution-architect, tools): keep `Skill`? Kept — needed for the workspace's
-  brainstorming / writing-plans / user-mlx-developer routing.
+  skill routing for planning and domain design.
 - Q8 (solution-architect, tools): keep `EnterWorktree`? Kept — unused by the body;
   drop unless you want it inspecting other branches in isolation.
 - Q9 (all three, description): each description was cut from 3–4 examples to 2. If a
-  dropped example was load-bearing for routing in your sessions, restore it.
+  dropped example was load-bearing for routing in practice, restore it.
 
 ---
 

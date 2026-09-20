@@ -22,7 +22,7 @@ npx skills add IonDen/skills --skill subagent-optimizer -g -a codex -y
 npx skills update
 ```
 
-Codex reads skills from `~/.agents/skills/` (user) and `.agents/skills/` (project) and follows symlinked skill folders; pass `--copy` if you would rather have real files.
+Most agents share `.agents/skills`, so the CLI installs there by default. Claude Code reads `.claude/skills` instead, which is why `-a claude-code` is on the lines above: without it the CLI asks which agents you want and Claude Code is not pre-selected. Pass `--copy` if you would rather have real files than symlinks.
 
 Claude Code, as a plugin:
 

@@ -1,16 +1,16 @@
 ---
-name: agent-optimiser
+name: subagent-optimizer
 description: >-
   Use when asked to audit, optimise, slim down, or fix Claude Code subagent
   definitions (.claude/agents/*.md) — set a proper `tools` allowlist (an agent
   with no `tools` field inherits every tool on each launch), cut bloated or
   duplicated system prompts, tighten descriptions so they trigger reliably, and
-  right-size the model. Triggers: "optimise my agents", "optimize my subagents",
+  right-size the model. Triggers: "optimize my subagents", "optimise my agents",
   "audit my subagents", "subagent optimizer", "my agent uses too many tokens",
   "fix the tools list", "review .claude/agents", "make my agents cheaper".
 license: MIT
 metadata:
-  version: "1.2.1"
+  version: "1.3.0"
   author: IonDen
 ---
 
@@ -28,7 +28,7 @@ both before proposing tool changes.
 
 All paths below are relative to this skill's directory: in Claude Code that is
 `${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from
-(`~/.agents/skills/agent-optimiser/`, a project's `.agents/skills/agent-optimiser/`,
+(`~/.agents/skills/subagent-optimizer/`, a project's `.agents/skills/subagent-optimizer/`,
 or the older `~/.codex/skills/`). Resolve scripts from that directory, not from a
 guessed home path.
 

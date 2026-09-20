@@ -1,11 +1,11 @@
-"""Load the agent-optimiser scripts as modules without installing anything."""
+"""Load the subagent-optimizer scripts as modules without installing anything."""
 import importlib.util
 import sys
 from pathlib import Path
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "agent-optimiser" / "scripts"
+SCRIPTS = Path(__file__).resolve().parent.parent / "skills" / "subagent-optimizer" / "scripts"
 
 
 def _load(name: str):

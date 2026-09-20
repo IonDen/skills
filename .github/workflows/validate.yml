@@ -21,6 +21,6 @@ jobs:
       - name: Check skill layout
         run: python3 scripts/validate_skills.py
       - name: Validate against the Agent Skills spec
-        run: agentskills validate ./skills/agent-optimiser
+        run: agentskills validate ./skills/subagent-optimizer
       - name: Tests
         run: python3 -m pytest tests -q

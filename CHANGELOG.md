@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-20 (harness safety)
+
+- Hardened `evals/measure/measure.sh` after a Socket audit on skills.sh flagged it. It validated nothing, so a crafted label could write outside the output directory; it passed `--dangerously-skip-permissions`; and a shell expansion sat inside a quoted heredoc, so the summary path never resolved and the script failed at its last step. It now validates the label and both paths, uses the `acceptEdits` permission mode, passes the output directory to Python as an argument, and documents that it runs an agent against a throwaway copy. Five tests cover the guards.
+
 ## 2026-09-20 (later)
 
 - Dropped the skills.sh badge from the README. That endpoint renders an install count, and until skills.sh attaches one to this repository it returns a "resource not found" badge. The listing is linked in the install section instead; the badge can come back once a count appears.

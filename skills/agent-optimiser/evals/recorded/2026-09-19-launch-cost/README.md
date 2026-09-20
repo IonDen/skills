@@ -2,7 +2,7 @@
 
 Three agent definitions were optimised by the skill (a fresh Claude agent following SKILL.md, edits authorised, models left unchanged, every "flag as a question" tool kept), then each version was launched on the same fixed task and the input tokens of the subagent's first API request were read from the session transcript. That first request is the launch cost: system prompt, tool schemas, CLAUDE.md, the agent body, and the task.
 
-Setup: Claude Code 2.1.278 on macOS, `claude -p` with `--agents` built from each file, MCP servers disabled (`--strict-mcp-config`), the user-level CLAUDE.md loaded as usual, one run per cell. The harness is in `../../measure/` (`md2agent.py`, `measure.sh`, the probe agent definitions); `before/` is `../../fixtures/`, `after/` is in this directory, and `optimiser-report.md` is the report the skill wrote.
+Setup: Claude Code 2.1.278 on macOS, `claude -p` with `--agents` built from each file, MCP servers disabled (`--strict-mcp-config`), the user-level CLAUDE.md loaded as usual, one run per cell. The harness is in `../../measure/`, hardened on 2026-09-20 after a Socket audit (it validates the label, refuses to bypass permissions, and no longer mis-resolves the summary path); re-running the `bash-git-ops` before case with the hardened script gave 20,099 tokens against the 20,122 recorded here, the difference being ordinary session-context variation (`md2agent.py`, `measure.sh`, the probe agent definitions); `before/` is `../../fixtures/`, `after/` is in this directory, and `optimiser-report.md` is the report the skill wrote.
 
 ## Controlled probe: the tool schemas alone
 

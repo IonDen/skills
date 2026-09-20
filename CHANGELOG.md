@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-20 (later)
+
+- Dropped the skills.sh badge from the README. That endpoint renders an install count, and until skills.sh attaches one to this repository it returns a "resource not found" badge. The listing is linked in the install section instead; the badge can come back once a count appears.
+
 ## 2026-09-20
 
 - The `agent-optimiser` README is rebuilt around what a stranger needs: why the skill exists, a table of every flag with its typical fix, an explicit list of what it does not do, one real before-and-after of an agent it edited, the trigger phrases in quotes, the file tree, the documentation it follows, and a collapsed version history. `.codex-plugin/plugin.json` makes `codex plugin marketplace add` resolve natively instead of through the Claude path, and CI validates the skill against the Agent Skills spec with the `skills-ref` reference validator.

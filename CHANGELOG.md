@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-20
+
+- The `agent-optimiser` README is rebuilt around what a stranger needs: why the skill exists, a table of every flag with its typical fix, an explicit list of what it does not do, one real before-and-after of an agent it edited, the trigger phrases in quotes, the file tree, the documentation it follows, and a collapsed version history. `.codex-plugin/plugin.json` makes `codex plugin marketplace add` resolve natively instead of through the Claude path, and CI validates the skill against the Agent Skills spec with the `skills-ref` reference validator.
+
 ## 2026-09-19 (discoverability)
 
 - The repository README is now a short catalogue: what the repository is, the skills table first, then install. The `agent-optimiser` README leads with what the skill is for, in the terms people search with (Claude Code, OpenAI Codex, subagent optimizer, token cost), and carries the launch-cost diagram and figures. `agent-optimiser` 1.2.1 adds US-spelling triggers ("optimize my subagents", "subagent optimizer") to its description. Plugin manifests get fuller descriptions and keywords. A 1280×640 social preview card is in `docs/images/`.

@@ -17,8 +17,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install
-        run: python3 -m pip install pyyaml pytest
+        run: python3 -m pip install pyyaml pytest skills-ref
       - name: Check skill layout
         run: python3 scripts/validate_skills.py
+      - name: Validate against the Agent Skills spec
+        run: agentskills validate ./skills/agent-optimiser
       - name: Tests
         run: python3 -m pytest tests -q

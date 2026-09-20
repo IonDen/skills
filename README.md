@@ -1,6 +1,5 @@
 # Agent skills for Claude Code and OpenAI Codex
 
-[![skills.sh](https://skills.sh/b/IonDen/skills)](https://skills.sh/IonDen/skills)
 [![validate](https://github.com/IonDen/skills/actions/workflows/validate.yml/badge.svg)](https://github.com/IonDen/skills/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -14,7 +13,7 @@ A small catalogue of agent skills I use day to day. Each skill is a folder with 
 
 ## Install
 
-Any agent, with the [skills CLI](https://github.com/vercel-labs/skills):
+Any agent, with the [skills CLI](https://github.com/vercel-labs/skills). The skills are also listed at [skills.sh/ionden/skills](https://skills.sh/ionden/skills):
 
 ```bash
 npx skills add IonDen/skills                      # pick skills interactively

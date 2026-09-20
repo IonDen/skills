@@ -3,7 +3,7 @@
 Target list (resolved from the invocation): the three agent files in
 `<run>/after/`
 (`bash-git-ops.md`, `plan-driven-coder.md`, `solution-architect.md`), copied from the
-agent-optimiser eval fixtures. `before/` holds the untouched originals.
+subagent-optimizer eval fixtures. `before/` holds the untouched originals.
 
 Scanner: `scripts/scan_agents.py --json` over `before/`. Token figures throughout are
 **definition text only** (chars/4 of frontmatter + body); tool schemas, inherited

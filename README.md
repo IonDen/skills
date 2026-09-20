@@ -9,7 +9,7 @@ A small catalogue of agent skills I use day to day. Each skill is a folder with 
 
 | Skill | What it does |
 |---|---|
-| [agent-optimiser](skills/agent-optimiser/) | A subagent optimizer for Claude Code. It audits your `.claude/agents/*.md` files and cuts what each agent costs to launch: a tight `tools` allowlist, less prompt bloat, a model that fits the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
+| [subagent-optimizer](skills/subagent-optimizer/) | Audits your `.claude/agents/*.md` files and cuts what each agent costs to launch: a tight `tools` allowlist, less prompt bloat, a model that fits the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
 
 ## Install
 
@@ -17,8 +17,8 @@ Any agent, with the [skills CLI](https://github.com/vercel-labs/skills). The ski
 
 ```bash
 npx skills add IonDen/skills                      # pick skills interactively
-npx skills add IonDen/skills --skill agent-optimiser -g -a claude-code -y
-npx skills add IonDen/skills --skill agent-optimiser -g -a codex -y
+npx skills add IonDen/skills --skill subagent-optimizer -g -a claude-code -y
+npx skills add IonDen/skills --skill subagent-optimizer -g -a codex -y
 npx skills update
 ```
 

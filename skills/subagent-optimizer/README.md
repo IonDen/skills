@@ -1,4 +1,4 @@
-# agent-optimiser: cut the token cost of Claude Code subagents
+# subagent-optimizer: cut the token cost of Claude Code subagents
 
 A subagent optimizer for Claude Code, packaged as an agent skill. It reads your `.claude/agents/*.md` files, reports what each one wastes on every launch, and applies only the fixes you approve. It is plain Markdown plus two Python scripts, so it also runs under OpenAI Codex and anything else that loads `SKILL.md`.
 
@@ -58,15 +58,15 @@ Then the body: a 46-line "Persistent Agent Memory" section, which the harness in
 
 145 lines became 102. `Edit` and `Write` stayed, because `memory: user` needs them and stripping them silently breaks memory upkeep. Launched on the same task, before and after, the agent returned the same answer and its first request went from 20,122 to 13,962 input tokens.
 
-![Claude Code subagent launch tokens before and after agent-optimiser, measured on Claude Code 2.1.278: a no-tools-field agent against a three-tool allowlist on Haiku and Sonnet, and three real agents that dropped 31%, 13% and 3% with equivalent results](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/agent-optimiser-workflow.svg)
+![Claude Code subagent launch tokens before and after subagent-optimizer, measured on Claude Code 2.1.278: a no-tools-field agent against a three-tool allowlist on Haiku and Sonnet, and three real agents that dropped 31%, 13% and 3% with equivalent results](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/subagent-optimizer-workflow.svg)
 
 Full method, table and harness: [`evals/recorded/2026-09-19-launch-cost/`](evals/recorded/2026-09-19-launch-cost/).
 
 ## Install
 
 ```bash
-npx skills add IonDen/skills --skill agent-optimiser -g -a claude-code -y
-npx skills add IonDen/skills --skill agent-optimiser -g -a codex -y   # --copy for real files
+npx skills add IonDen/skills --skill subagent-optimizer -g -a claude-code -y
+npx skills add IonDen/skills --skill subagent-optimizer -g -a codex -y   # --copy for real files
 ```
 
 As a plugin, which also keeps it updated:
@@ -89,7 +89,7 @@ It reports first and stops. Nothing is edited until you say so.
 ## What ships
 
 ```text
-agent-optimiser/
+subagent-optimizer/
 ├── SKILL.md                     the workflow: scope, scan, analyse, report, apply
 ├── agents/openai.yaml           Codex and ChatGPT metadata
 ├── references/

@@ -11,7 +11,7 @@
       "name": "ionden-skills",
       "source": "./",
       "license": "MIT",
-      "description": "Agent skills for Claude Code and OpenAI Codex, starting with agent-optimiser: a subagent optimizer that cuts launch token cost."
+      "description": "Agent skills for Claude Code and OpenAI Codex, starting with subagent-optimizer: a subagent optimizer that cuts launch token cost."
     }
   ]
 }

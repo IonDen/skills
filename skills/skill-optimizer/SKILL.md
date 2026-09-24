@@ -32,9 +32,9 @@ Double-quote every path you put into a command, and if a path contains a shell
 metacharacter such as `$`, `;`, `|` or a backtick, stop and ask the user first.
 
 Default mode is report, then apply on approval. Do not change the user's skill
-before they approve. A report-only request writes nothing. A request that
-already says to apply ("shrink it and apply the result") applies every cut the
-gate passes, with no questions.
+before they approve. A report-only request changes nothing in the user's skill.
+A request that already says to apply ("shrink it and apply the result") applies
+every cut the gate passes, with no questions.
 
 Run the workflow through to the report without stopping to ask. When you are
 not sure a cut or a move is safe, keep the text, carry on, and list the cut in
@@ -46,15 +46,16 @@ losing an instruction is not.
 Skip this step when the user names a skill that is not installed (a repository
 checkout, a copy in a temp directory) or says to skip it.
 
-Otherwise, in Claude Code, get the `/skill-doctor` report: run
-`claude -p "/skill-doctor"` if the shell allows it, or ask the user to run
-`/skill-doctor` and paste the table. Quote only the rows you act on.
+Otherwise, in Claude Code, run `claude -p "/skill-doctor"` if the shell allows
+it. Quote only the rows you act on. For a named skill, do not wait for the
+report: proceed, and note its usage data if you have it. Ask the user to run
+`/skill-doctor` and paste the table only for a general request, when the
+command cannot run.
 
 - Usage data is information only. Show which skills are never invoked or cost
   the most, and never recommend disabling or deleting a skill; the user decides.
 - A general request ("my skills eat my context"): list the skills by listing
   cost, each with its usage, and ask which to optimize.
-- A named skill: proceed, and note its usage data in the report.
 - No report (Codex, an older Claude Code): say that no usage data was available and continue.
 
 Spec compliance, broken links and frontmatter faults belong to other tools:
@@ -64,7 +65,7 @@ linter. Mention one if you notice such a fault, and move on.
 ## 2. Measure and snapshot
 
 ```bash
-python3 scripts/measure_skills.py <skill-dir>
+python3 scripts/measure_skills.py "<skill-dir>"
 mktemp -d
 ```
 
@@ -103,7 +104,7 @@ commands, thresholds, gotchas, and the reason attached to a rule. Then check the
 list:
 
 ```bash
-python3 scripts/extract_requirements.py <work>/original --requirements <work>/requirements.md --dry-run
+python3 scripts/extract_requirements.py "<work>/original" --requirements "<work>/requirements.md" --dry-run
 ```
 
 It prints two groups. The first is every sentence that has no rule word, no
@@ -114,7 +115,7 @@ that is an instruction, a condition or a reason; what is left is what you may
 cut. When the list is right, freeze it, once:
 
 ```bash
-python3 scripts/extract_requirements.py <work>/original --requirements <work>/requirements.md -o <work>/frozen.json
+python3 scripts/extract_requirements.py "<work>/original" --requirements "<work>/requirements.md" -o "<work>/frozen.json"
 ```
 
 It refuses an anchor that is not in the original, and it refuses to overwrite
@@ -154,7 +155,7 @@ sentence.
 ## 5. Gate the candidate
 
 ```bash
-python3 scripts/verify_rewrite.py --frozen <work>/frozen.json --original <skill-dir> --candidate <work>/candidate
+python3 scripts/verify_rewrite.py --frozen "<work>/frozen.json" --original "<skill-dir>" --candidate "<work>/candidate"
 ```
 
 | Exit | Status | Next |
@@ -167,7 +168,7 @@ python3 scripts/verify_rewrite.py --frozen <work>/frozen.json --original <skill-
 
 Use `--approved` only after the user answers the optional-cuts list. Write the
 sentences they approve deleting to `<work>/approved.txt`, one per line, copied
-exactly, and add `--approved <work>/approved.txt` to the gate command. Only the
+exactly, and add `--approved "<work>/approved.txt"` to the gate command. Only the
 user's answer to a sentence you listed counts as approval. A request to delete
 a section, or to apply everything, does not approve the rule sentences in it.
 Never write approved.txt before the user answers.
@@ -191,7 +192,7 @@ Never write approved.txt before the user answers.
 
 Without a way to start a fresh agent, say which of 2 and 3 were skipped and why.
 
-## 7. Report, then wait
+## 7. Report, then apply what is approved
 
 ```text
 ## <skill-name>
@@ -224,17 +225,19 @@ Description suggestions (not applied)
 
 Every cut needs a reason in that list, and every optional cut its saving. Fill
 "Deleted with your approval" from the gate's "deleted with the user's approval"
-lines, one line each, or leave it out. Put description ideas under "Description suggestions": when the description
-passes a limit `measure_skills.py` notes, or says what the skill does but not
-when to use it.
-Never apply them; the user may want the triggers as they are.
+lines, one line each, or leave it out. Put description ideas under "Description
+suggestions": when the description passes a limit `measure_skills.py` notes, or
+says what the skill does but not when to use it. Never apply them; the user may
+want the triggers as they are.
 
 Apply when the request approved applying, or after the user approves. Optional
 cuts stay unapplied until the user picks them; then make those cuts, add any
 approved sentences to approved.txt, and gate again. If the user declines a cut,
 put that text back in the candidate and gate again. Right before copying, gate
-once more; it must exit 0, or 3 when the user approved every move it lists. Then run
-`mkdir -p <skill-dir>/references` if the candidate has references, and copy
-`<work>/candidate/SKILL.md` and each new reference file over the skill. If the
-skill lives in a plugin cache or a directory an installer manages, say that an
-update will overwrite the change and that the lasting fix belongs in its source.
+once more; it must exit 0, or 3 when the user approved every move it lists.
+Then run `mkdir -p "<skill-dir>/references"` if the candidate has references,
+and copy `"<work>/candidate/SKILL.md"` over the skill's SKILL.md. Copy each new
+reference file only if that path does not exist in the skill; never overwrite a
+file. If the skill lives in a plugin cache or a directory an installer manages,
+say that an update will overwrite the change and that the lasting fix belongs
+in its source.

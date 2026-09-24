@@ -21,20 +21,20 @@ A skill's description and any `when_to_use` field are paid on every turn it coul
 | `ORIGINAL_CHANGED` | The skill on disk isn't the one that was frozen |
 | `FRONTMATTER_CHANGED` | Any byte of the frontmatter differs |
 | `FILE_CHANGED` | A file other than `SKILL.md` differs or is missing |
-| `UNEXPECTED_FILE` | A new file sits outside `references/*.md`, or a file is a symlink |
+| `UNEXPECTED_FILE` | A new file sits outside `references/*.md`, a file is a symlink, or a new reference takes a path that already exists in the installed skill as a file or link |
 | `NEW_TEXT` | A sentence or heading uses words the original never put together. The one exception is the line that points to a new reference, and it may add at most 25 words and no strong rule word |
 | `CODE_EDITED` | A surviving code block differs from every block in the original |
 | `RULE_LOST` | A sentence or heading with a rule word is gone or was edited |
 | `ANCHOR_LOST` | A sentence a requirement anchors is gone or was edited |
 | `LITERAL_LOST` | A command, path, flag, URL, version, date or threshold is gone or changed |
-| `PROMINENCE_LOST` | A strong rule or a rule heading now has text in front of it that used to sit behind it, or sits deeper than it did. A rule heading the original repeats, such as "Pitfalls to avoid" in two sections, has no single position, so only its existence is checked |
+| `PROMINENCE_LOST` | A strong rule or a rule heading now has text in front of it that used to sit behind it, or sits deeper than it did. A rule heading the original repeats, such as "Pitfalls to avoid" in two sections, has no single position, but its highest copy may not end up deeper than the highest level it had |
 | `TERMINAL_MOVED` | A closing rule no longer closes the body |
 | `REFERENCE_UNLINKED` | A new `references/` file exists, but nothing in the body sends the agent to it |
 | `NOT_SMALLER` | The candidate body didn't get smaller |
 | `MOVED_TO_REFERENCE` | A rule or an anchored sentence now lives only in a new reference file (exit 3, not a rejection) |
-| `SECTION_CHANGED` | A rule or an anchored sentence now sits under a different heading (exit 3, not a rejection). A shortened heading still counts as the heading it was cut from, when exactly one original heading fits |
+| `SECTION_CHANGED` | A rule or an anchored sentence now sits under a different heading (exit 3, not a rejection). A shortened heading still counts as the heading it was cut from, when exactly one original heading fits and that heading is no longer in the body |
 
-The first thirteen codes reject the candidate outright. `MOVED_TO_REFERENCE` and `SECTION_CHANGED` don't reject. The workflow puts each such rule back where it was and lists the move under "Optional further cuts (not applied)", unless your request already approved moving that item. A rule sentence, a rule heading or an anchored sentence can also be deleted outright, but only after you approve that exact text: it goes into `approved.txt`, one sentence per line, copied exactly, and the gate is re-run with `--approved approved.txt`. The text has to be gone whole. If a candidate sentence keeps some of its words in order ("Deploy on Fridays." left from "Deploy on Fridays only when the lead signs off."), the gate reads it as trimmed, not deleted, and still rejects it. A literal that appeared only in sentences you approved and that were deleted whole goes with them. Without that file, deleting a rule sentence is `RULE_LOST` and the candidate is rejected.
+The first thirteen codes reject the candidate outright. `MOVED_TO_REFERENCE` and `SECTION_CHANGED` don't reject. The workflow puts each such rule back where it was and lists the move under "Optional further cuts (not applied)", unless your request already approved moving that item. A rule sentence, a rule heading or an anchored sentence can also be deleted outright, but only after you approve that exact text: it goes into `approved.txt`, one sentence per line, copied exactly, and the gate is re-run with `--approved approved.txt`. The text has to be gone whole. If a candidate sentence keeps some of its words in order ("Deploy on Fridays." left from "Deploy on Fridays only when the lead signs off."), the gate reads it as trimmed, not deleted, names the sentence left over, and still rejects it. A literal that appeared only in sentences you approved and that were deleted whole goes with them. Without that file, deleting a rule sentence is `RULE_LOST` and the candidate is rejected.
 
 A sentence with no rule word and no anchor is protected only through the literals it carries, if any. Before the freeze, a dry run lists those sentences in two groups, the ones nothing protects and the ones protected only through a literal, so the instructions and conditions among them can be anchored first.
 

@@ -311,28 +311,30 @@ def _looks_like_path(p: str) -> bool:
 def literals(body: str) -> list[str]:
     """Exact text that must survive: inline code, lines of runnable code fences,
     URLs, long flags, version pins, versions, dates, paths, and numbers that
-    carry a unit or a bound. Text inside example fences is not scanned."""
-    found = set()
-    kept = []
+    carry a unit or a bound. Text inside example fences is not scanned. Each unit
+    (a sentence run, a list item, a table cell, a heading) is scanned on its own,
+    so a match never runs from one cell or item into the next."""
+    out = set()
     for u in units(body):
+        text = u["text"]
+        found = set()
         if u["kind"] == "code":
             if u["lang"] in EXAMPLE_LANGS:
                 continue
-            found.add(" ".join(u["text"].split()))
-        kept.append(u["text"])
-    text = "\n".join(kept)
-    for pat in LITERAL_RES:
-        for m in pat.finditer(text):
-            v = " ".join(m.group(1).split())
-            if pat is not LITERAL_RES[0]:
-                v = v.rstrip(".,;:")
-            if v:
+            found.add(" ".join(text.split()))
+        for pat in LITERAL_RES:
+            for m in pat.finditer(text):
+                v = " ".join(m.group(1).split())
+                if pat is not LITERAL_RES[0]:
+                    v = v.rstrip(".,;:")
+                if v:
+                    found.add(v)
+        for m in PATH_RE.finditer(text):
+            v = m.group(1).rstrip(".,;:")
+            if _looks_like_path(v):
                 found.add(v)
-    for m in PATH_RE.finditer(text):
-        v = m.group(1).rstrip(".,;:")
-        if _looks_like_path(v):
-            found.add(v)
-    return sorted({w for v in found for w in _on_boundaries(text, v)})
+        out.update(w for v in found for w in _on_boundaries(text, v))
+    return sorted(out)
 
 
 def _on_boundaries(text: str, literal: str) -> list[str]:

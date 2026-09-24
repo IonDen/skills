@@ -1,4 +1,6 @@
 """skill-optimizer shared parsing. Each test names the one-line bug that would make it fail."""
+from pathlib import Path
+
 import pytest
 
 
@@ -121,6 +123,11 @@ def test_contains_literal_respects_token_boundaries(skillmd):
     "Use python-3.12 or node-18.2 on the runner.",
     "Logs land in build-2026-09-24.txt.",
     "The tag is release-v1.4.0, not v1.3.0.",
+    # A bound in one row's last cell followed by a word in the next row's first cell.
+    "| Metric | Full | Tiny |\n|---|---|---|\n| LPIPS | ≤ 0.10 | ≤ 0.20 |\n"
+    "| Pixel mismatch ratio | — | ≤ 0.15 (15% of pixels) |\n",
+    # The same across two list items and two paragraphs.
+    "- keep it under 20\n- GiB of headroom is not the point\n\nStay below 3\n\nRuns are fine.\n",
 ])
 def test_every_literal_is_found_in_its_own_body(skillmd, body):
     # Bug caught: extraction and the survival check disagree on token boundaries,
@@ -130,6 +137,18 @@ def test_every_literal_is_found_in_its_own_body(skillmd, body):
     assert lits
     for lit in lits:
         assert skillmd.contains_literal(body, lit), lit
+
+
+REPO = Path(__file__).resolve().parent.parent
+REAL_SKILLS = sorted(REPO.glob("skills/*/SKILL.md")) + sorted(REPO.glob("skills/*/evals/fixtures/*/SKILL.fixture.md"))
+
+
+@pytest.mark.parametrize("path", REAL_SKILLS, ids=lambda p: str(p.relative_to(REPO)))
+def test_every_literal_of_a_real_skill_is_found_in_it(skillmd, path):
+    # Bug caught: a freeze that records a literal the gate cannot find in the same
+    # file, so the unchanged skill fails with LITERAL_LOST.
+    _, body = skillmd.split_frontmatter(path.read_text(encoding="utf-8"))
+    assert [lit for lit in skillmd.literals(body) if not skillmd.contains_literal(body, lit)] == []
 
 
 def test_a_prefixed_version_is_still_protected(skillmd):

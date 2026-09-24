@@ -122,6 +122,8 @@ skill-optimizer/
 
 ## Version history
 
+**1.0.2**: The freeze reads each table cell, list item and paragraph on its own. Before, a bound at the end of one table row ran into the first word of the next (`≤ 0.20` plus `Pixel`), and the gate rejected the unchanged skill because that joined text never appears in the file.
+
 **1.0.1**: A version, date or number written inside a longer name, such as `rust-v0.156.1` or `python-3.12`, is now frozen as the whole name. Before, the freeze kept only `v0.156.1`, which the gate then could not find on its own, so a skill that mentioned such a name was rejected even when nothing in it had changed.
 
 **1.0.0**: First public release.

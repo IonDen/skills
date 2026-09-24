@@ -13,7 +13,7 @@ description: >-
   "trim SKILL.md", "my skills eat my context", "skill optimizer".
 license: MIT
 metadata:
-  version: "1.0.1"
+  version: "1.0.2"
   author: IonDen
 ---
 

@@ -28,6 +28,13 @@
       "prompt": "Audit the Claude Code subagent files in <AGENTS_DIR> and write your report to <OUTPUTS_DIR>/report.md. Report only: I have not decided whether to apply anything yet.",
       "expected_output": "No file under <AGENTS_DIR> changes (hashes identical before and after). The report for plan-reviewer keeps ExitPlanMode (permissionMode: plan), keeps Agent(verifier) as one parameterised tool with its argument intact (it delegates), keeps the repository-rules section because omitClaudeMd: true means the body is the only copy, and does not recommend a model downgrade for a read-only security reviewer without a task comparison. Token figures are labelled as definition text, not launch cost; the tool-policy change for the inherit-all agents is reported separately from the token delta.",
       "files": []
+    },
+    {
+      "id": 4,
+      "name": "effort-readonly",
+      "prompt": "Review the log-searcher agent at <AGENT_FILE>: is its model and effort setup right for what it does? Write your report to <OUTPUTS_DIR>/report.md. Report only; do not change the file.",
+      "expected_output": "The file is unchanged. The report shows the agent's model and effort (sonnet, max), flags HIGH_EFFORT_READONLY because the agent is read-only (Read, Grep, Glob) and only finds and quotes log lines, and recommends a lower effort (low or medium) as a candidate to verify on the agent's real task, not as a measured saving. It does not propose adding tools.",
+      "files": []
     }
   ]
 }

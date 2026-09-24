@@ -1,8 +1,11 @@
-# subagent-optimizer: cut the token cost of Claude Code subagents
+# subagent-optimizer: cut the token cost of Claude Code subagents and Codex agents
 
-A subagent optimizer for Claude Code, packaged as an agent skill. It reads your `.claude/agents/*.md` files, reports what each one wastes on every launch, and applies only the fixes you approve. It works on subagent definitions only; for agent skills (`SKILL.md` folders) use `skill-optimizer`. It is plain Markdown plus two Python scripts, so it also runs under OpenAI Codex and anything else that loads `SKILL.md`.
+A subagent optimizer for Claude Code and OpenAI Codex, packaged as an agent skill. It reads your agent definition files, reports what each one wastes or gets wrong, and applies only the fixes you approve. It works on agent definitions only; for agent skills (`SKILL.md` folders) use `skill-optimizer`. It is plain Markdown plus two Python scripts, so it runs under Claude Code, Codex and anything else that loads `SKILL.md`.
 
-Triggers: "audit my subagents", "optimize my agents", "my agent uses too many tokens", "fix my agent's tools list", "review .claude/agents", "make my agents cheaper".
+- Claude Code subagents: `~/.claude/agents/*.md` and a project's `.claude/agents/`.
+- Codex custom agents: `~/.codex/agents/*.toml` and a project's `.codex/agents/` (reading them needs Python 3.11 or later).
+
+Triggers: "audit my subagents", "optimize my agents", "audit my codex agents", "my agent uses too many tokens", "fix my agent's tools list", "review .claude/agents", "review .codex/agents", "make my agents cheaper".
 
 ## Why this exists
 
@@ -27,13 +30,27 @@ Measured on Claude Code 2.1.278, the same one-line agent cost 18,437 input token
 | `MODEL_INHERIT` | No `model`, so it runs on whatever the session uses | Pin when competence is fixed, together with effort |
 | `EFFORT_INHERIT` | No `effort`, so it reasons at the session's effort level | Pin with the model when the job's depth is fixed |
 | `EFFORT_INVALID` | An `effort` value other than `low`, `medium`, `high`, `xhigh`, `max` | Use one of the five |
-| `EFFORT_UNSUPPORTED` | `effort` set on `haiku`, which ignores it | Drop the field, or pick a model that supports effort |
+| `EFFORT_UNSUPPORTED` | `effort` set on a Haiku model, which ignores it | Drop the field, or pick a model that supports effort |
 | `HIGH_EFFORT_READONLY` | `xhigh` or `max` on an agent that cannot edit files or run shell commands | Asked as a question; a lower level is a candidate to test on the agent's real task |
 | `OMITS_CLAUDE_MD` | `omitClaudeMd: true`, so body rules may be the only copy | Never trimmed as duplicates |
 
+Codex custom agents have no per-agent tool list, so none of the tool flags apply to them. They get their own checks, plus the length and duplicate-block checks above:
+
+| Flag | What it means | Typical fix |
+|---|---|---|
+| `CODEX_MISSING_REQUIRED` | `name`, `description` or `developer_instructions` is missing or blank, so Codex refuses the agent | Fill it in |
+| `CODEX_CLAUDE_KEY` | A Claude Code key such as `tools` or `effort`; Codex skips an agent with any unknown key | Remove it (`effort` becomes `model_reasoning_effort`) |
+| `CODEX_IGNORED_KEY` | `sandbox_mode`, `mcp_servers` and similar keys, which current Codex does not apply to a custom agent | Don't rely on them |
+| `CODEX_EFFORT_INVALID` | A `model_reasoning_effort` outside `low`, `medium`, `high`, `xhigh`, `max`, `ultra` | Use a level the model offers |
+| `CODEX_EFFORT_UNSUPPORTED` | A level the pinned model does not offer, such as `ultra` on `gpt-6-luna` | A lower level, as a candidate to test |
+| `CODEX_MODEL_RETIRED` | A model retired or deprecated for ChatGPT sign-in, such as `gpt-5.5` or `gpt-5.4` | An available model |
+| `CODEX_MODEL_WITHOUT_EFFORT` | `model` set without `model_reasoning_effort`, so the agent keeps an effort the model may not offer | Set both |
+
+The model and effort tables in the scanner are dated (2026-09-24); your account's live model list is what counts, so unknown models are never flagged.
+
 ## What it does not do
 
-It does not write agents for you, invent tools an agent never mentions, or touch a file before you approve the report. It does not measure launch cost: the scanner counts the text of the agent file, and the tool-schema saving is reported as a policy change, not a number. It knows Claude Code subagents, not Codex agent configuration, which is a different format.
+It does not write agents for you, invent tools an agent never mentions, or touch a file before you approve the report. It does not measure launch cost: the scanner counts the text of the agent file, and the tool-schema saving is reported as a policy change, not a number. For Codex agents it never adds a key, including a version field, because Codex skips an agent with a key it does not know; it edits only the lines it changes and never rewrites the whole file.
 
 ## One real before and after
 
@@ -86,7 +103,8 @@ By hand: copy this folder into `~/.claude/skills/` or `~/.agents/skills/`.
 
 ## Use
 
-- "Audit my subagents": scans `~/.claude/agents/` and reports per agent.
+- "Audit my subagents": scans `~/.claude/agents/` and `~/.codex/agents/` and reports per agent.
+- "Audit my Codex agents": the Codex files only.
 - "Optimize the solution-architect agent": one agent.
 - "Make the agents in .claude/agents cheaper": a project directory.
 
@@ -103,11 +121,12 @@ subagent-optimizer/
 │   └── tool-catalog.md          built-in tools, the subagent blacklist, archetype to tools
 ├── scripts/
 │   ├── scan_agents.py           the scanner: flags, sizes, cross-agent duplicate blocks
-│   └── bump_version.py          bumps the version of an edited agent
+│   └── bump_version.py          bumps the version of an edited Claude agent (refuses Codex files)
 └── evals/
-    ├── evals.json               five prompts with expected outcomes
+    ├── evals.json               six prompts with expected outcomes
     ├── fixtures/                the agents they run against
     ├── fixtures-effort/         the read-only agent at effort max for eval 4
+    ├── fixtures-codex/          the Codex agent with copied Claude keys for eval 5
     └── recorded/                measured runs, with the harness that produced them
 ```
 
@@ -120,7 +139,7 @@ The flag list follows Anthropic's own documentation: [subagents](https://code.cl
 <details>
 <summary>Show release notes</summary>
 
-**1.4.0**: The model advice now covers reasoning effort too. The scanner reads the `effort` field, prints it next to the model, and raises four new flags: `EFFORT_INHERIT` when the field is missing (not on `haiku`, which has no effort levels), `EFFORT_UNSUPPORTED` when it is set on `haiku`, `EFFORT_INVALID` for a value outside the five documented levels, and `HIGH_EFFORT_READONLY` when a read-only agent runs at `xhigh` or `max`. The skill recommends model and effort together from the agent's job and presents any change as a candidate to test. The description now says the skill is for subagent definitions and that agent skills belong to `skill-optimizer`.
+**1.4.0**: The model advice now covers reasoning effort too. The scanner reads the `effort` field, prints it next to the model, and raises four new flags: `EFFORT_INHERIT` when the field is missing (not on Haiku, which has no effort levels), `EFFORT_UNSUPPORTED` when it is set on a Haiku model, `EFFORT_INVALID` for a value outside the five documented levels, and `HIGH_EFFORT_READONLY` when a read-only agent runs at `xhigh` or `max`. The skill recommends model and effort together from the agent's job and presents any change as a candidate to test. It also audits Codex custom agents (`.codex/agents/*.toml`): seven `CODEX_*` flags cover missing required keys, Claude keys that make Codex skip the agent, keys Codex ignores, effort levels the model does not offer, retired models and a model pinned without an effort. `bump_version.py` refuses Codex files. The description now says the skill is for agent definitions in both tools and that agent skills belong to `skill-optimizer`.
 
 **1.3.1**: Two sentences in SKILL.md that only restated the sentence before them are gone. Behaviour is unchanged.
 

@@ -1,6 +1,6 @@
 interface:
   display_name: "Subagent Optimizer"
-  short_description: "Cut the launch token cost of Claude Code subagents"
+  short_description: "Audit Claude Code subagents and Codex custom agents"
   default_prompt: "Use $subagent-optimizer to audit my Claude Code agents for token cost, tool allowlists and trigger quality."
 policy:
   allow_implicit_invocation: true

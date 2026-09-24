@@ -193,3 +193,14 @@ def test_sentences_protected_only_by_a_literal_are_listed_apart(freezer, make_sk
     assert "  - If the cache is stale, ask the maintainer." in plain and "make clean" not in plain
     for s in ("If the build fails, run `make clean` and retry.", "Run `make test` after a failed merge."):
         assert f"  - {s}" in literal
+
+
+def test_anchor_words_are_counted_as_the_matcher_reads_them(freezer, make_skill):
+    # Bug caught: counting anchor words by whitespace, so "Subject–verb proximity"
+    # (three words to the matcher, the en dash splits them) is refused as two and
+    # a short principle label cannot be protected.
+    d = make_skill("## Principles\n\nSubject–verb proximity. Keep the verb near its subject.\n")
+    frozen = freezer.freeze(d, "R1: Keep subject and verb close.\n  anchor: Subject–verb proximity\n")
+    assert frozen["requirements"][0]["protects"][0]["key"] == "Subject–verb proximity"
+    with pytest.raises(freezer.FreezeError, match="shorter than"):
+        freezer.freeze(d, "R1: x.\n  anchor: Subject–verb\n")

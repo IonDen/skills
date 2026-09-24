@@ -101,7 +101,7 @@ def resolve_anchors(body: str, reqs: list[dict]) -> list[dict]:
         protects = []
         for a in r["anchors"]:
             na = skillmd.normalise(a)
-            if len(na.split()) < MIN_ANCHOR_WORDS:
+            if len(skillmd.tokens(na)) < MIN_ANCHOR_WORDS:   # words as the gate reads them
                 problems.append(f"{r['id']}: anchor {a!r} is shorter than {MIN_ANCHOR_WORDS} words")
                 continue
             hits = list({(t["kind"], t["key"]): t for t in targets if na in t["key"]}.values())

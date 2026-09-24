@@ -642,3 +642,21 @@ def test_a_trimmed_heading_keeps_its_section(freezer, gate, make_skill, tmp_path
     ambiguous = two.replace(EXPLANATION, "").replace("## Running the tests in CI", "## Running the tests")
     r = gate_on(freezer, gate, make_skill, tmp_path, two, TAG, ambiguous)
     assert [c["code"] for c in r["confirm"]] == ["SECTION_CHANGED"], (r["rejected"], r["confirm"])
+
+
+def test_original_skill_md_linked_per_file_is_read(freezer, gate, make_skill, tmp_path, capsys):
+    # Bug caught: refusing every linked SKILL.md under --original, so the gate can
+    # never run against a skill installed per file (stow, home-manager), or
+    # accepting a link to any file, so --original reads ~/.ssh/id_rsa.
+    store = make_skill(ORIGINAL, where="store/demo")
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(freezer.freeze(store, REQS)), encoding="utf-8")
+    installed = tmp_path / "installed"
+    installed.mkdir()
+    (installed / "SKILL.md").symlink_to(store / "SKILL.md")
+    args = ["--frozen", str(frozen_path), "--original", str(installed), "--candidate", str(store)]
+    assert gate.main(args) == 0
+    (installed / "SKILL.md").unlink()
+    (installed / "SKILL.md").symlink_to(_secret(tmp_path))
+    assert gate.main(args) == 2
+    assert "PRIVATE" not in capsys.readouterr().err

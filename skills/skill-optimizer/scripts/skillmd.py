@@ -74,8 +74,23 @@ class SymlinkError(OSError):
 def _real_file(path) -> Path:
     path = Path(path)
     if path.is_symlink():
-        raise SymlinkError(f"{path} is a symlink; copy the skill with its links resolved (cp -RL)")
+        raise SymlinkError(f"{path} is a symlink; the scripts do not follow links "
+                           "(snapshot the skill with scripts/snapshot.py)")
     return path
+
+
+def skill_md(path) -> Path:
+    """The file to read for a skill's SKILL.md. A link is followed only when it
+    resolves to a regular file named SKILL.md: a per-file install (stow,
+    home-manager) of the skill the user named. Any other link is refused."""
+    path = Path(path)
+    if not path.is_symlink():
+        return path
+    target = path.resolve()
+    if target.name != "SKILL.md" or not target.is_file():
+        raise SymlinkError(f"{path} is a symlink to something other than a SKILL.md; "
+                           "the scripts do not follow it")
+    return target
 
 
 def read_text(path) -> str:

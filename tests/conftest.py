@@ -58,6 +58,11 @@ def gate():
     return _load("verify_rewrite", OPTIMIZER_SCRIPTS)
 
 
+@pytest.fixture(scope="session")
+def snapshot():
+    return _load("snapshot", OPTIMIZER_SCRIPTS)
+
+
 @pytest.fixture
 def make_skill(tmp_path):
     """Write a skill directory: SKILL.md with the given body, plus extra files."""

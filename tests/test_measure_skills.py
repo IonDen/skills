@@ -83,3 +83,14 @@ def test_single_quotes_and_literal_blocks_parse_to_their_text(measure, make_skil
     assert quoted["description_chars"] == len("It's quick")
     # A newline and a space are one character each, so the text itself is compared.
     assert measure.fields("---\nname: demo\ndescription: |\n  one\n  two\n---\n")["description"] == "one\ntwo"
+
+
+def test_cli_reads_a_skill_md_linked_per_file(measure, make_skill, tmp_path, capsys):
+    # Bug caught: refusing every linked SKILL.md, so a skill installed per file
+    # (stow, home-manager: SKILL.md -> .../demo/SKILL.md) cannot be measured at all.
+    store = make_skill("Body.\n", where="store/demo", frontmatter=fm("Use when x."))
+    d = tmp_path / "installed"
+    d.mkdir()
+    (d / "SKILL.md").symlink_to(store / "SKILL.md")
+    assert measure.main([str(d)]) == 0
+    assert capsys.readouterr().out.startswith("demo: listing 11 chars")

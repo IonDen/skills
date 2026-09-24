@@ -44,8 +44,11 @@ Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
                          [--approved approved.txt] [--json]
-Exit 2 on a missing or unreadable input, a symlinked SKILL.md, or a frozen file
-from an older extract_requirements.py.
+--original may name a skill whose SKILL.md is a link to a file named SKILL.md
+(a per-file install); the gate reads that file. Exit 2 on a missing or
+unreadable input, a candidate SKILL.md that is a symlink, an original SKILL.md
+linked to anything but a SKILL.md, or a frozen file from an older
+extract_requirements.py.
 """
 from __future__ import annotations
 
@@ -91,7 +94,9 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             deleted.append(key)
 
     if original_dir is not None:
-        if skillmd.sha256_file(Path(original_dir) / "SKILL.md") != frozen["files"]["SKILL.md"]:
+        # A per-file install links SKILL.md to the real one; any other link is refused.
+        original_md = skillmd.skill_md(Path(original_dir) / "SKILL.md")
+        if skillmd.sha256_file(original_md) != frozen["files"]["SKILL.md"]:
             reject("ORIGINAL_CHANGED", "the skill's SKILL.md changed after it was frozen")
 
     fm, body = skillmd.split_frontmatter(skillmd.read_text(candidate_dir / "SKILL.md"))

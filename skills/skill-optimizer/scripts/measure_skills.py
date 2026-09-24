@@ -10,7 +10,10 @@ mark a description over a documented limit, because text past a limit is
 dropped or rejected, not because a smaller number is better.
 
 Usage: measure_skills.py <skill-dir | SKILL.md> [...] [--json]
-Exit 2 when a path does not exist, has no SKILL.md, or its SKILL.md is a symlink.
+A SKILL.md that is a symlink is read only when the link resolves to a file named
+SKILL.md (a per-file install); any other link is refused.
+Exit 2 when a path does not exist, has no SKILL.md, or its SKILL.md is a link to
+anything else.
 """
 from __future__ import annotations
 
@@ -64,7 +67,7 @@ def skill_file(path: Path) -> Path:
 
 def measure(path) -> dict:
     p = skill_file(path)
-    fm, body = skillmd.split_frontmatter(skillmd.read_text(p))
+    fm, body = skillmd.split_frontmatter(skillmd.read_text(skillmd.skill_md(p)))
     f = fields(fm)
     description, when = f.get("description", ""), f.get("when_to_use", "")
     listing = len(description) + len(when)

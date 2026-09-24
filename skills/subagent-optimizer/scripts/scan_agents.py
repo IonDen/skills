@@ -48,6 +48,12 @@ BACKGROUND_STRIPPED_TOOLS = {
 }
 # File-writing tools (presence on an agent that declares it doesn't write is a smell).
 WRITE_FILE_TOOLS = {"Edit", "Write", "NotebookEdit"}
+# Any of these (or no `tools` field at all) means the agent can change things.
+MUTATING_TOOLS = WRITE_FILE_TOOLS | {"Bash"}
+# Documented `effort` values (code.claude.com/docs/en/sub-agents); which ones a
+# given model accepts varies, so this is only the outer set.
+EFFORT_LEVELS = {"low", "medium", "high", "xhigh", "max"}
+TOP_EFFORT_LEVELS = {"xhigh", "max"}
 # An explicit "I don't write/edit/change code" statement in the BODY is a
 # high-signal read-only mandate. Matching role words in the NAME instead caused
 # false positives (e.g. "plan-driven-coder" matched "plan" yet genuinely codes),
@@ -180,6 +186,7 @@ def parse_agent(path: Path):
         "path": str(path),
         "name": _scalar(fields.get("name", "")),
         "model": _scalar(fields.get("model", "")),  # "" => inherit (default)
+        "effort": _scalar(fields.get("effort", "")),  # "" => inherits from session
         "permission_mode": _scalar(fields.get("permissionMode", "")),
         "omit_claude_md": _truthy(fields.get("omitClaudeMd", "")),
         "memory": _memory_value(fields.get("memory", "")),
@@ -260,6 +267,19 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         add("low", "MODEL_INHERIT",
             "No `model`: defaults to `inherit` (uses parent's model). Pin "
             "haiku for mechanical/read-only, or sonnet/opus if competence is fixed.")
+
+    if not a["effort"]:
+        add("low", "EFFORT_INHERIT",
+            "No `effort`: runs at the session's effort level. Pin it with the model "
+            "when the job's depth is fixed (low for lookups, high for planners).")
+    elif a["effort"] not in EFFORT_LEVELS:
+        add("med", "EFFORT_INVALID",
+            f"effort '{a['effort']}' is not one of low, medium, high, xhigh, max.")
+    elif (a["effort"] in TOP_EFFORT_LEVELS and a["has_tools"]
+          and not {_base_name(t) for t in a["tools"]} & MUTATING_TOOLS):
+        add("low", "HIGH_EFFORT_READONLY",
+            f"effort {a['effort']} on a read-only agent. Does the job need it? "
+            "A lower level is a candidate to verify on its real task.")
 
     if not a["description"].strip():
         add("high", "MISSING_DESCRIPTION",
@@ -386,8 +406,9 @@ def main():
         tools = (f"{len(a['tools'])} tools" if a["has_tools"]
                  else "NO tools field (inherits all)")
         model = a["model"] or "inherit (default)"
+        effort = a["effort"] or "inherit (session)"
         total = a["frontmatter_tokens"] + a["body_tokens"]
-        print(f"\n● {a['name']}  [{model}]  {tools}")
+        print(f"\n● {a['name']}  [{model}, effort {effort}]  {tools}")
         print(f"  {a['path']}")
         print(f"  definition text: desc ~{a['desc_tokens']} tok | body {a['body_lines']} lines "
               f"~{a['body_tokens']} tok | total ~{total} tok "

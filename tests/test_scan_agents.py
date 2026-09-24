@@ -283,3 +283,63 @@ def test_readable_report_labels_the_metric_as_definition_text(scan, agent_file):
     out = subprocess.run([sys.executable, str(scan.__file__), str(p)],
                          capture_output=True, text=True, check=True).stdout
     assert "definition text" in out and "tokens/launch" not in out
+
+
+# --- effort (reasoning effort next to the model) ---------------------------
+
+def test_effort_is_parsed_like_model(scan, agent_file):
+    # Bug caught: reading `effort` without `_scalar` keeps the quotes, so "high" never validates.
+    quoted = agent_file("a", 'description: Use when x\ntools: Read\neffort: "high"\n')
+    missing = agent_file("b", "description: Use when x\ntools: Read\n")
+    assert scan.parse_agent(quoted)["effort"] == "high"
+    assert scan.parse_agent(missing)["effort"] == ""
+
+
+def test_effort_invalid_flags_values_outside_the_documented_five(scan, agent_file):
+    # Bug caught: leaving `xhigh` (or any documented level) out of the valid set flags a legal value.
+    for i, level in enumerate(["low", "medium", "high", "xhigh", "max"]):
+        p = agent_file(f"ok{i}", f"description: Use when x\ntools: Read\neffort: {level}\n")
+        assert "EFFORT_INVALID" not in flags_of(scan, p), level
+    bad = flags_of(scan, agent_file("bad", "description: Use when x\ntools: Read\neffort: extreme\n"))
+    assert bad["EFFORT_INVALID"]["severity"] == "med" and "extreme" in bad["EFFORT_INVALID"]["message"]
+    assert "EFFORT_INHERIT" not in bad
+
+
+def test_effort_inherit_flag(scan, agent_file):
+    # Bug caught: inverting `if not a["effort"]` flags agents that set effort and misses the rest.
+    unset = flags_of(scan, agent_file("a", "description: Use when x\ntools: Read\n"))
+    assert unset["EFFORT_INHERIT"]["severity"] == "low"
+    assert "session" in unset["EFFORT_INHERIT"]["message"]
+    assert "EFFORT_INHERIT" not in flags_of(scan, agent_file("b", "description: Use when x\ntools: Read\neffort: low\n"))
+
+
+def test_high_effort_on_a_read_only_agent_is_questioned(scan, agent_file):
+    # Bug caught: testing only `max` (or only `xhigh`) misses the other top level on a read-only agent.
+    for level in ("xhigh", "max"):
+        ro = agent_file(f"ro-{level}", f"description: Use when x\ntools: Read, Grep, Glob\neffort: {level}\n")
+        assert flags_of(scan, ro)["HIGH_EFFORT_READONLY"]["severity"] == "low", level
+    assert "HIGH_EFFORT_READONLY" not in flags_of(
+        scan, agent_file("hi", "description: Use when x\ntools: Read, Grep\neffort: high\n"))
+
+
+def test_high_effort_readonly_needs_a_read_only_tool_list(scan, agent_file):
+    # Bug caught: checking only Edit/Write treats a Bash or inherit-all agent as read-only.
+    for i, tools in enumerate(["Read, Edit", "Read, Write", "Read, NotebookEdit",
+                               "Read, Bash", "Read, Bash(git diff:*)"]):
+        p = agent_file(f"w{i}", f"description: Use when x\ntools: {tools}\neffort: max\n")
+        assert "HIGH_EFFORT_READONLY" not in flags_of(scan, p), tools
+    inherit_all = agent_file("all", "description: Use when x\neffort: max\n")
+    assert "HIGH_EFFORT_READONLY" not in flags_of(scan, inherit_all)
+
+
+def test_reports_show_effort_next_to_the_model(scan, agent_file):
+    # Bug caught: parsing effort but never printing it leaves the report blind to the setting.
+    p = agent_file("a", "description: Use when x\ntools: Read\nmodel: sonnet\neffort: max\n")
+    q = agent_file("b", "description: Use when x\ntools: Read\n")
+    text = subprocess.run([sys.executable, str(scan.__file__), str(p), str(q)],
+                          capture_output=True, text=True, check=True).stdout
+    assert "[sonnet, effort max]" in text
+    assert "[inherit (default), effort inherit (session)]" in text
+    data = json.loads(subprocess.run([sys.executable, str(scan.__file__), str(p), "--json"],
+                                     capture_output=True, text=True, check=True).stdout)
+    assert data["agents"][0]["effort"] == "max"

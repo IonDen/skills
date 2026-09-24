@@ -15,6 +15,10 @@ end to end, with approval given in advance for any cut the gate would pass.
 | Chars moved to references | - | 0 | nothing moved |
 
 Gate status: pass, re-run independently against the frozen original.
+`gate.txt` holds that re-run. It was produced by the gate as it stood on
+2026-09-24 at commit 38bf812, before the last round of gate fixes. The current
+gate reads only a `frozen.json` written by the current `extract_requirements.py`,
+so it refuses this older one instead of checking it.
 
 Requirements extracted: 28 (16 sentences were left unprotected on purpose:
 short bold lead-in labels such as "Model.", "Then:", and similar structural
@@ -83,6 +87,12 @@ the fixtures.
 
 Behaviour unchanged: 13 of 13 expected clauses met by both versions. None
 differed.
+
+The scoring and the four runs' own reports are in `behaviour/`: `SCORES.md`,
+and one `outputs/report.md` per run (`b-orig-*` used the original skill,
+`b-opt-*` the optimized copy). In `SCORES.md`, `untouched/` is the original
+skill and `subject/` the optimized copy. The list of items the
+reverse-reconstruction agent returned was not kept; only its outcome above was.
 
 Caveat: one of the four runs, the optimized copy's eval 1, noted in its own
 report that its target agent file is byte-identical to a fixture behind one

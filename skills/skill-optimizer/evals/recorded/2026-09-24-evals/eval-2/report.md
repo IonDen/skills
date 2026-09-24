@@ -5,12 +5,12 @@ section — was built as a candidate and run through the skill-optimizer gate.
 The gate rejected it, on grounds a user approval cannot waive. Per the
 skill-optimizer workflow ("A rejected candidate is never shown as a proposal
 or applied"), nothing was copied over the target file. The skill at
-`runs/eval-2/skill/SKILL.md` is byte-identical to how it started this task.
+`<SKILL_DIR>/SKILL.md` is byte-identical to how it started this task.
 
 ### What was done
 
 1. **`/skill-doctor` triage: skipped**, as instructed — this is a repository
-   copy under `runs/eval-2/skill/`, not an installed skill.
+   copy under `<SKILL_DIR>`, not an installed skill.
 2. **Measured and snapshotted** the original: listing 138 chars (unchanged by
    this task; frontmatter is never edited), body 2,898 chars / 89 lines / ~724
    tokens est. Copied to `<work>/original`.

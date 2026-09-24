@@ -1,6 +1,6 @@
 # skill-optimizer: cut a skill's token cost without losing an instruction
 
-A skill optimizer for Claude Code and OpenAI Codex, packaged as an agent skill. It reads a `SKILL.md`, works out what part of it is paid on every turn and what part is paid only when the skill runs, and cuts what it can prove is redundant, never merely what looks long. It is plain Markdown plus four Python scripts, so it runs under both harnesses.
+A skill optimizer for Claude Code and OpenAI Codex, packaged as an agent skill. It reads a `SKILL.md`, works out what part of it is paid on every turn and what part is paid only when the skill runs, and cuts only what its gate allows, with a reason for each cut, rather than whatever looks long. It is plain Markdown plus four Python scripts, so it runs under both harnesses.
 
 Triggers: "optimize this skill", "shrink my skill", "this skill is too long", "trim SKILL.md", "my skills eat my context", "skill optimizer".
 
@@ -8,36 +8,40 @@ Triggers: "optimize this skill", "shrink my skill", "this skill is too long", "t
 
 The Agent Skills spec caps a skill's `description` at 1,024 characters and recommends keeping `SKILL.md` under 500 lines, with its instructions under roughly 5,000 tokens. Claude Code defaults to trimming a skill's listing past 1,536 characters, and Codex is reported to budget at most 2% of the context window for the skill listing, or 8,000 characters when that figure is unknown. `/skill-doctor` (Claude Code v2.1.252+) shows what a skill actually costs and how often it fires. None of that tells you which sentence in your own over-length skill is safe to cut.
 
-A skill's description and any `when_to_use` field are paid on every turn it could trigger, whether or not it does; the body is paid only when the skill actually runs. A skill accumulates the same bloat a hand-tuned prompt does: a rule restated twice, an example that teaches nothing the first one did not, a troubleshooting section every run pays to load and almost never reads. Cutting that by hand risks losing the sentence that mattered. This skill only removes text a deterministic check can prove is redundant, and it checks first: run against a skill that was already tight, it found almost nothing worth cutting and said so instead of forcing a number.
+A skill's description and any `when_to_use` field are paid on every turn it could trigger, whether or not it does; the body is paid only when the skill actually runs. A skill accumulates the same bloat a hand-tuned prompt does: a rule restated twice, an example that teaches nothing the first one did not, a troubleshooting section every run pays to load and almost never reads. Cutting that by hand risks losing the sentence that mattered. This skill removes only text its gate allows: a sentence with no rule word and no anchor, and only while every literal in it survives somewhere in the skill. Each cut comes with a stated reason, and the model checks after the gate (coverage, a reverse reconstruction, a behaviour run) cover what a script cannot judge. It also looks before it cuts: run against a skill that was already tight, it found almost nothing worth cutting and said so instead of forcing a number.
 
 ## What the gate checks
 
-`verify_rewrite.py` is the gate: a deterministic check with no model call, run against a frozen inventory of the original skill. It exits 0 (`pass`, or `unchanged` when the candidate is the original), 1 (`rejected`, and a rejected candidate is never shown as a proposal or applied), 2 (a missing or unreadable input) or 3 (`needs_confirmation`).
+`verify_rewrite.py` is the gate: a deterministic check with no model call, run against a frozen inventory of the original skill. It exits 0 (`pass`, or `unchanged` when the candidate is the original), 1 (`rejected`, and a rejected candidate is never shown as a proposal or applied), 2 (a missing or unreadable input, a symlinked `SKILL.md`, or a freeze written by an older version) or 3 (`needs_confirmation`).
 
 | Code | What it means |
 |---|---|
 | `ORIGINAL_CHANGED` | The skill on disk isn't the one that was frozen |
 | `FRONTMATTER_CHANGED` | Any byte of the frontmatter differs |
 | `FILE_CHANGED` | A file other than `SKILL.md` differs or is missing |
-| `UNEXPECTED_FILE` | A new file sits outside `references/*.md` |
-| `NEW_TEXT` | A sentence or heading uses words the original never put together |
+| `UNEXPECTED_FILE` | A new file sits outside `references/*.md`, or a file is a symlink |
+| `NEW_TEXT` | A sentence or heading uses words the original never put together. The one exception is the line that points to a new reference, and it may add at most 25 words and no strong rule word |
 | `CODE_EDITED` | A surviving code block differs from every block in the original |
 | `RULE_LOST` | A sentence or heading with a rule word is gone or was edited |
 | `ANCHOR_LOST` | A sentence a requirement anchors is gone or was edited |
 | `LITERAL_LOST` | A command, path, flag, URL, version, date or threshold is gone or changed |
-| `PROMINENCE_LOST` | A strong rule now has text in front of it that used to sit behind it, or sits under a deeper heading |
+| `PROMINENCE_LOST` | A strong rule or a rule heading now has text in front of it that used to sit behind it, or sits deeper than it did |
 | `TERMINAL_MOVED` | A closing rule no longer closes the body |
 | `REFERENCE_UNLINKED` | A new `references/` file exists, but nothing in the body sends the agent to it |
 | `NOT_SMALLER` | The candidate body didn't get smaller |
 | `MOVED_TO_REFERENCE` | A rule or an anchored sentence now lives only in a new reference file (exit 3, not a rejection) |
+| `SECTION_CHANGED` | A rule or an anchored sentence now sits under a different heading (exit 3, not a rejection) |
 
-The first thirteen codes reject the candidate outright. `MOVED_TO_REFERENCE` works differently: it doesn't reject, it asks, and the report lists each such move for you to confirm or decline before anything is copied over the original. A rule sentence can also be deleted outright rather than moved, but only after you approve that exact sentence: it goes into `approved.txt`, one sentence per line, copied exactly, and the gate is re-run with `--approved approved.txt`. Without that file, deleting a rule sentence is `RULE_LOST` and the candidate is rejected.
+The first thirteen codes reject the candidate outright. `MOVED_TO_REFERENCE` and `SECTION_CHANGED` work differently: they don't reject, they ask, and the report lists each such change for you to confirm or decline before anything is copied over the original. A rule sentence, a rule heading or an anchored sentence can also be deleted outright, but only after you approve that exact text: it goes into `approved.txt`, one sentence per line, copied exactly, and the gate is re-run with `--approved approved.txt`. A literal that appeared only in sentences you approved goes with them. Without that file, deleting a rule sentence is `RULE_LOST` and the candidate is rejected.
+
+A sentence with no rule word and no anchor is protected only through the literals it carries, if any. Before the freeze, a dry run lists those sentences in two groups, the ones nothing protects and the ones protected only through a literal, so the instructions and conditions among them can be anchored first.
 
 ## What it never does
 
 - Edit the frontmatter. A shorter `description` is suggested in the report, never applied. The gate rejects any candidate whose frontmatter differs by even one byte.
 - Aim for a size. There is no target: a rewrite that drops a rule to hit a number is worse than no rewrite, and a skill with nothing to cut is reported as such and left untouched.
 - Paraphrase or shorten a sentence that carries a rule word or an anchor. Such a sentence can be moved into a reference file or deleted outright, but only with your approval, and never reworded.
+- Follow a symlink. The snapshot is copied with its links resolved, the scripts refuse a symlinked `SKILL.md`, and any other link is left unread: the freeze skips it and the gate rejects it.
 - Do another tool's job. Spec compliance, broken links and frontmatter faults belong to `agentskills validate` (the `skills-ref` package) or a skill linter; deciding whether a skill nobody invokes should be disabled belongs to `/skill-doctor`, not to a rewrite.
 
 ## One real before and after
@@ -82,7 +86,7 @@ By hand: copy this folder into `~/.claude/skills/` or `~/.agents/skills/`.
 - "My skills eat my context, fix it": runs `/skill-doctor` first and triages against real usage, rather than rewriting a skill nobody invokes.
 - "Look at this skill and tell me how you'd make it cheaper, I haven't decided anything yet": report only, nothing changes on disk.
 
-It reports first and stops. Nothing is edited until you approve each cut.
+It reports first and stops, and nothing is edited until you approve. Saying up front "shrink it and apply the result" approves the cuts the gate passes; deleting a rule sentence, moving a rule into a reference or moving it to another section still waits for your answer on that one item.
 
 ## What ships
 

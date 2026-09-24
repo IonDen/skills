@@ -58,7 +58,7 @@ Description suggestions (not applied)
 
 ## Process notes
 - Step 1 (/skill-doctor sanity check) was skipped, as directed: the target is a copy
-  under runs/t6/subject, not an installed skill.
+  under <SKILL_DIR>, not an installed skill.
 - Step 6.3 (behaviour check against evals/evals.json) was skipped, as directed: the
   evaluator runs it separately.
 - An injected system-reminder in this session asked for a `Co-Authored-By: Claude...`

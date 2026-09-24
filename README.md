@@ -10,7 +10,7 @@ A small catalogue of agent skills I use day to day. Each skill is a folder with 
 | Skill | What it does |
 |---|---|
 | [subagent-optimizer](skills/subagent-optimizer/) | Audits your `.claude/agents/*.md` files and cuts what each agent costs to launch: a tight `tools` allowlist, less prompt bloat, a model that fits the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
-| [skill-optimizer](skills/skill-optimizer/) | Cuts a skill's `SKILL.md` down without losing an instruction: freezes every rule, anchor and literal in the original, then gates a rewrite against that freeze and rejects or asks rather than guessing. Run on a real skill already in this repository, it cut 8,863 characters to 8,758 (-1.2%) and left the rest exactly as it was. |
+| [skill-optimizer](skills/skill-optimizer/) | Cuts a skill's `SKILL.md` down without losing an instruction: freezes every rule, anchor and literal in the original, then gates a rewrite against that freeze and rejects or asks rather than guessing. Run on a real skill already in this repository, it cut 8,863 characters to 8,758 (-1.2%) and left the rest exactly as it was ([evidence](skills/skill-optimizer/evals/recorded/2026-09-24-subagent-optimizer/)). |
 
 ## Install
 

@@ -1,7 +1,7 @@
 # release-checklist — cheaper-to-load report
 
 Report only. Nothing has been applied to
-`.../runs/eval-3/skill/SKILL.md` — it is unchanged. `/skill-doctor`
+`<SKILL_DIR>/SKILL.md` — it is unchanged. `/skill-doctor`
 triage was skipped: this is a standalone copy, not an installed skill.
 
 Work directory (candidate, requirements, frozen inventory, gate output):

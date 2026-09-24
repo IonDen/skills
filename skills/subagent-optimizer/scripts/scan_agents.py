@@ -581,8 +581,9 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
     if EFFORT_UNSUPPORTED_MODEL_MARK in a["model"].lower():
         if a["effort"]:
             add("low", "EFFORT_UNSUPPORTED",
-                f"effort {a['effort']} on `{a['model']}`: this model ignores effort. "
-                "Drop the field, or move to a model that supports it if the job needs it.")
+                f"effort {a['effort']} on `{a['model']}`: the pinned model does not support "
+                "effort, so the field does nothing while it runs the agent. A per-invocation "
+                "model override can still run it on a model that does. A note, not a fix.")
     elif not a["effort"]:
         add("low", "EFFORT_INHERIT",
             "No `effort`: runs at the session's effort level. Pin it with the model "

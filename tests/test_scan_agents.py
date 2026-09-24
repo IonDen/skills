@@ -362,7 +362,11 @@ def test_effort_set_on_haiku_is_unsupported(scan, agent_file):
     p = agent_file("a", "description: Use when x\ntools: Read, Grep\nmodel: haiku\neffort: max\n")
     flags = flags_of(scan, p)
     assert flags["EFFORT_UNSUPPORTED"]["severity"] == "low"
-    assert "ignores effort" in flags["EFFORT_UNSUPPORTED"]["message"]
+    # Bug caught: stating an absolute "ignores effort, drop it" when a per-invocation model
+    # override can run the agent on a model that does take effort.
+    msg = flags["EFFORT_UNSUPPORTED"]["message"]
+    assert "the pinned model does not support effort" in msg and "per-invocation" in msg
+    assert "drop" not in msg.lower()
     assert "HIGH_EFFORT_READONLY" not in flags
     sonnet = flags_of(scan, agent_file("b", "description: Use when x\ntools: Read, Grep\nmodel: sonnet\neffort: max\n"))
     assert "EFFORT_UNSUPPORTED" not in sonnet and "HIGH_EFFORT_READONLY" in sonnet

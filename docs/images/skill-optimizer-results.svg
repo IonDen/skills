@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 458" width="720" height="458" role="img" aria-label="SKILL.md body size before and after skill-optimizer. python-ml-testing: 28,081 to 27,558 characters (−1.9%); paper-writing: 12,486 to 12,253 characters (−1.9%); user-mlx-developer: 11,619 to 11,233 characters (−3.3%); content-translator: 10,221 to 9,864 characters (−3.5%); subagent-optimizer: 8,863 to 8,758 characters (−1.2%). Every run passed the gate with no requirement lost.">
+  <rect x="0" y="0" width="720" height="458" fill="#ffffff" rx="6"/>
+  <style>
+    .t  { font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .s  { font: 400 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #475569; }
+    .l  { font: 500 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .v  { font: 600 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #0f172a; }
+    .n  { font: 400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #475569; }
+    .cap{ font: 400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: #64748b; }
+  </style>
+  <text class="t" x="24" y="30">SKILL.md body before and after skill-optimizer</text>
+  <text class="s" x="24" y="50">Characters of the body an agent loads when the skill runs; one run per skill, gate passed on every one</text>
+  <text class="s" x="24" y="66">Uncertain cuts are listed for the user instead of made, so the numbers stay small on purpose</text>
+  <rect x="230" y="80" width="12" height="10" fill="#dc2626" rx="2"/><text class="n" x="247" y="89">before</text>
+  <rect x="300" y="80" width="12" height="10" fill="#0d9488" rx="2"/><text class="n" x="317" y="89">after</text>
+  <text class="l" x="220" y="113" text-anchor="end">python-ml-testing</text>
+  <text class="n" x="220" y="135" text-anchor="end">all 30 requirements kept</text>
+  <rect x="230" y="100" width="374.4" height="18" fill="#dc2626" rx="2"/>
+  <text class="v" x="610.4" y="114">28,081</text>
+  <rect x="230" y="122" width="367.4" height="18" fill="#0d9488" rx="2"/>
+  <text class="v" x="603.4" y="136">27,558  (−1.9%)</text>
+  <text class="l" x="220" y="169" text-anchor="end">paper-writing</text>
+  <text class="n" x="220" y="191" text-anchor="end">all 78 requirements kept</text>
+  <rect x="230" y="156" width="166.5" height="18" fill="#dc2626" rx="2"/>
+  <text class="v" x="402.5" y="170">12,486</text>
+  <rect x="230" y="178" width="163.4" height="18" fill="#0d9488" rx="2"/>
+  <text class="v" x="399.4" y="192">12,253  (−1.9%)</text>
+  <text class="l" x="220" y="225" text-anchor="end">user-mlx-developer</text>
+  <text class="n" x="220" y="247" text-anchor="end">all 88 requirements kept</text>
+  <rect x="230" y="212" width="154.9" height="18" fill="#dc2626" rx="2"/>
+  <text class="v" x="390.9" y="226">11,619</text>
+  <rect x="230" y="234" width="149.8" height="18" fill="#0d9488" rx="2"/>
+  <text class="v" x="385.8" y="248">11,233  (−3.3%)</text>
+  <text class="l" x="220" y="281" text-anchor="end">content-translator</text>
+  <text class="n" x="220" y="303" text-anchor="end">all 62 requirements kept</text>
+  <rect x="230" y="268" width="136.3" height="18" fill="#dc2626" rx="2"/>
+  <text class="v" x="372.3" y="282">10,221</text>
+  <rect x="230" y="290" width="131.5" height="18" fill="#0d9488" rx="2"/>
+  <text class="v" x="367.5" y="304">9,864  (−3.5%)</text>
+  <text class="l" x="220" y="337" text-anchor="end">subagent-optimizer</text>
+  <text class="n" x="220" y="359" text-anchor="end">all 28 requirements kept</text>
+  <rect x="230" y="324" width="118.2" height="18" fill="#dc2626" rx="2"/>
+  <text class="v" x="354.2" y="338">8,863</text>
+  <rect x="230" y="346" width="116.8" height="18" fill="#0d9488" rx="2"/>
+  <text class="v" x="352.8" y="360">8,758  (−1.2%)</text>
+  <text class="cap" x="24" y="396">Four personal skills and this repository's subagent-optimizer, 2026-09-24. Body only: the listing (name and description) is never edited.</text>
+  <text class="cap" x="24" y="412">Each run froze the original's rules, commands and thresholds first, then a script checked the shorter copy against that freeze.</text>
+</svg>

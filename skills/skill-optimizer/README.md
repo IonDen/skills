@@ -47,17 +47,30 @@ A sentence with no rule word and no anchor is protected only through the literal
 - Recommend disabling or deleting a skill. Usage data from `/skill-doctor` (which skills are never invoked, which cost the most) is shown as information only; what to keep is your call.
 - Do another tool's job. Spec compliance, broken links and frontmatter faults belong to `agentskills validate` (the `skills-ref` package) or a skill linter.
 
-## One real before and after
+## Before and after on real skills
 
-[subagent-optimizer](../subagent-optimizer/), a real skill in this repository, optimized by skill-optimizer 1.0.0. Body only, one run, approval given in advance for anything the gate would pass:
+![SKILL.md body size before and after skill-optimizer on five real skills: python-ml-testing 28,081 to 27,558 characters (-1.9%), paper-writing 12,486 to 12,253 (-1.9%), user-mlx-developer 11,619 to 11,233 (-3.3%), content-translator 10,221 to 9,864 (-3.5%), subagent-optimizer 8,863 to 8,758 (-1.2%); every requirement kept and every gate passed](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/skill-optimizer-results.svg)
 
-| Metric | Before | After | Change |
-|---|---|---|---|
-| Body chars | 8,863 | 8,758 | -105 (-1.2%) |
-| Body lines | 176 | 175 | -1 |
-| Chars moved to references | - | 0 | nothing moved |
+Five real skills, one run each by a fresh agent following `SKILL.md`: four from the author's own setup and this repository's `subagent-optimizer`. Every run passed the gate and kept every requirement it extracted.
 
-Gate: pass, re-run independently against the frozen original. Two sentences were cut, both plain restatements with no rule word and no anchor: one cheered for a conclusion the sentence right before it already reached, the other restated the heading that followed it. Two more sentences that carry a rule word ("must", "isn't") were left in place and flagged as decisions instead, because the agent read both as the stated reason behind a rule rather than filler. Requirements extracted: 28 (16 sentences left unprotected on purpose: short bold lead-in labels, none of them cut). Coverage: 28/28. A separate fresh agent, given only the optimized `SKILL.md` and asked to reconstruct every instruction it could find, returned 81 items; every one of the 28 requirements mapped onto at least one, and neither cut sentence appeared.
+| Skill | Body before | Body after | Change | Requirements kept |
+|---|---|---|---|---|
+| python-ml-testing | 28,081 | 27,558 | -523 (-1.9%) | 30 of 30 |
+| paper-writing | 12,486 | 12,253 | -233 (-1.9%) | 78 of 78 |
+| user-mlx-developer | 11,619 | 11,233 | -386 (-3.3%) | 88 of 88 |
+| content-translator | 10,221 | 9,864 | -357 (-3.5%) | 62 of 62 |
+| subagent-optimizer | 8,863 | 8,758 | -105 (-1.2%) | 28 of 28 |
+| Total | 71,270 | 69,666 | -1,604 (-2.3%) | |
+
+The cuts are small because of what the skill refuses to guess about. Everything it cut was framing: a sentence restating its heading, a lead-in to a list that explains itself, a divider between sections that already have headings. Every cut it was unsure of went into the report as an optional cut instead: a duplicated subsection, a rule stated three times, a 2,788-character section that applies to one kind of project and could move into a reference file. Approving those is one answer away; the numbers above count only what was cut without asking.
+
+After each run, a fresh agent that saw only the shortened `SKILL.md` listed every instruction it could find, and a third agent checked that list against the original's requirements. Two skills came back complete. For the other two, every sentence the reader skipped was still in the file word for word. A reader given the unchanged original skipped the same ones, apart from one that a second read of the shortened skill found. The personal skills' text is not published; their numbers, gate lines and checks are in [`evals/recorded/2026-09-24-real-skills/`](evals/recorded/2026-09-24-real-skills/).
+
+The `python-ml-testing` run also found a bug: 1.0.1 rejected even an unchanged copy of that skill, because it joined a number at the end of one table row with the first word of the next. 1.0.2 fixes it.
+
+### subagent-optimizer in detail
+
+This is the one skill whose text is published, so its run can be checked line by line. Gate: pass, re-run independently against the frozen original. Two sentences were cut, both plain restatements with no rule word and no anchor: one cheered for a conclusion the sentence right before it already reached, the other restated the heading that followed it. Two more sentences that carry a rule word ("must", "isn't") were left in place and flagged as decisions instead, because the agent read both as the stated reason behind a rule rather than filler. Requirements extracted: 28 (16 sentences left unprotected on purpose: short bold lead-in labels, none of them cut). Coverage: 28/28. A separate fresh agent, given only the optimized `SKILL.md` and asked to reconstruct every instruction it could find, returned 81 items; every one of the 28 requirements mapped onto at least one, and neither cut sentence appeared.
 
 The skill was already tight. Run against a real document instead of a synthetic fixture, the optimizer found almost nothing it could cut without loss, and said so rather than forcing a number. (One of the evals' own fixtures is a deliberately padded test skill built to shrink by 29.7% (2,898 to 2,036 characters) under the same gate, keeping and listing every further cut it wasn't sure was safe instead of applying it; see `evals/README.md`. So the small real-skill number reflects the input, not a ceiling on what the skill will cut.)
 
@@ -110,7 +123,7 @@ skill-optimizer/
     ├── evals.json                 six prompts with expected outcomes
     ├── fixtures/                  the three SKILL.md files they run against
     ├── README.md                  what each eval checks, and the recorded results
-    └── recorded/                  measured runs, including a real skill's before and after
+    └── recorded/                  measured runs, including five real skills before and after
 ```
 
 ## Sources

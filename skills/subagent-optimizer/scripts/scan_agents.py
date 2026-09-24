@@ -89,19 +89,60 @@ EMPHASIS = re.compile(r"\b(MUST|MUST NOT|NEVER|ALWAYS|DO NOT|CRITICAL|"
 # catalog is per account, so an unknown model is never flagged.
 CODEX_AS_OF = "2026-09-24"
 CODEX_REQUIRED_KEYS = ("name", "description", "developer_instructions")
-# Claude Code frontmatter keys. Codex rejects unknown top-level keys, so one of
-# these makes it skip the whole agent. `skills` only counts as a list (Claude's
-# form); Codex's own `[[skills.config]]` parses to a table.
+# Claude Code frontmatter keys. Codex skips an agent whose file has a key it does
+# not know, or a known key with a value of the wrong type. `tools` and `skills`
+# only count in Claude's list form; Codex's own `[tools]` and
+# `[[skills.config]]` parse to tables.
 CODEX_CLAUDE_KEYS = {
     "tools": None, "disallowedTools": None, "permissionMode": None,
     "effort": "model_reasoning_effort", "color": None, "memory": None,
-    "hooks": None, "maxTurns": None, "skills": None, "mcpServers": None,
+    "maxTurns": None, "skills": None, "mcpServers": None,
     "background": None, "isolation": None, "initialPrompt": None,
 }
-# Parsed but not applied to a custom agent by Codex 0.149 and later; the child
-# runs with the parent's live settings (the docs still show some of these).
+CODEX_TABLE_KEYS = {"tools", "skills"}  # Codex keys too, when the value is a table
+# Every top-level key an agent file may carry at rust-v0.156.1: the role-file
+# keys (codex-rs/agent-roles/src/agent_role_config.rs, RawAgentRoleFileToml, which
+# denies unknown fields) plus every ConfigToml field it flattens in
+# (https://github.com/openai/codex/blob/rust-v0.156.1/codex-rs/config/src/config_toml.rs).
+CODEX_KNOWN_KEYS = frozenset("""
+name description nickname_candidates
+model review_model model_provider model_context_window model_auto_compact_token_limit
+model_auto_compact_token_limit_scope model_post_turn_compact_threshold_percent
+approval_policy approvals_reviewer auto_review browser_use computer_use
+shell_environment_policy allow_login_shell sandbox_mode allow_symlinked_codex_home
+sandbox_workspace_write default_permissions permissions notify instructions
+developer_instructions include_permissions_instructions include_apps_instructions
+include_collaboration_mode_instructions include_environment_context
+model_instructions_file compact_prompt forced_chatgpt_workspace_id forced_login_method
+cli_auth_credentials_store mcp_servers mcp_enterprise_managed_auth
+mcp_oauth_credentials_store mcp_oauth_callback_port mcp_oauth_callback_url
+mcp_optional_startup_grace_ms model_providers project_doc_max_bytes
+project_doc_fallback_filenames tool_output_token_limit background_terminal_max_timeout
+thread_unload_delay_secs js_repl_node_path js_repl_node_module_dirs profile profiles
+history sqlite_home log_dir file_opener tui hide_agent_reasoning
+show_raw_agent_reasoning model_reasoning_effort plan_mode_reasoning_effort
+model_reasoning_summary model_verbosity model_catalog_json personality service_tier
+chatgpt_base_url apps_mcp_product_sku responses_api_metadata orchestrator
+openai_base_url audio experimental_realtime_ws_base_url
+experimental_realtime_webrtc_call_base_url experimental_realtime_ws_model realtime
+experimental_realtime_ws_backend_prompt experimental_realtime_ws_startup_context
+experimental_realtime_start_instructions experimental_thread_store_endpoint
+experimental_thread_store projects web_search tools tool_suggest agents goals
+memories skills hooks plugins marketplaces features
+suppress_unstable_features_warning ghost_snapshot project_root_markers
+check_for_update_on_startup disable_paste_burst analytics feedback apps desktop otel
+windows notice experimental_compact_prompt_file experimental_use_unified_exec_tool
+oss_provider
+""".split())
+# Parsed, but not applied to a custom agent from Codex 0.149 (the child keeps the
+# parent's live settings; codex-rs/core/src/agent/role.rs applies only
+# developer_instructions, model, model_reasoning_effort, model_reasoning_summary,
+# model_verbosity, personality, service_tier and disable-only features/skills).
+# Older Codex still applies them, so they are reported, never removed.
 CODEX_IGNORED_KEYS = ("sandbox_mode", "approval_policy", "mcp_servers", "model_provider",
-                      "notify", "apps", "service_tier", "openai_base_url", "chatgpt_base_url")
+                      "notify", "apps", "hooks", "openai_base_url", "chatgpt_base_url")
+# Claude Code model values; Codex resolves none of them.
+CODEX_CLAUDE_MODEL_ALIASES = {"sonnet", "opus", "haiku", "fable", "inherit"}
 CODEX_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max", "ultra")
 CODEX_EFFORT_NOT_OFFERED = {"minimal", "none"}  # in the enum, offered by no current model
 _ALL = set(CODEX_EFFORT_LEVELS)
@@ -352,18 +393,25 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             f"Missing or blank: {', '.join(missing)}. Codex refuses an agent "
             "without name, description and developer_instructions.")
     claude = [k for k in CODEX_CLAUDE_KEYS if k in keys
-              and not (k == "skills" and not isinstance(keys[k], list))]
+              and not (k in CODEX_TABLE_KEYS and isinstance(keys[k], dict))]
     if claude:
         add("high", "CODEX_CLAUDE_KEY",
             "Claude Code keys in a Codex agent: " + "; ".join(
                 k + (f" (Codex uses {CODEX_CLAUDE_KEYS[k]})" if CODEX_CLAUDE_KEYS[k] else "")
                 for k in claude)
             + ". Codex rejects unknown keys and skips the whole agent. Remove them.")
+    unknown = [k for k in keys if k not in CODEX_KNOWN_KEYS and k not in CODEX_CLAUDE_KEYS]
+    if unknown:
+        add("high", "CODEX_UNKNOWN_KEY",
+            f"Keys Codex does not know: {', '.join(unknown)}. Codex skips an agent with a "
+            f"key it does not know (known keys as of {CODEX_AS_OF}, Codex rust-v0.156.1). "
+            "Fix a misspelling, or move the content into developer_instructions.")
     ignored = [k for k in CODEX_IGNORED_KEYS if k in keys]
     if ignored:
-        add("med", "CODEX_IGNORED_KEY",
-            f"{', '.join(ignored)}: parsed but not applied to a custom agent by Codex "
-            "0.149 and later; the agent uses the parent's settings. Don't rely on it.")
+        add("low", "CODEX_IGNORED_KEY",
+            f"{', '.join(ignored)}: not applied to custom agents from Codex 0.149 (the agent "
+            "uses the parent's live settings); older Codex still applies it, so it stays. "
+            "Don't rely on it on 0.149 and later.")
 
     model, effort = a["model"], a["effort"]
     if effort and effort not in CODEX_EFFORT_LEVELS:
@@ -377,6 +425,10 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         add("med", "CODEX_EFFORT_UNSUPPORTED",
             f"{model} does not offer effort '{effort}' (offers {', '.join(offered)}, "
             f"as of {CODEX_AS_OF}); Codex rejects the combination.")
+    if model.lower() in CODEX_CLAUDE_MODEL_ALIASES or model.lower().startswith("claude-"):
+        add("high", "CODEX_CLAUDE_MODEL",
+            f"model '{model}' is a Claude Code value; Codex cannot resolve it. Pick a Codex "
+            "model and a model_reasoning_effort it offers.")
     if model in CODEX_RETIRED_MODELS:
         add("med", "CODEX_MODEL_RETIRED",
             f"{model} {CODEX_RETIRED_MODELS[model]} for ChatGPT sign-in, as of "

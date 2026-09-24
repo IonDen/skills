@@ -443,15 +443,6 @@ def test_codex_claude_style_keys_are_high(scan, codex_file):
 
 
 @needs_toml
-def test_codex_ignored_keys_are_medium(scan, codex_file):
-    # Bug caught: leaving the `mcp_servers` table out of the ignored set lets it look effective.
-    text = 'sandbox_mode = "read-only"\n' + CODEX_OK + '\n[mcp_servers.docs]\nurl = "https://example.com/mcp"\n'
-    f = cflags(scan, codex_file("ignored", text))["CODEX_IGNORED_KEY"]
-    assert f["severity"] == "med" and "sandbox_mode" in f["message"] and "mcp_servers" in f["message"]
-    assert "CODEX_IGNORED_KEY" not in cflags(scan, codex_file("ok", CODEX_OK))
-
-
-@needs_toml
 def test_codex_effort_values_outside_the_documented_six_are_invalid(scan, codex_file):
     # Bug caught: a valid set without `ultra` (Claude's five) flags a legal Codex level.
     def with_effort(name, effort):
@@ -596,3 +587,86 @@ def test_duplicate_blocks_keep_same_named_files_apart(scan, tmp_path):
                           capture_output=True, text=True, check=True).stdout
     assert "DUPLICATED BLOCKS" in text
     assert f"reviewer ({user / 'reviewer.md'})" in text and f"reviewer ({proj / 'reviewer.md'})" in text
+
+
+# Keys Codex 0.149+ parses but does not apply to a custom agent (rust-v0.156.1,
+# core/src/agent/role.rs AgentRoleOverrides). Written out, not read from the scanner,
+# so dropping one from CODEX_IGNORED_KEYS turns its case red.
+IGNORED_KEY_SNIPPETS = {
+    "sandbox_mode": 'sandbox_mode = "read-only"\n',
+    "approval_policy": 'approval_policy = "never"\n',
+    "model_provider": 'model_provider = "openai"\n',
+    "notify": 'notify = ["notify-send"]\n',
+    "openai_base_url": 'openai_base_url = "https://example.com"\n',
+    "chatgpt_base_url": 'chatgpt_base_url = "https://example.com"\n',
+    "mcp_servers": '[mcp_servers.docs]\nurl = "https://example.com/mcp"\n',
+    "apps": '[apps]\nenabled = false\n',
+    "hooks": '[[hooks.PreToolUse]]\nmatcher = "shell"\n',
+}
+
+
+@needs_toml
+@pytest.mark.parametrize("key", sorted(IGNORED_KEY_SNIPPETS))
+def test_codex_ignored_keys_are_low_and_kept(scan, codex_file, key):
+    # Bug caught: a key missing from CODEX_IGNORED_KEYS (or `hooks` left in the Claude list)
+    # is either reported as effective or told to be removed, though older Codex still applies it.
+    flags = cflags(scan, codex_file(f"ign_{key}", CODEX_OK + "\n" + IGNORED_KEY_SNIPPETS[key]))
+    f = flags["CODEX_IGNORED_KEY"]
+    assert f["severity"] == "low" and key in f["message"]
+    assert "0.149" in f["message"] and "older" in f["message"]
+    assert "remove" not in f["message"].lower()
+    assert "CODEX_CLAUDE_KEY" not in flags and "CODEX_UNKNOWN_KEY" not in flags
+
+
+@needs_toml
+def test_service_tier_is_applied_so_not_ignored(scan, codex_file):
+    # Bug caught: listing service_tier as ignored, though rust-v0.156.1 applies it to the child.
+    flags = cflags(scan, codex_file("tier", 'service_tier = "flex"\n' + CODEX_OK))
+    assert "CODEX_IGNORED_KEY" not in flags and "CODEX_UNKNOWN_KEY" not in flags
+
+
+@needs_toml
+@pytest.mark.parametrize("model", ["sonnet", "Opus", "HAIKU", "fable", "inherit",
+                                   "claude-opus-5-5", "Claude-Sonnet-4-6"])
+def test_codex_claude_model_is_high(scan, codex_file, model):
+    # Bug caught: a case-sensitive alias match, or no `claude-` prefix check, lets a Claude model
+    # through that Codex cannot resolve.
+    text = CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
+    f = cflags(scan, codex_file("cm", text))["CODEX_CLAUDE_MODEL"]
+    assert f["severity"] == "high" and model in f["message"]
+
+
+@needs_toml
+@pytest.mark.parametrize("model", ["gpt-6-sol", "someone-elses-model", "my-claude-proxy"])
+def test_codex_model_that_is_not_claude_is_not_flagged(scan, codex_file, model):
+    # Bug caught: a substring match on "claude" flags a Codex model whose slug merely contains it.
+    text = CODEX_OK.replace('"gpt-6-luna"', f'"{model}"').replace('effort = "high"', 'effort = "low"')
+    assert "CODEX_CLAUDE_MODEL" not in cflags(scan, codex_file("ok", text))
+
+
+@needs_toml
+def test_codex_unknown_top_level_key_is_high(scan, codex_file):
+    # Bug caught: without a known-key list, `prompt` and `version` pass silently while Codex
+    # skips the whole agent.
+    f = cflags(scan, codex_file("unk", 'prompt = "x"\nversion = 2\n' + CODEX_OK))["CODEX_UNKNOWN_KEY"]
+    assert f["severity"] == "high"
+    assert "prompt" in f["message"] and "version" in f["message"] and "skips" in f["message"]
+
+
+@needs_toml
+def test_codex_known_keys_are_not_unknown(scan, codex_file):
+    # Bug caught: a known-key list missing Codex's own keys (nickname_candidates, personality,
+    # [features], [[skills.config]], [tools]) flags a valid agent as one Codex will skip.
+    text = ('nickname_candidates = ["Ada"]\npersonality = "pragmatic"\nmodel_verbosity = "low"\n'
+            'model_reasoning_summary = "concise"\n' + CODEX_OK
+            + '\n[features]\nshell_tool = false\n\n[[skills.config]]\npath = "/x/SKILL.md"\nenabled = false\n'
+            '\n[tools]\nweb_search = false\n')
+    flags = cflags(scan, codex_file("known", text))
+    assert "CODEX_UNKNOWN_KEY" not in flags and "CODEX_CLAUDE_KEY" not in flags
+
+
+@needs_toml
+def test_claude_keys_are_not_also_reported_as_unknown(scan, codex_file):
+    # Bug caught: checking unknown keys without excluding Claude keys reports `color` twice.
+    flags = cflags(scan, codex_file("ck", CODEX_OK + 'color = "blue"\n'))
+    assert "color" in flags["CODEX_CLAUDE_KEY"]["message"] and "CODEX_UNKNOWN_KEY" not in flags

@@ -2,7 +2,7 @@
 
 ## 2026-09-24 (skill-optimizer 1.0.2)
 
-- `skill-optimizer` rejected an unchanged skill whose table had a number with a bound at the end of one row and a word at the start of the next, such as `≤ 0.20` followed by `Pixel mismatch ratio`. The freeze scanned the whole body as one text, so it recorded `≤ 0.20 Pixel` as a literal, which the file never contains. Each table cell, list item and paragraph is now scanned on its own. A test also checks every skill in this repository: each literal the freeze records must be found again in that skill's own text. The version goes to 1.0.2 and the plugin to 0.4.1.
+- `skill-optimizer` rejected an unchanged skill whose table had a number with a bound at the end of one row and a word at the start of the next, such as `≤ 0.20` followed by `Pixel mismatch ratio`. The freeze scanned the whole body as one text, so it recorded `≤ 0.20 Pixel` as a literal, which the file never contains. It now scans each table cell, list item and paragraph on its own as well, and keeps a match from the whole-text scan only when the file holds it as written. So `≤ 0.20` is protected on its own, while a bound whose unit starts the next paragraph (`under 20`, then `GiB`) stays protected as `under 20 GiB`. Over 23 skills, every literal 1.0.1 recorded correctly is still recorded. A test also checks that each literal the freeze records in a skill shipped here is found again in that skill's own text. The version goes to 1.0.2 and the plugin to 0.4.1.
 
 ## 2026-09-24 (subagent-optimizer 1.4.0)
 

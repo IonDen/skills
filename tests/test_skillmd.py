@@ -126,8 +126,10 @@ def test_contains_literal_respects_token_boundaries(skillmd):
     # A bound in one row's last cell followed by a word in the next row's first cell.
     "| Metric | Full | Tiny |\n|---|---|---|\n| LPIPS | ≤ 0.10 | ≤ 0.20 |\n"
     "| Pixel mismatch ratio | — | ≤ 0.15 (15% of pixels) |\n",
-    # The same across two list items and two paragraphs.
-    "- keep it under 20\n- GiB of headroom is not the point\n\nStay below 3\n\nRuns are fine.\n",
+    # The same across two list items: the raw file has "- " between them.
+    "- keep it under 20\n- GiB of headroom is not the point\n",
+    # Two paragraphs: only whitespace between them, so a joined literal is findable.
+    "Stay below 3\n\nRuns are fine.\n",
 ])
 def test_every_literal_is_found_in_its_own_body(skillmd, body):
     # Bug caught: extraction and the survival check disagree on token boundaries,
@@ -146,9 +148,24 @@ REAL_SKILLS = sorted(REPO.glob("skills/*/SKILL.md")) + sorted(REPO.glob("skills/
 @pytest.mark.parametrize("path", REAL_SKILLS, ids=lambda p: str(p.relative_to(REPO)))
 def test_every_literal_of_a_real_skill_is_found_in_it(skillmd, path):
     # Bug caught: a freeze that records a literal the gate cannot find in the same
-    # file, so the unchanged skill fails with LITERAL_LOST.
-    _, body = skillmd.split_frontmatter(path.read_text(encoding="utf-8"))
+    # file, so the unchanged skill fails with LITERAL_LOST. A general guard over the
+    # shipped files (it caught 1.0.1's glued-version case when planted); the table
+    # and list cases above are what cover 1.0.2's cross-unit case.
+    _, body = skillmd.split_frontmatter(skillmd.read_text(path))
     assert [lit for lit in skillmd.literals(body) if not skillmd.contains_literal(body, lit)] == []
+
+
+@pytest.mark.parametrize("body, edited", [
+    ("The safety margin is under 20\n\nGiB, and that is the budget.\n",
+     "The safety margin is under 20\n\nMiB, and that is the budget.\n"),
+    ("### Cap is under 20\nGiB is the unit.\n", "### Cap is under 20\nMiB is the unit.\n"),
+])
+def test_a_unit_in_the_next_paragraph_stays_protected(skillmd, body, edited):
+    # Bug caught: scanning each unit alone drops a unit word that starts the next
+    # paragraph, so `under 20 GiB` is frozen as `under 20` and a changed unit passes.
+    lits = skillmd.literals(body)
+    assert all(skillmd.contains_literal(body, lit) for lit in lits)
+    assert not all(skillmd.contains_literal(edited, lit) for lit in lits), lits
 
 
 def test_a_prefixed_version_is_still_protected(skillmd):

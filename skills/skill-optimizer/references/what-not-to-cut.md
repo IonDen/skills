@@ -56,6 +56,8 @@ checks some of them mechanically, the rest are yours to protect.
 - Motivation that carries no rule: why the skill exists, how important the task is.
 - An option menu where one default and one escape hatch would do; keep the
   sentence that states the default, since it usually carries "only" or "should".
+  If that sentence points back at the options ("any of these"), cutting them
+  leaves it dangling: keep the list or ask.
 - A second example that shows nothing the first did not.
 - The same instruction said twice in different words. Keep the version with the
   rule word; the gate will insist on it.

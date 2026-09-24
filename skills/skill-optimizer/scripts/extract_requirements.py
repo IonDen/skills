@@ -135,10 +135,15 @@ def literal_spans(order: list[str], literals: list[str]) -> dict[str, list[list[
     it is left out: that literal has no sentences to approve it through."""
     out: dict[str, list[list[str]]] = {}
     for lit in literals:
+        words = lit.split()
+        if len(words) < 2:
+            continue          # a sentence break falls between words
         runs: list[list[str]] = []
         for size in range(2, SPAN_MAX + 1):
             for i in range(len(order) - size + 1):
                 run = order[i:i + size]
+                if words[0] not in run[0] or words[-1] not in run[-1]:
+                    continue      # cheap test first: the run must start and end inside the literal
                 if (run in runs or any(k.startswith("# ") for k in run)
                         or not skillmd.contains_literal(" ".join(run), lit)
                         or skillmd.contains_literal(" ".join(run[1:]), lit)

@@ -10,8 +10,9 @@ link is printed on its own line. Caches and VCS data are left out, and files are
 copied without their modes, so a read-only install gives a writable snapshot.
 
 Usage: snapshot.py SRC DEST
-Exit 2 when DEST exists, or SRC has no SKILL.md (or its SKILL.md is a link to
-anything but a SKILL.md).
+Exit 2 when DEST exists or lies inside SRC, when SRC has no SKILL.md (or its
+SKILL.md is a link to anything but a SKILL.md), or when a directory or file in
+SRC cannot be read; in that last case the partial DEST is removed.
 """
 from __future__ import annotations
 
@@ -33,14 +34,30 @@ def snapshot(src, dest) -> list[str]:
     src, dest = Path(src).expanduser().resolve(), Path(dest).expanduser()
     if dest.exists() or dest.is_symlink():
         raise SnapshotError(f"{dest} exists; snapshot into a new directory")
+    if dest.resolve() == src or dest.resolve().is_relative_to(src):
+        raise SnapshotError(f"{dest} is inside the skill; snapshot into a directory outside it")
     skill = skillmd.skill_md(src / "SKILL.md")   # a link to anything but a SKILL.md raises here
     if not skill.is_file():
         raise SnapshotError(f"no SKILL.md in {src}")
 
     skipped = []
     dest.mkdir(parents=True)
+    try:
+        _copy(src, skill, dest, skipped)
+    except OSError:
+        shutil.rmtree(dest)   # no partial snapshot: a missing file would look like a cut
+        raise
+    return sorted(skipped)
+
+
+def _raise(err: OSError) -> None:
+    raise err
+
+
+def _copy(src: Path, skill: Path, dest: Path, skipped: list) -> None:
     shutil.copyfile(skill, dest / "SKILL.md")
-    for top, dirs, files in os.walk(src, followlinks=False):
+    # onerror: a directory that cannot be listed is an error, not an empty folder.
+    for top, dirs, files in os.walk(src, followlinks=False, onerror=_raise):
         dirs[:] = [d for d in dirs if d not in skillmd.SKIP_PARTS]
         here = Path(top)
         for name in sorted(dirs + files):
@@ -53,7 +70,6 @@ def snapshot(src, dest) -> list[str]:
             elif p.is_file():
                 (dest / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(p, dest / rel, follow_symlinks=False)
-    return sorted(skipped)
 
 
 def main(argv=None) -> int:

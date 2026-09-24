@@ -85,7 +85,8 @@ def test_a_dangling_link_is_skipped(snapshot, tmp_path, capsys):
 
 def test_an_existing_destination_or_a_missing_skill_md_is_refused(snapshot, tmp_path, capsys):
     # Bug caught: copying into a directory that already exists, which mixes an old
-    # snapshot (or a candidate) into the new one, or snapshotting a folder with no skill.
+    # snapshot (or a candidate) into the new one, or snapshotting a folder with no
+    # skill without saying so plainly.
     skill = _skill(tmp_path)
     dest = tmp_path / "copy"
     dest.mkdir()
@@ -96,4 +97,38 @@ def test_an_existing_destination_or_a_missing_skill_md_is_refused(snapshot, tmp_
     assert snapshot.main([str(skill), str(tmp_path / "copy2")]) == 2
     assert not (tmp_path / "copy2").exists()
     err = capsys.readouterr().err
-    assert "exists" in err and "SKILL.md" in err
+    assert "exists" in err and "no SKILL.md in" in err
+
+
+def test_a_destination_inside_the_skill_is_refused(snapshot, tmp_path, capsys):
+    # Bug caught: snapshotting into a folder inside the skill, which copies the
+    # snapshot into itself as it walks, and leaves work files in the user's skill.
+    skill = _skill(tmp_path)
+    before = _files(skill)
+    assert snapshot.main([str(skill), str(skill / "work" / "original")]) == 2
+    assert snapshot.main([str(skill), str(skill)]) == 2
+    assert _files(skill) == before
+    assert "inside" in capsys.readouterr().err
+
+
+def _unreadable(path, run):
+    path.chmod(0)
+    try:
+        return run()
+    finally:
+        path.chmod(0o700)
+
+
+def test_an_unreadable_directory_or_file_fails_and_leaves_no_partial_copy(snapshot, tmp_path, capsys):
+    # Bug caught: os.walk's default of skipping a directory it cannot list (or a
+    # copy error mid-way) leaving a snapshot that silently lacks part of the skill.
+    skill = _skill(tmp_path)
+    (skill / "scripts").mkdir()
+    (skill / "scripts" / "run.py").write_text("print(1)\n", encoding="utf-8")
+    dest = tmp_path / "work" / "original"
+    assert _unreadable(skill / "scripts", lambda: snapshot.main([str(skill), str(dest)])) == 2
+    assert not dest.exists()
+    assert _unreadable(skill / "references" / "a.md", lambda: snapshot.main([str(skill), str(dest)])) == 2
+    assert not dest.exists()
+    assert snapshot.main([str(skill), str(dest)]) == 0
+    capsys.readouterr()

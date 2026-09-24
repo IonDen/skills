@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-24 (subagent-optimizer 1.4.0)
+
+- `subagent-optimizer` now looks at reasoning effort as well as the model. Claude Code subagents accept an `effort` field (`low` to `max`) that overrides the session's level, and until now the skill ignored it. The scanner prints each agent's effort next to its model, in both the readable and the JSON output, and raises three flags: `EFFORT_INHERIT` when the field is missing and the agent runs at whatever the session uses, `EFFORT_INVALID` for a value outside the five documented levels, and `HIGH_EFFORT_READONLY` when an agent that cannot edit files or run shell commands is set to `xhigh` or `max`. The skill recommends model and effort together from the agent's job (low or medium for read-only search workers, medium for implementation, high for planners, architects and security reviewers, the top two levels only when the user confirms the work needs them) and, like model changes, presents a new level as a candidate to test on the agent's real task. The references quote Claude Code's per-model level table, including that Haiku has no effort levels. The description now says the skill is for subagent definitions in `.claude/agents/` and that agent skills belong to `skill-optimizer`, so the two stop competing for the same requests. The top heading reads "Subagent optimizer" after the rename, the README's version history covers 1.3.0 to 1.4.0, and a fifth eval checks a read-only agent at `effort: max`.
+
 ## 2026-09-24 (subagent-optimizer 1.3.1)
 
 - Two sentences in `subagent-optimizer`'s SKILL.md only restated the sentence before them ("A tight allowlist is cheaper and more correct." and "The scan tells you what is off; you decide the fix.") and are gone. `skill-optimizer` found them and checked that nothing else changed; the skill's own evals 1 and 3 gave the same results before and after. The version goes to 1.3.1.

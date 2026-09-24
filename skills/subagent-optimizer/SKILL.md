@@ -1,20 +1,22 @@
 ---
 name: subagent-optimizer
 description: >-
-  Use when asked to audit, optimise, slim down, or fix Claude Code subagent
-  definitions (.claude/agents/*.md) — set a proper `tools` allowlist (an agent
-  with no `tools` field inherits every tool on each launch), cut bloated or
-  duplicated system prompts, tighten descriptions so they trigger reliably, and
-  right-size the model. Triggers: "optimize my subagents", "optimise my agents",
-  "audit my subagents", "subagent optimizer", "my agent uses too many tokens",
-  "fix the tools list", "review .claude/agents", "make my agents cheaper".
+  Optimizes Claude Code subagent definitions (.claude/agents/*.md); agent skills
+  (SKILL.md folders) are handled by skill-optimizer. Use when asked to audit,
+  optimise, slim down, or fix subagents: set a proper `tools` allowlist (an
+  agent with no `tools` field inherits every tool on each launch), cut bloated
+  or duplicated system prompts, tighten descriptions so they trigger reliably,
+  and right-size the model and reasoning effort. Triggers: "optimize my
+  subagents", "optimise my agents", "audit my subagents", "subagent optimizer",
+  "my agent uses too many tokens", "fix my agent's tools list", "review
+  .claude/agents", "make my agents cheaper".
 license: MIT
 metadata:
-  version: "1.3.1"
+  version: "1.4.0"
   author: IonDen
 ---
 
-# Agent Optimiser
+# Subagent optimizer
 
 Audit Claude Code subagent files and propose token-economy + quality fixes, then
 apply the approved ones and bump each changed agent's version.
@@ -104,12 +106,19 @@ floor in `tool-catalog.md`. Then:
 **Description.** Ensure concrete triggers ("use when…/after…"), a proactive cue if
 it should auto-fire, and no runaway multi-example bloat (it loads session-wide).
 
-**Model.** Match to job. `haiku` suits mechanical work (formatting, mechanical
-checks, lookups); read-only is not by itself a reason to downgrade — a security
-review or an architecture analysis reads only and still needs a strong model. Flag
-complex agents left on default `inherit` that could silently run on a weak session
-model. Present any model change as a candidate to verify on the agent's real task,
-not as a saving; without a before/after comparison on that task it is a guess.
+**Model and effort.** Recommend them together, from the agent's job. `haiku` suits
+mechanical work (formatting, mechanical checks, lookups); read-only is not by itself
+a reason to downgrade — a security review or an architecture analysis reads only and
+still needs a strong model. `effort` (`low` to `max`) sets how hard the model
+reasons; without it the agent runs at the session's level. Starting points:
+read-only search or filter workers get a small model and low or medium effort;
+implementation workers medium; planners, architects and security reviewers a strong
+model at high; `xhigh` or `max` only for long-running or the hardest work, and only
+if the user confirms the job needs it. Levels depend on the model (see
+`best-practices.md`; Haiku has none). Flag complex agents left on default `inherit`
+that could silently run on a weak session model. Present any model or effort change
+as a candidate to verify on the agent's real task, not as a saving; without a
+before/after comparison on that task it is a guess.
 
 **Frontmatter hygiene.** Name lowercase-hyphenated; required fields present; tool
 names valid (treat unknown names as possibly MCP/plugin — verify, don't assume typo).
@@ -140,7 +149,7 @@ Use this exact structure per agent:
 
 ```
 ## <agent-name>  (<path>)
-Current: model <model> · <tools state> · body <N> lines · definition text ~<T> tok
+Current: model <model> · effort <effort> · <tools state> · body <N> lines · definition text ~<T> tok
 Version: <current> → <proposed>
 
 Findings
@@ -155,7 +164,7 @@ Tool policy: <old: "inherit-all" or N tools> → <proposed comma list>
 Proposed trims: <bullet list of sections/lines to cut, with ~definition-text tokens each>
 
 Definition text: ~<old> → ~<new> tok (chars/4 of the file; not a launch-cost measurement)
-Model: <unchanged | candidate: <model>, verify on the agent's task before adopting>
+Model and effort: <unchanged | candidate: <model>, effort <level>, verify on the agent's task before adopting>
 ```
 
 End with:

@@ -80,6 +80,41 @@ skill fills.
 - Haiku lacks MCP tool-search (`tool_reference`); a Haiku agent relying on many
   deferred MCP tools won't get on-demand loading.
 
+**effort** (inherits the session's level when omitted; recommend it with the model)
+
+Checked 2026-09-24 against the subagent docs, Claude Code's model configuration page
+(https://code.claude.com/docs/en/model-config#adjust-effort-level) and the API effort
+page (https://platform.claude.com/docs/en/build-with-claude/effort).
+
+- `[low] EFFORT_INHERIT` — no `effort`, so the agent runs at whatever level the
+  session uses. Fine if intentional; pin it when the job's depth is fixed. Irrelevant
+  on `haiku`, which has no effort levels.
+- `[med] EFFORT_INVALID` — a value outside `low`, `medium`, `high`, `xhigh`, `max`.
+- `[low] HIGH_EFFORT_READONLY` — `xhigh` or `max` on an agent whose tools are
+  read-only (no `Edit`, `Write`, `NotebookEdit` or `Bash`). Ask whether the job needs
+  it; a lower level is a candidate, not a finding.
+- Levels depend on the model. Claude Code lists all five for Fable 5.1/5, Opus
+  5.5/5/4.8/4.7 and Sonnet 5, drops `xhigh` on Opus 4.6 and Sonnet 4.6, and says
+  "Models not listed here do not support effort" (Haiku is not listed). An
+  unsupported level falls back to "the highest supported level at or below the one
+  you set". Frontmatter overrides the session level but not the
+  `CLAUDE_CODE_EFFORT_LEVEL` environment variable, and `maxEffortLevel` or an
+  organization cap still applies.
+- The API page's typical uses: `low` for "Simpler tasks that need the best speed and
+  lowest costs, such as subagents"; `medium` for "Agentic tasks that require a
+  balance of speed, cost, and performance"; `high` for "Complex reasoning, difficult
+  coding problems, agentic tasks"; `xhigh` for "Long-running agentic and coding tasks
+  (over 30 minutes) with token budgets in the millions"; `max` for "Tasks requiring
+  the deepest possible reasoning and most thorough analysis".
+- Mapped to archetypes: read-only search or filter workers, a small model at low or
+  medium; implementation workers, medium; planners, architects and security
+  reviewers, a strong model at high; `xhigh`/`max` only for long-running or hardest
+  work the user confirms. The API page says to "Evaluate performance on your specific
+  use cases before deploying", so any change is a candidate to verify on the agent's
+  real task.
+- Codex: per-agent model and effort are reportedly honoured for workspace agents but
+  not for disposable workers (openai/codex#11795, closed as a duplicate of #11701).
+
 **name / hygiene**
 - `[med] NAME_FORMAT` — must be lowercase-hyphenated, unique in its scope (a
   duplicate name in the same scope is silently discarded).

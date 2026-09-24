@@ -1,8 +1,8 @@
 # subagent-optimizer: cut the token cost of Claude Code subagents
 
-A subagent optimizer for Claude Code, packaged as an agent skill. It reads your `.claude/agents/*.md` files, reports what each one wastes on every launch, and applies only the fixes you approve. It is plain Markdown plus two Python scripts, so it also runs under OpenAI Codex and anything else that loads `SKILL.md`.
+A subagent optimizer for Claude Code, packaged as an agent skill. It reads your `.claude/agents/*.md` files, reports what each one wastes on every launch, and applies only the fixes you approve. It works on subagent definitions only; for agent skills (`SKILL.md` folders) use `skill-optimizer`. It is plain Markdown plus two Python scripts, so it also runs under OpenAI Codex and anything else that loads `SKILL.md`.
 
-Triggers: "audit my subagents", "optimize my agents", "my agent uses too many tokens", "fix the tools list", "review .claude/agents", "make my agents cheaper".
+Triggers: "audit my subagents", "optimize my agents", "my agent uses too many tokens", "fix my agent's tools list", "review .claude/agents", "make my agents cheaper".
 
 ## Why this exists
 
@@ -24,7 +24,10 @@ Measured on Claude Code 2.1.278, the same one-line agent cost 18,437 input token
 | `MEMORY_BOILERPLATE` | A hand-written memory section the harness already injects | One line |
 | `WEAK_TRIGGER` | Description without "use when", "after" or a proactive cue | Concrete trigger conditions |
 | `LONG_BODY`, `LONG_DESCRIPTION` | Prompt or routing description past the useful size | Cut duplication, keep one worked example |
-| `MODEL_INHERIT` | No `model`, so it runs on whatever the session uses | Pin when competence is fixed |
+| `MODEL_INHERIT` | No `model`, so it runs on whatever the session uses | Pin when competence is fixed, together with effort |
+| `EFFORT_INHERIT` | No `effort`, so it reasons at the session's effort level | Pin with the model when the job's depth is fixed |
+| `EFFORT_INVALID` | An `effort` value other than `low`, `medium`, `high`, `xhigh`, `max` | Use one of the five |
+| `HIGH_EFFORT_READONLY` | `xhigh` or `max` on an agent that cannot edit files or run shell commands | Asked as a question; a lower level is a candidate to test on the agent's real task |
 | `OMITS_CLAUDE_MD` | `omitClaudeMd: true`, so body rules may be the only copy | Never trimmed as duplicates |
 
 ## What it does not do
@@ -101,7 +104,7 @@ subagent-optimizer/
 │   ├── scan_agents.py           the scanner: flags, sizes, cross-agent duplicate blocks
 │   └── bump_version.py          bumps the version of an edited agent
 └── evals/
-    ├── evals.json               four prompts with expected outcomes
+    ├── evals.json               five prompts with expected outcomes
     ├── fixtures/                the agents they run against
     └── recorded/                measured runs, with the harness that produced them
 ```
@@ -114,6 +117,12 @@ The flag list follows Anthropic's own documentation: [subagents](https://code.cl
 
 <details>
 <summary>Show release notes</summary>
+
+**1.4.0**: The model advice now covers reasoning effort too. The scanner reads the `effort` field, prints it next to the model, and raises three new flags: `EFFORT_INHERIT` when the field is missing, `EFFORT_INVALID` for a value outside the five documented levels, and `HIGH_EFFORT_READONLY` when a read-only agent runs at `xhigh` or `max`. The skill recommends model and effort together from the agent's job and presents any change as a candidate to test. The description now says the skill is for subagent definitions and that agent skills belong to `skill-optimizer`.
+
+**1.3.1**: Two sentences in SKILL.md that only restated the sentence before them are gone. Behaviour is unchanged.
+
+**1.3.0**: Renamed from `agent-optimiser` to `subagent-optimizer`, the words people search with. The old name is not kept as an alias.
 
 **1.2.1**: Added US-spelling triggers ("optimize my subagents", "subagent optimizer") so the skill loads when people ask in those words. No change to the flags or the scripts.
 

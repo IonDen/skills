@@ -160,6 +160,20 @@ def is_subsequence(small: list[str], big: list[str]) -> bool:
     return all(any(t == b for b in it) for t in small)
 
 
+def _cells(row: str) -> list[str]:
+    """Split a table row on each unescaped "|" outside a backtick code span, so
+    `ps aux | grep mlx` stays one cell and one literal."""
+    cells = [""]
+    for i, part in enumerate(CODE_SPAN_RE.split(row)):
+        if i % 2:
+            cells[-1] += part
+            continue
+        pieces = CELL_SPLIT_RE.split(part)
+        cells[-1] += pieces[0]
+        cells.extend(pieces[1:])
+    return cells
+
+
 def units(body: str) -> list[dict]:
     out: list[dict] = []
     para: list[str] = []
@@ -201,7 +215,7 @@ def units(body: str) -> list[dict]:
         if TABLE_ROW_RE.match(line):
             # Each cell is its own unit, so re-padding a row changes no sentence.
             flush()
-            cells = [c.strip() for c in CELL_SPLIT_RE.split(line) if c.strip()]
+            cells = [c.strip() for c in _cells(line) if c.strip()]
             if not all(TABLE_RULE_RE.match(c) for c in cells):
                 out.extend({"kind": "text", "text": c, "line": i, "depth": depth} for c in cells)
             continue

@@ -184,10 +184,12 @@ def test_sentence_ends_before_a_closing_quote_or_bracket(skillmd):
 def test_table_cells_are_their_own_units(skillmd):
     # Bug caught: reading a table row as one paragraph, so a cell's last sentence
     # keeps the row's " |" and re-padding the table reads as an edited rule.
-    body = "| Exit | Next |\n|---|---|\n| 1 | Fix it. Never apply it. |\n| 2 | Use `a \\| b` here. |\n"
-    realigned = "|Exit|Next|\n|:--|--:|\n|1|Fix it. Never apply it.|\n|2|Use `a \\| b` here.|\n"
+    body = ("| Exit | Next |\n|---|---|\n| 1 | Fix it. Never apply it. |\n| 2 | Use `a \\| b` here. |\n"
+            "| 3 | Pick x \\| y. |\n")
+    realigned = ("|Exit|Next|\n|:--|--:|\n|1|Fix it. Never apply it.|\n|2|Use `a \\| b` here.|\n"
+                 "|3|Pick x \\| y.|\n")
     assert keys(skillmd, body) == keys(skillmd, realigned) == [
-        "Exit", "Next", "1", "Fix it", "Never apply it", "2", "Use `a \\| b` here"]
+        "Exit", "Next", "1", "Fix it", "Never apply it", "2", "Use `a \\| b` here", "3", "Pick x \\| y"]
     assert skillmd.order(body) == skillmd.order(realigned)
 
 
@@ -196,3 +198,11 @@ def test_heading_marker_is_not_part_of_the_key(skillmd):
     # copied with its heading marker never matches the heading it names.
     assert skillmd.normalise("## Never on Fridays") == skillmd.normalise("Never on Fridays") == "Never on Fridays"
     assert skillmd.normalise("### Never on Fridays ###") == "Never on Fridays"
+
+
+def test_a_pipe_inside_code_does_not_split_a_cell(skillmd):
+    # Bug caught: splitting a table row on every unescaped "|", so a cell holding
+    # `ps aux | grep mlx` breaks in two and the command is never frozen as a literal.
+    body = "| Step | How |\n|---|---|\n| Filter | Run `ps aux | grep mlx` to list them. |\n"
+    assert keys(skillmd, body) == ["Step", "How", "Filter", "Run `ps aux | grep mlx` to list them"]
+    assert "ps aux | grep mlx" in skillmd.literals(body)

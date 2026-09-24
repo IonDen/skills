@@ -11,9 +11,13 @@ reference is the first body line naming it, with no strong rule word and at
 most 25 words besides the path.
 
 Deleting a rule sentence, rule heading or anchored sentence passes only when
-the user approved that exact text (--approved). A literal lost with it passes
-only when every original sentence holding it was approved and deleted, and no
-heading or code block of the original held it. Each approved deletion is listed.
+the user approved that exact text (--approved) and it is gone whole. If a
+candidate sentence (or heading) keeps some of its words in order, it was
+trimmed, not deleted, and stays RULE_LOST or ANCHOR_LOST, unless that candidate
+sentence is also cut from another original sentence that survives unchanged. A
+literal lost with it passes only when every original sentence holding it was
+approved and truly deleted, and no heading or code block of the original held
+it. Each approved deletion is listed.
 
 Rejects (exit 1):
   ORIGINAL_CHANGED     the skill on disk is not the one that was frozen
@@ -26,13 +30,16 @@ Rejects (exit 1):
   ANCHOR_LOST          a sentence a requirement anchors is gone or was edited
   LITERAL_LOST         a command, path, flag, URL, version, date or threshold is gone or changed
   PROMINENCE_LOST      a strong rule or a rule heading has text in front of it that was behind
-                       it, or sits deeper than it did
+                       it, or sits deeper than it did (a rule heading the original repeats
+                       has no single position; only its existence is checked)
   TERMINAL_MOVED       a closing rule no longer closes the body
   REFERENCE_UNLINKED   a new references/ file is not named in the body
   NOT_SMALLER          the body did not get smaller
 Needs the user's decision (exit 3):
   MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file
   SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
+                       (a trimmed heading is the original heading it was cut from, when
+                       exactly one fits)
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
@@ -168,10 +175,45 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             return "body"
         return next((rel for rel, keys in in_refs.items() if key in keys), None)
 
-    # Scope: a rule or anchored sentence still in the body must sit under the same heading.
+    # An approved deletion must be a deletion. A candidate sentence (or heading)
+    # whose words all fit, in order, inside the approved text is a trim of it,
+    # unless it is also cut from another original sentence that survives unchanged.
+    cand_text = {"sentence": {s["key"] for _, t in sources for s in skillmd.sentences(t)},
+                 "heading": body_heads.union(*ref_heads.values())}
+    orig_text = {"sentence": frozen["sentences"], "heading": frozen["headings"]}
+
+    def trimmed(kind: str, key: str) -> bool:
+        if kind not in cand_text:
+            return False
+        whole = skillmd.tokens(key)
+        kept = [skillmd.tokens(o) for o in orig_text[kind] if o != key and o in cand_text[kind]]
+        for c in cand_text[kind]:
+            toks = skillmd.tokens(c)
+            if (toks and skillmd.is_subsequence(toks, whole)
+                    and not any(skillmd.is_subsequence(toks, o) for o in kept)):
+                return True
+        return False
+
+    def deleted_with_approval(kind: str, key: str) -> bool:
+        return key in approved and locate(kind, key) is None and not trimmed(kind, key)
+
+    def lost(key: str, kind: str) -> str:
+        return "trimmed, not deleted" if key in approved and trimmed(kind, key) else "is gone or was edited"
+
+    # Scope: a rule or anchored sentence still in the body must sit under the same
+    # heading. A candidate heading is the original heading it was cut from: itself
+    # if unchanged, else the one original heading whose words it keeps in order.
+    # With no such heading, or more than one, it counts as a new section.
+    def section_of(heading: str) -> str:
+        if not heading or heading in frozen["headings"]:
+            return heading
+        toks = skillmd.tokens(heading)
+        found = [o for o in frozen["headings"] if skillmd.is_subsequence(toks, skillmd.tokens(o))]
+        return found[0] if len(found) == 1 else heading
+
     section_now: dict[str, str] = {}
     for s in body_sents:
-        section_now.setdefault(s["key"], s["section"])
+        section_now.setdefault(s["key"], section_of(s["section"]))
     asked_section = set()
 
     def same_section(key: str, text: str, section: str) -> None:
@@ -183,29 +225,30 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
 
     for rule in frozen["rules"]:
         where = locate("sentence", rule["key"])
-        if where is None and rule["key"] in approved:
+        if where is None and deleted_with_approval("sentence", rule["key"]):
             approve(rule["key"])
         elif where is None:
-            reject("RULE_LOST", f"{rule['text']!r} is gone or was edited")
+            reject("RULE_LOST", f"{rule['text']!r} {lost(rule['key'], 'sentence')}")
         elif where != "body":
             ask(f"{'strong rule' if rule['strong'] else 'rule'} moved: {rule['text']!r}", where)
         else:
             same_section(rule["key"], rule["text"], rule["section"])
     for head in frozen["rule_headings"]:
         where = locate("heading", head["key"])
-        if where is None and head["key"] in approved:
+        if where is None and deleted_with_approval("heading", head["key"]):
             approve(head["key"])
         elif where is None:
-            reject("RULE_LOST", f"heading {head['key']!r} is gone or was edited")
+            reject("RULE_LOST", f"heading {head['key']!r} {lost(head['key'], 'heading')}")
         elif where != "body":
             ask(f"heading moved: {head['key']!r}", where)
     for req in frozen["requirements"]:
         for target in req["protects"]:
             where = locate(target["kind"], target["key"])
-            if where is None and target["key"] in approved:
+            if where is None and deleted_with_approval(target["kind"], target["key"]):
                 approve(target["key"])
             elif where is None:
-                reject("ANCHOR_LOST", f"{req['id']} ({req['requirement']}): {target['key']!r} is gone or was edited")
+                reject("ANCHOR_LOST", f"{req['id']} ({req['requirement']}): {target['key']!r} "
+                                      f"{lost(target['key'], target['kind'])}")
             elif where != "body":
                 ask(f"{req['id']} moved: {target['key']!r}", where)
             elif target["kind"] == "sentence":
@@ -238,7 +281,10 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         if rule["strong"]:
             prominence(repr(rule["text"]), rule["key"], rule["index"], rule["depth"])
     for head in frozen["rule_headings"]:
-        prominence(f"heading {head['key']!r}", "# " + head["key"], head["index"], head["depth"])
+        # A heading the original repeats ("### Pitfalls to avoid" in two sections)
+        # has no single position to keep; that it still exists is checked above.
+        if frozen["order"].count("# " + head["key"]) == 1:
+            prominence(f"heading {head['key']!r}", "# " + head["key"], head["index"], head["depth"])
 
     tail = {s["key"] for s in body_sents[-TERMINAL_WINDOW:]}
     for key in frozen["terminal"]:
@@ -246,14 +292,15 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             reject("TERMINAL_MOVED", f"{key!r} closed the original and no longer closes the body")
 
     # A lost literal is approved only when every original sentence holding it was
-    # approved and deleted, and no heading or code block of the original held it.
+    # approved and truly deleted (not trimmed), and no heading or code block of the
+    # original held it.
     package = "\n".join(t for _, t in sources)
     for lit in frozen["literals"]:
         if skillmd.contains_literal(package, lit):
             continue
         holders = [k for k in frozen["sentences"] if skillmd.contains_literal(k, lit)]
         elsewhere = any(skillmd.contains_literal(t, lit) for t in frozen["headings"] + frozen["code_blocks"])
-        if holders and not elsewhere and all(k in approved and locate("sentence", k) is None for k in holders):
+        if holders and not elsewhere and all(deleted_with_approval("sentence", k) for k in holders):
             approve(f"literal: {lit}")
         else:
             reject("LITERAL_LOST", f"{lit!r} is gone or changed")

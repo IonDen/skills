@@ -556,3 +556,89 @@ def test_a_literal_no_sentence_holds_is_never_approved(freezer, gate, make_skill
     candidate = VAULT.replace(EXPLANATION, "").replace(NUKE, "")
     r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate, approved=[NUKE])
     assert [f["detail"] for f in r["rejected"] if f["code"] == "LITERAL_LOST"] == ["'src/__pkg__/x.py' is gone or changed"]
+
+
+FRIDAYS = "Deploy on Fridays only when the lead signs off."
+SCRATCH = "Run `make nuke` on the scratch host after the tests."
+TRIMS = EXPLANATION + FRIDAYS + "\n\n" + SCRATCH + "\n\nTag the release after the merge.\n"
+SCRATCH_REQS = TAG + "R2: Nuke the scratch host.\n  anchor: on the scratch host after the tests\n"
+
+
+@pytest.mark.parametrize("approved,old,new,code", [
+    (FRIDAYS, FRIDAYS, "Deploy on Fridays.", "RULE_LOST"),
+    (SCRATCH, SCRATCH, "Run on the scratch host.", "ANCHOR_LOST"),
+], ids=["rule", "anchor"])
+def test_an_approved_deletion_may_not_be_a_trim(freezer, gate, make_skill, tmp_path, approved, old, new, code):
+    # Bug caught: counting an approved sentence as deleted whenever its exact text is
+    # gone, so "Deploy on Fridays only when the lead signs off." approved for deletion
+    # can be kept as "Deploy on Fridays." and the condition disappears unasked.
+    candidate = TRIMS.replace(EXPLANATION, "").replace(old, new)
+    r = gate_on(freezer, gate, make_skill, tmp_path, TRIMS, SCRATCH_REQS, candidate, approved=[approved])
+    assert r["status"] == "rejected"
+    assert any(f["code"] == code and "trimmed, not deleted" in f["detail"] for f in r["rejected"]), r["rejected"]
+    assert r["approved_deletions"] == []
+    if "make nuke" in old:
+        # the literal goes only with a sentence that is truly deleted
+        assert "'make nuke' is gone or changed" in [f["detail"] for f in r["rejected"] if f["code"] == "LITERAL_LOST"]
+    whole = TRIMS.replace(EXPLANATION, "").replace(old + "\n\n", "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, TRIMS, SCRATCH_REQS, whole, approved=[approved])
+    assert r["status"] == "pass", r["rejected"]
+
+
+def test_a_surviving_sentence_is_not_read_as_a_trim(freezer, gate, make_skill, tmp_path):
+    # Bug caught: treating every candidate sentence whose words fit inside an approved
+    # sentence as a trim of it, so "Tag the release." kept exactly as it was blocks the
+    # approved deletion of "Never tag the release on a Friday." forever.
+    original = EXPLANATION + "Never tag the release on a Friday.\n\nTag the release.\n\nTag the release after the merge.\n"
+    candidate = "Tag the release.\n\nTag the release after the merge.\n"
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate,
+                approved=["Never tag the release on a Friday."])
+    assert r["status"] == "pass", r["rejected"]
+    assert r["approved_deletions"] == ["Never tag the release on a Friday"]
+
+
+PITFALLS = ("# Guide\n\n" + EXPLANATION + "## Build\n\nRun the build script first.\n\n### Pitfalls to avoid\n\n"
+            "The cache can go stale.\n\n## Deploy\n\nPush the image to the registry.\n\n### Pitfalls to avoid\n\n"
+            "The registry can be slow.\n\nTag the release after the merge.\n")
+
+
+def test_a_repeated_rule_heading_has_no_position_to_keep(freezer, gate, make_skill, tmp_path):
+    # Bug caught: giving a heading that occurs twice the position of its first
+    # occurrence, so deleting the first "### Pitfalls to avoid" section reads as the
+    # second one losing prominence.
+    candidate = ("# Guide\n\n## Deploy\n\nPush the image to the registry.\n\n### Pitfalls to avoid\n\n"
+                 "The registry can be slow.\n\nTag the release after the merge.\n")
+    r = gate_on(freezer, gate, make_skill, tmp_path, PITFALLS, TAG, candidate)
+    assert r["status"] == "pass", r["rejected"]
+    # it must still exist somewhere: deleting every copy is RULE_LOST
+    gone = candidate.replace("### Pitfalls to avoid\n\n", "")
+    assert "RULE_LOST" in codes(gate_on(freezer, gate, make_skill, tmp_path, PITFALLS, TAG, gone))
+    # a heading that occurs once keeps its position
+    unique = PITFALLS.replace("## Deploy", "## Never deploy by hand")
+    moved = ("# Guide\n\n## Build\n\nRun the build script first.\n\n### Pitfalls to avoid\n\nThe cache can go stale.\n\n"
+             "Push the image to the registry.\n\n### Pitfalls to avoid\n\nThe registry can be slow.\n\n"
+             "Tag the release after the merge.\n\n## Never deploy by hand\n")
+    assert "PROMINENCE_LOST" in codes(gate_on(freezer, gate, make_skill, tmp_path, unique, TAG, moved))
+
+
+LOCAL = ("# Guide\n\n" + EXPLANATION + "## Running the tests locally\n\nUse the apt package only on Debian hosts.\n\n"
+         "## Release\n\nTag the release after the merge.\n")
+
+
+def test_a_trimmed_heading_keeps_its_section(freezer, gate, make_skill, tmp_path):
+    # Bug caught: comparing a rule's section by heading text, so trimming
+    # "## Running the tests locally" to "## Running tests" asks the user whether
+    # every rule under it may change section, though none moved.
+    trimmed = LOCAL.replace(EXPLANATION, "").replace("## Running the tests locally", "## Running tests")
+    r = gate_on(freezer, gate, make_skill, tmp_path, LOCAL, TAG, trimmed)
+    assert r["status"] == "pass", (r["rejected"], r["confirm"])
+    moved = trimmed.replace("Use the apt package only on Debian hosts.\n\n", "") + \
+        "\nUse the apt package only on Debian hosts.\n"
+    r = gate_on(freezer, gate, make_skill, tmp_path, LOCAL, TAG, moved)
+    assert [c["code"] for c in r["confirm"]] == ["SECTION_CHANGED"], (r["rejected"], r["confirm"])
+    # a trim that fits two original headings names neither: the gate asks
+    two = LOCAL.replace("## Running the tests locally", "## Running the tests in CI") + \
+        "\n## Running the tests locally\n\nUse the cache.\n"
+    ambiguous = two.replace(EXPLANATION, "").replace("## Running the tests in CI", "## Running the tests")
+    r = gate_on(freezer, gate, make_skill, tmp_path, two, TAG, ambiguous)
+    assert [c["code"] for c in r["confirm"]] == ["SECTION_CHANGED"], (r["rejected"], r["confirm"])

@@ -202,6 +202,15 @@ def test_cli_exit_codes(freezer, gate, make_skill, tmp_path, capsys):
     capsys.readouterr()
 
 
+def test_cli_percentage_is_not_rounded_up(gate):
+    # Bug caught: floor division on a negative change, which prints -36.1% as -37%
+    # and makes every saving look about a point bigger than it is.
+    assert gate.percent_change(2898, 1851) == "-36.1%"
+    assert gate.percent_change(8863, 8758) == "-1.2%"
+    assert gate.percent_change(435, 151) == "-65.3%"
+    assert gate.percent_change(0, 0) == ""
+
+
 def test_invented_sentence_is_new_text(run):
     # Bug caught: checking only that frozen items survive, so a sentence the
     # original never had (one that contradicts a rule, even) passes.

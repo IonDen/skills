@@ -205,6 +205,13 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
 EXIT = {"pass": 0, "unchanged": 0, "rejected": 1, "needs_confirmation": 3}
 
 
+def percent_change(before: int, after: int) -> str:
+    """Signed percent change from `before` to `after`, one decimal place. Empty string when `before` is 0."""
+    if not before:
+        return ""
+    return f"{(after - before) * 100 / before:+.1f}%"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--frozen", required=True)
@@ -227,7 +234,7 @@ def main(argv=None) -> int:
         print(json.dumps(result, indent=2))
     else:
         b, a = result["body_chars_before"], result["body_chars_after"]
-        pct = f" ({(a - b) * 100 // b:+d}%)" if b else ""
+        pct = f" ({percent_change(b, a)})" if b else ""
         print(f"{result['status'].upper()}  body {b:,} -> {a:,} chars{pct}, "
               f"{result['moved_chars']:,} chars moved to new references; "
               f"{result['requirements']} requirements, {result['unprotected']} unprotected sentences; "

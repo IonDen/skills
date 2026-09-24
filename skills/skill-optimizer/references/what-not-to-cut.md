@@ -17,6 +17,8 @@ whether something is safe to cut, keep it and list it in the report under
   nothing is forgotten"); keep each one and list it as an optional cut, and
   delete it only after the user approves that sentence.
 - Sentences a requirement anchors, word for word, like rule sentences.
+- Bold and italic on a rule or an anchored sentence. The author marked what
+  matters most; it is not decoration. The gate asks before it goes.
 - Anything to run or type: inline code, lines of a code fence with no
   language or a shell language, URLs, `--flags`, version pins, versions
   ("Python 3.10", "2.1.252+"), dates, paths.
@@ -50,6 +52,9 @@ whether something is safe to cut, keep it and list it in the report under
   reliably and applied more sensibly at the edges; cut long background, keep the
   one clause that says why.
 - Dated notes ("changed 2026-05-17 after ...") that record where a rule came from.
+- A "Common mistakes" or "Red flags" table. Its rows repeat rules as failures
+  an agent recognises mid-task, and that repetition is the point. List the rows
+  as optional cuts; do not cut them as duplicates.
 - Which example to keep. Example fences (markdown, json, yaml, text and
   similar) are not literals, so the gate lets you delete one. Cut a duplicate;
   keep the one that shows a format the skill requires.

@@ -13,7 +13,7 @@ description: >-
   "trim SKILL.md", "my skills eat my context", "skill optimizer".
 license: MIT
 metadata:
-  version: "1.0.2"
+  version: "1.1.0"
   author: IonDen
 ---
 
@@ -99,7 +99,9 @@ R2: Read the repository conventions before starting.
 ```
 
 An anchor has at least three words, sits inside one sentence, and protects that
-whole sentence word for word. List plain instructions as well as MUST and NEVER
+whole sentence word for word. In a table each cell is a separate target, so
+anchor inside one cell. Do not let an anchor cross a line that ends in a hyphen
+(`what-to-` / `read-for-what`): the lines join with a space, and it never matches. List plain instructions as well as MUST and NEVER
 rules: each step and its order, conditions ("if the build fails, ..."),
 commands, thresholds, gotchas, and the reason attached to a rule. Then check the
 list:
@@ -165,7 +167,7 @@ python3 scripts/verify_rewrite.py --frozen "<work>/frozen.json" --original "<ski
 | 0 | `unchanged` | Nothing could be cut without loss. Report that and stop. |
 | 1 | `rejected` | Fix each finding and gate again. A rejected candidate is never shown as a proposal or applied. |
 | 2 | input error | Fix the paths. |
-| 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference or under another heading. Put each listed item back where it was, gate again, and list the move as an optional cut. A move stays only if the user's request already approved moving that specific item. |
+| 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference or under another heading, or lost its bold or italic. Put each listed item back as it was, gate again, and list the change as an optional cut. A change stays only if the user's request already approved that specific item. |
 
 Use `--approved` only after the user answers the optional-cuts list. Write the
 sentences they approve deleting to `<work>/approved.txt`, one per line, copied
@@ -216,7 +218,7 @@ Optional further cuts (not applied)
 
 Deleted with your approval: <sentence>
 
-Gate: pass | needs confirmation (moves you approved)    Requirements: <n> (<n> sentences left unprotected on purpose)
+Gate: pass | needs confirmation (changes you approved)    Requirements: <n> (<n> sentences left unprotected on purpose)
 Coverage: <n>/<n>    Reverse reconstruction: <n>/<n> | skipped: <why>
 Behaviour: <n>/<n> clauses unchanged | skipped: <why>
 
@@ -235,7 +237,7 @@ Apply when the request approved applying, or after the user approves. Optional
 cuts stay unapplied until the user picks them; then make those cuts, add any
 approved sentences to approved.txt, and gate again. If the user declines a cut,
 put that text back in the candidate and gate again. Right before copying, gate
-once more; it must exit 0, or 3 when the user approved every move it lists.
+once more; it must exit 0, or 3 when the user approved every item it lists.
 Then run `mkdir -p "<skill-dir>/references"` if the candidate has references,
 and copy `"<work>/candidate/SKILL.md"` over the skill's SKILL.md. Copy each new
 reference file only if that path does not exist in the skill; never overwrite a

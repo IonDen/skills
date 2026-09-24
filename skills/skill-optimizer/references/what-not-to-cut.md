@@ -5,7 +5,7 @@ checks some of them mechanically, the rest are yours to protect.
 
 ## Kept word for word (the gate checks)
 
-- **Sentences with a rule word**: must, never, always, shall, only, unless,
+- Sentences with a rule word: must, never, always, shall, only, unless,
   except, exception, should, required, forbidden, cannot, not, don't, no, none,
   nothing, without, avoid, prefer, instead, until, even if. Words inside inline
   code do not count. Move such a sentence if the user agrees; never reword,
@@ -14,7 +14,7 @@ checks some of them mechanically, the rest are yours to protect.
   exception into a ban. Some of these sentences are only motivation ("so that
   nothing is forgotten"); delete one only after the user approves that sentence.
 - Sentences a requirement anchors, word for word, like rule sentences.
-- **Anything to run or type**: inline code, lines of a code fence with no
+- Anything to run or type: inline code, lines of a code fence with no
   language or a shell language, URLs, `--flags`, version pins, versions
   ("Python 3.10", "2.1.252+"), dates, paths.
 - Numbers with a unit or a bound: "under 20 GiB", "at most 3 retries",

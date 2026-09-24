@@ -1,0 +1,49 @@
+{
+  "body_chars": 91,
+  "code_blocks": [],
+  "files": {
+    "SKILL.md": "c7292dd20f081728bcfacb83b8ccbd47e4568e02ac7b5802715d9cdee164377a"
+  },
+  "format": 3,
+  "frontmatter": "---\nname: lean\ndescription: Use when committing in this repository. Runs the fast tests first.\n---\n",
+  "headings": [],
+  "literals": [
+    "make test-fast"
+  ],
+  "order": [
+    "Run `make test-fast` before committing",
+    "If it fails, fix the failure before you continue"
+  ],
+  "requirements": [
+    {
+      "id": "R1",
+      "protects": [
+        {
+          "key": "Run `make test-fast` before committing",
+          "kind": "sentence",
+          "section": ""
+        }
+      ],
+      "requirement": "Run `make test-fast` before committing in this repository."
+    },
+    {
+      "id": "R2",
+      "protects": [
+        {
+          "key": "If it fails, fix the failure before you continue",
+          "kind": "sentence",
+          "section": ""
+        }
+      ],
+      "requirement": "If the fast tests fail, fix the failure before continuing (do not commit past a failure)."
+    }
+  ],
+  "rule_headings": [],
+  "rules": [],
+  "sentences": [
+    "If it fails, fix the failure before you continue",
+    "Run `make test-fast` before committing"
+  ],
+  "terminal": [],
+  "unprotected": []
+}

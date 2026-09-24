@@ -216,16 +216,22 @@ def _marked(s: str) -> tuple[str, list[int]]:
 
 
 def emphasis(body: str) -> dict[str, list[list]]:
-    """For each sentence that has emphasis, its emphasised phrases as
-    [normalised phrase, strength] pairs (2 bold, 1 italic), keyed like sentences()."""
+    """For each sentence or heading that has emphasis, its emphasised phrases as
+    [normalised phrase, strength] pairs (2 bold, 1 italic). Sentences are keyed like
+    sentences(), headings like order(): "# " and the heading's key."""
     out: dict[str, list[list]] = {}
     for u in units(body):
-        if u["kind"] != "text":
+        if u["kind"] not in ("text", "heading"):
             continue
         text, strength = _marked(u["text"])
         start = 0
-        for a, b in [m.span() for m in SENTENCE_SPLIT_RE.finditer(text)] + [(len(text), len(text))]:
+        ends = [(len(text), len(text))]
+        if u["kind"] == "text":
+            ends = [m.span() for m in SENTENCE_SPLIT_RE.finditer(text)] + ends
+        for a, b in ends:
             key = normalise(text[start:a])
+            if key and u["kind"] == "heading":
+                key = "# " + key
             k = start
             while key and k < a:
                 j = k
@@ -237,6 +243,26 @@ def emphasis(body: str) -> dict[str, list[list]]:
                 k = j
             start = b
     return {k: sorted(v) for k, v in out.items()}
+
+
+def has_wrapped_quote(body: str) -> bool:
+    """True when two `>` lines follow each other outside a code fence: a quote that
+    skill-optimizer 1.0.x read line by line and this version reads as one paragraph."""
+    fence, prev = None, False
+    for line in body.splitlines():
+        fm = FENCE_RE.match(line)
+        if fence:
+            if fm and fm.group(1)[0] == fence[0] and len(fm.group(1)) >= len(fence):
+                fence = None
+            continue
+        if fm:
+            fence, prev = fm.group(1), False
+            continue
+        quote = line.lstrip().startswith(">")
+        if quote and prev:
+            return True
+        prev = quote
+    return False
 
 
 def keeps_emphasis(phrase: str, level: int, now: list[list]) -> bool:

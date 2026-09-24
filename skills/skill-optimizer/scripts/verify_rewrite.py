@@ -107,6 +107,15 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         original_md = skillmd.skill_md(Path(original_dir) / "SKILL.md")
         if skillmd.sha256_file(original_md) != frozen["files"]["SKILL.md"]:
             reject("ORIGINAL_CHANGED", "the skill's SKILL.md changed after it was frozen")
+        # A 1.0.x freeze (no emphasis or literal_spans) read each line of a wrapped
+        # quote as its own sentence; this version joins them, so every such
+        # sentence would read as lost. The format number stays, so say so here.
+        _, original_body = skillmd.split_frontmatter(skillmd.read_text(original_md))
+        if ("emphasis" not in frozen and "literal_spans" not in frozen
+                and skillmd.has_wrapped_quote(original_body)):
+            raise FrozenFormatError("this freeze was written by skill-optimizer 1.0.x, which read each line of a "
+                                    "wrapped blockquote as its own sentence; freeze the original again into a new "
+                                    "file and gate against that")
 
     fm, body = skillmd.split_frontmatter(skillmd.read_text(candidate_dir / "SKILL.md"))
     if fm != frozen["frontmatter"]:
@@ -273,27 +282,28 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             elif target["kind"] == "sentence":
                 same_section(target["key"], target["key"], target["section"])
 
-    # Emphasis: a rule or an anchored sentence keeps every bold or italic phrase
-    # it had, at least as strong, wherever it now lives. Stripping it asks the user.
-    # A freeze from before the field existed is read from the original on disk.
+    # Emphasis: a rule, a rule heading or an anchored sentence keeps every bold or
+    # italic phrase it had, at least as strong, in the place it now lives (the body,
+    # or the reference locate() names; a bold copy elsewhere does not count).
+    # Stripping it asks the user. A freeze from before the field existed is read
+    # from the original on disk.
     emph = frozen.get("emphasis")
     if emph is None and original_dir is not None:
-        loud = {r["key"] for r in frozen["rules"]} | {t["key"] for r in frozen["requirements"]
-                                                      for t in r["protects"] if t["kind"] == "sentence"}
-        _, original_body = skillmd.split_frontmatter(skillmd.read_text(original_md))
+        loud = ({r["key"] for r in frozen["rules"]} | {"# " + h["key"] for h in frozen["rule_headings"]}
+                | {t["key"] for r in frozen["requirements"] for t in r["protects"] if t["kind"] == "sentence"})
         emph = {k: v for k, v in skillmd.emphasis(original_body).items() if k in loud}
-    emph_now: dict[str, list] = {}
-    for _, text in sources:
-        for key, phrases in skillmd.emphasis(text).items():
-            emph_now.setdefault(key, []).extend(phrases)
+    emph_now = {("body" if where == "SKILL.md" else where): skillmd.emphasis(text) for where, text in sources}
     rule_text = {r["key"]: r["text"] for r in frozen["rules"]}
     for key, phrases in sorted((emph or {}).items()):
-        where = locate("sentence", key)
+        heading = key.startswith("# ")
+        where = locate("heading", key[2:]) if heading else locate("sentence", key)
         if where is None:
             continue      # gone: RULE_LOST, ANCHOR_LOST or an approved deletion says so
-        lost_here = [p for p, level in phrases if not skillmd.keeps_emphasis(p, level, emph_now.get(key, []))]
+        now = emph_now[where].get(key, [])
+        lost_here = [p for p, level in phrases if not skillmd.keeps_emphasis(p, level, now)]
         if lost_here:
-            ask(f"{rule_text.get(key, key)!r} lost the emphasis on " + ", ".join(repr(p) for p in lost_here),
+            label = f"heading {key[2:]!r}" if heading else repr(rule_text.get(key, key))
+            ask(f"{label} lost the emphasis on " + ", ".join(repr(p) for p in lost_here),
                 "SKILL.md" if where == "body" else where, "EMPHASIS_LOST")
 
     # Prominence: nothing that stood behind a strong rule or a rule heading may
@@ -351,15 +361,20 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         if skillmd.contains_literal(package, lit):
             continue
         holders = [k for k in frozen["sentences"] if skillmd.contains_literal(k, lit)]
-        across = sorted({k for run in spans.get(lit, ()) for k in run} - set(holders))
+        runs = spans.get(lit, [])
+        across = [k for k in dict.fromkeys(k for run in runs for k in run) if k not in holders]
         holders += across
         elsewhere = any(skillmd.contains_literal(t, lit) for t in frozen["headings"] + frozen["code_blocks"])
         places = {locate("sentence", k) for k in holders}
         if holders and not elsewhere and all(deleted_with_approval("sentence", k) for k in holders):
             approve(f"literal: {lit}")
         elif across and not elsewhere and len(places) == 1 and places.isdisjoint({None, "body"}):
-            ask(f"{lit!r} ran across sentences that moved together and no longer reads as written there: "
-                + ", ".join(repr(k) for k in holders), places.pop())
+            rel = places.pop()
+            order_there = [s["key"] for s in skillmd.sentences(new_refs[rel])]
+            adjacent = any(run == order_there[i:i + len(run)] for run in runs for i in range(len(order_there)))
+            ask(f"{lit!r} ran across sentences that moved into the same reference"
+                f"{'' if adjacent else ' (not adjacent)'} and no longer reads as written there: "
+                + ", ".join(repr(k) for k in holders), rel)
         else:
             reject("LITERAL_LOST", f"{lit!r} is gone or changed")
 

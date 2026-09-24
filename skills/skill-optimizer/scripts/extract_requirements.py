@@ -11,7 +11,7 @@ Records, from the original skill directory:
     only, unless, without, ...), with its position, its heading depth (the
     shallowest, for a heading that repeats), the heading it sits under, and
     whether it is a strong rule, and the bold or italic phrases in it (and in
-    each anchored sentence)
+    each rule heading and anchored sentence)
   - every literal: inline code, runnable code lines, URLs, flags, versions,
     pins, dates, paths, numbers with a unit or bound; for a literal that runs
     across sentences (`under 20` / `GiB`), the consecutive sentences holding it
@@ -193,7 +193,8 @@ def freeze(skill_dir, requirements_text: str) -> dict:
     closing = [s["key"] for s in sents if s["line"] > last_heading]
     tail = closing if 0 < len(closing) <= TERMINAL_WINDOW else []
     literals = skillmd.literals(body)
-    loud = {r["key"] for r in rules} | {t["key"] for r in reqs for t in r["protects"] if t["kind"] == "sentence"}
+    loud = ({r["key"] for r in rules} | {"# " + h["key"] for h in rule_headings}
+            | {t["key"] for r in reqs for t in r["protects"] if t["kind"] == "sentence"})
     return {
         "format": FORMAT,
         "frontmatter": fm,

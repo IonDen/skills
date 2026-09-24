@@ -21,19 +21,19 @@ checks some of them mechanically, the rest are yours to protect.
   "40 seconds". The bound is part of the number.
 - Code blocks you keep, exactly. A block may be deleted or moved whole;
   it may not be edited.
-- **Your own words.** The only new text allowed is the one line that points to
+- Your own words. The only new text allowed is the one line that points to
   a moved section. Everything else must be cut from a sentence of the original.
 - The frontmatter, entirely. The description decides when the skill
   triggers, and the user may want it exactly as it is; suggest changes in the
   report instead.
-- **Every file other than SKILL.md.** New files may only appear under
+- Every file other than SKILL.md. New files may only appear under
   `references/`.
 - A closing reminder. A rule repeated at the end of a skill is usually
   there on purpose; it stays at the end.
 
 ## Kept in meaning (only you can check)
 
-- **Plain instructions and conditions without a rule word.** "Read the
+- Plain instructions and conditions without a rule word. "Read the
   conventions before editing" and "If the build fails, ask the maintainer" have
   no MUST in them and are still instructions. The dry run lists them; give each
   one an anchor in `requirements.md`, or nothing protects it.
@@ -45,7 +45,7 @@ checks some of them mechanically, the rest are yours to protect.
   reliably and applied more sensibly at the edges; cut long background, keep the
   one clause that says why.
 - Dated notes ("changed 2026-05-17 after ...") that record where a rule came from.
-- **Which example to keep.** Example fences (markdown, json, yaml, text and
+- Which example to keep. Example fences (markdown, json, yaml, text and
   similar) are not literals, so the gate lets you delete one. Cut a duplicate;
   keep the one that shows a format the skill requires.
 

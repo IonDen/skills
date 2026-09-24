@@ -543,7 +543,12 @@ def test_without_tomllib_codex_files_are_not_scanned_but_claude_files_are(scan, 
     (tmp_path / "b.toml").write_text(CODEX_OK)
     agents, skipped = scan.scan_paths([str(tmp_path)])
     assert [a["name"] for a in agents] == ["a"]
-    assert skipped == [{"path": str(tmp_path / "b.toml"), "reason": "not scanned: needs Python 3.11+"}]
+    assert [n["path"] for n in skipped] == [str(tmp_path / "b.toml")]
+    # Bug caught: a bare "needs Python 3.11+" leaves the user without a way to run the scan.
+    reason = skipped[0]["reason"]
+    assert reason.startswith("not scanned: Codex files need Python 3.11+")
+    for hint in ("python3.12", "python3.11", "uv run --python 3.12 scripts/scan_agents.py"):
+        assert hint in reason, hint
 
 
 def test_default_targets_include_codex_agent_folders(scan):
@@ -670,3 +675,143 @@ def test_claude_keys_are_not_also_reported_as_unknown(scan, codex_file):
     # Bug caught: checking unknown keys without excluding Claude keys reports `color` twice.
     flags = cflags(scan, codex_file("ck", CODEX_OK + 'color = "blue"\n'))
     assert "color" in flags["CODEX_CLAUDE_KEY"]["message"] and "CODEX_UNKNOWN_KEY" not in flags
+
+
+def _walk(scan, *paths):
+    notes = []
+    files = scan.gather([str(p) for p in paths], notes)
+    return files, notes
+
+
+@needs_toml
+def test_deeply_nested_toml_is_not_scanned_and_the_scan_goes_on(scan, tmp_path, agent_file):
+    # Bug caught: catching only TOMLDecodeError lets tomllib's RecursionError abort the whole scan.
+    (tmp_path / "deep.toml").write_text('name = "deep"\nx = ' + "[" * 5000 + "]" * 5000 + "\n")
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["good"]
+    assert skipped[0]["path"].endswith("deep.toml") and "nested too deeply" in skipped[0]["reason"]
+
+
+@needs_toml
+def test_toml_that_is_not_utf8_is_not_scanned(scan, tmp_path):
+    # Bug caught: decoding with errors="replace" scans a file Codex cannot read as if it were fine.
+    (tmp_path / "bad.toml").write_bytes(b'name = "\xff"\ndeveloper_instructions = "x"\n')
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert agents == []
+    assert skipped[0]["path"].endswith("bad.toml") and "UTF-8" in skipped[0]["reason"]
+
+
+def test_unreadable_file_is_not_scanned_and_the_scan_goes_on(scan, tmp_path, agent_file):
+    # Bug caught: an OSError from read_text (no permission) aborts the whole scan.
+    locked = agent_file("locked", "description: Use when x\ntools: Read\n")
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    locked.chmod(0)
+    try:
+        agents, skipped = scan.scan_paths([str(tmp_path)])
+    finally:
+        locked.chmod(0o644)
+    assert [a["name"] for a in agents] == ["good"]
+    assert skipped[0]["path"].endswith("locked.md") and skipped[0]["reason"].startswith("not scanned:")
+
+
+def test_directory_named_like_an_agent_file_is_not_read(scan, tmp_path, agent_file):
+    # Bug caught: rglob("*.toml") also yields directories, and reading one raises IsADirectoryError.
+    (tmp_path / "folder.toml").mkdir()
+    (tmp_path / "folder.md").mkdir()
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["good"] and skipped == []
+
+
+def test_agent_file_over_one_mib_is_not_scanned(scan, tmp_path, agent_file):
+    # Bug caught: no size cap reads a huge file whole into memory and reports it as an agent.
+    agent_file("huge", "description: Use when x\ntools: Read\n", "x" * (1024 * 1024 + 1) + "\n")
+    small = agent_file("small", "description: Use when x\ntools: Read\n", "y" * 1000 + "\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["path"] for a in agents] == [str(small)]
+    assert skipped[0]["path"].endswith("huge.md") and "1 MiB" in skipped[0]["reason"]
+
+
+@needs_toml
+def test_toml_suffix_matches_in_any_case(scan, tmp_path):
+    # Bug caught: comparing the suffix to ".toml" exactly misses Agent.TOML in a walk and as an argument.
+    p = tmp_path / "Upper.TOML"
+    p.write_text(CODEX_OK)
+    files, _ = _walk(scan, tmp_path)
+    assert files == [p]
+    assert scan.parse_agent(p)["format"] == "codex"
+    assert scan.gather([str(p)]) == [p]
+
+
+def test_explicit_symlinked_file_argument_is_not_followed(scan, tmp_path):
+    # Bug caught: gather() accepts any is_file() path, and is_file() follows the link.
+    outside = tmp_path / "outside.md"
+    outside.write_text("---\nname: outside\ndescription: Use when x\n---\nbody\n")
+    link = tmp_path / "link.md"
+    link.symlink_to(outside)
+    files, notes = _walk(scan, link)
+    assert files == []
+    assert notes == [{"path": str(link), "reason": notes[0]["reason"]}]
+    assert notes[0]["reason"].startswith("not scanned: symlink")
+
+
+def test_symlinked_md_in_a_walk_gets_a_note(scan, tmp_path):
+    # Bug caught: dropping a symlinked .md silently, so the user never learns why an agent is missing.
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+    outside.write_text("---\nname: outside\ndescription: Use when x\n---\nbody\n")
+    (tmp_path / "link.md").symlink_to(outside)
+    files, notes = _walk(scan, tmp_path)
+    assert files == []
+    assert notes[0]["path"].endswith("link.md") and notes[0]["reason"].startswith("not scanned: symlink")
+
+
+def test_symlinked_toml_is_refused_for_being_a_symlink(scan, tmp_path):
+    # Bug caught: a symlinked .toml refused for some other reason (or parsed through the link).
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.toml"
+    outside.write_text(CODEX_OK)
+    (tmp_path / "link.toml").symlink_to(outside)
+    files, notes = _walk(scan, tmp_path)
+    assert files == []
+    assert notes[0]["reason"].startswith("not scanned: symlink") and "Codex" in notes[0]["reason"]
+
+
+@needs_toml
+def test_lone_top_level_description_is_not_an_agent(scan, tmp_path):
+    # Bug caught: counting `description` as an agent marker lists every TOML with a description.
+    p = tmp_path / "meta.toml"
+    p.write_text('description = "A config file"\n')
+    assert scan.parse_agent(p) is None
+
+
+@needs_toml
+def test_top_level_developer_instructions_alone_is_an_agent(scan, tmp_path):
+    # Bug caught: requiring `name` for detection hides an agent that forgot its name.
+    p = tmp_path / "noname.toml"
+    p.write_text('developer_instructions = "Do the job."\n')
+    a = scan.parse_agent(p)
+    assert a["format"] == "codex"
+    f = scan.flag_agent(a, scan.DEFAULT_BODY_LINES, scan.DEFAULT_DESC_CHARS)
+    assert any(x["code"] == "CODEX_MISSING_REQUIRED" and "name" in x["message"] for x in f)
+
+
+@needs_toml
+def test_agent_keys_under_a_table_header_get_a_note(scan, tmp_path):
+    # Bug caught: a file whose agent keys fell under a [table] header is dropped with no word why.
+    p = tmp_path / "misplaced.toml"
+    p.write_text('[agent]\nname = "x"\ndeveloper_instructions = "Do it."\n')
+    agents, skipped = scan.scan_paths([str(p)])
+    assert agents == []
+    reason = skipped[0]["reason"]
+    assert "[agent]" in reason and "belong to that table" in reason and "Codex" in reason
+
+
+@needs_toml
+def test_nested_table_with_agent_keys_names_the_dotted_header(scan, tmp_path):
+    # Bug caught: looking only one level down misses keys that fell under [mcp_servers.docs].
+    p = tmp_path / "late.toml"
+    p.write_text('description = "d"\n[mcp_servers.docs]\nurl = "u"\nname = "x"\n'
+                 'developer_instructions = "Do it."\n')
+    _, skipped = scan.scan_paths([str(p)])
+    assert "[mcp_servers.docs]" in skipped[0]["reason"]
+    assert "`name` and `developer_instructions` sit" in skipped[0]["reason"]

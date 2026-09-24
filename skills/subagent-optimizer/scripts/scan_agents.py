@@ -158,6 +158,12 @@ CODEX_RETIRED_MODELS = {
     "gpt-5.3-codex": "deprecated",
 }
 
+MAX_AGENT_FILE_BYTES = 1024 * 1024  # bigger files are listed as not scanned
+CODEX_AGENT_MARKERS = ("name", "developer_instructions")  # top level only
+NEEDS_TOMLLIB = ("not scanned: Codex files need Python 3.11+ (tomllib); run the scanner "
+                 "with python3.12 or python3.11, or `uv run --python 3.12 "
+                 "scripts/scan_agents.py`")
+
 DEFAULT_BODY_LINES = 150   # official single-purpose examples run ~25-45 lines
 DEFAULT_DESC_CHARS = 1200  # description loads session-wide for routing
 
@@ -239,20 +245,49 @@ def _text(v) -> str:
     return v if isinstance(v, str) else ("" if v is None else str(v))
 
 
+def _table_with_instructions(data: dict, prefix: str = ""):
+    """The first nested table holding `developer_instructions`, as (dotted
+    header, table), or ("", None). Only that Codex-specific key counts: a table
+    with just a `name` is ordinary TOML (pyproject's [project], Cargo's [package])."""
+    for key, value in data.items():
+        header = f"{prefix}.{key}" if prefix else key
+        for table in (value if isinstance(value, list) else [value]):
+            if isinstance(table, dict):
+                if "developer_instructions" in table:
+                    return header, table
+                found = _table_with_instructions(table, header)
+                if found[1] is not None:
+                    return found
+    return "", None
+
+
 def parse_codex_agent(path: Path):
     """Parse a Codex custom agent (.toml) into the shared agent dict.
 
-    Returns None for a .toml that is not an agent (no top-level name,
-    description or developer_instructions, e.g. pyproject.toml). Raises
-    NotScanned when the file cannot be read as TOML here."""
+    Returns None for a .toml that is not an agent (no top-level name or
+    developer_instructions, e.g. pyproject.toml). Raises NotScanned when the
+    file cannot be read as TOML here, or when its agent keys sit inside a table."""
     if tomllib is None:
-        raise NotScanned("not scanned: needs Python 3.11+")
-    raw = path.read_text(encoding="utf-8-sig", errors="replace")
+        raise NotScanned(NEEDS_TOMLLIB)
+    try:
+        raw = path.read_text(encoding="utf-8-sig")  # strict: Codex reads UTF-8 only
+    except UnicodeDecodeError as exc:
+        raise NotScanned(f"not scanned: not UTF-8 ({exc.reason} at byte {exc.start})") from exc
     try:
         data = tomllib.loads(raw)
     except tomllib.TOMLDecodeError as exc:
         raise NotScanned(f"not scanned: TOML parse error ({exc})") from exc
-    if not any(k in data for k in CODEX_REQUIRED_KEYS):
+    except RecursionError as exc:
+        raise NotScanned("not scanned: TOML nested too deeply to parse") from exc
+    if not any(k in data for k in CODEX_AGENT_MARKERS):
+        header, table = _table_with_instructions(data)
+        if table is not None:
+            found = [f"`{k}`" for k in CODEX_AGENT_MARKERS if k in table]
+            raise NotScanned(
+                f"not scanned: {' and '.join(found)} {'sit' if len(found) > 1 else 'sits'} "
+                f"below the [{header}] header, so {'they belong' if len(found) > 1 else 'it belongs'} "
+                "to that table and Codex will not see an agent here. Move the agent keys "
+                "above the first [table] header.")
         return None
     body = _text(data.get("developer_instructions")).strip("\n")
     desc = _text(data.get("description"))
@@ -284,7 +319,7 @@ def parse_codex_agent(path: Path):
 
 def parse_agent(path: Path):
     """Return a dict of parsed fields, or None if the file isn't an agent."""
-    if path.suffix == ".toml":
+    if path.suffix.lower() == ".toml":
         return parse_codex_agent(path)
     raw = path.read_text(encoding="utf-8-sig", errors="replace")
     if not raw.lstrip().startswith("---"):
@@ -578,28 +613,44 @@ def find_duplicate_blocks(agents: list[dict]) -> list[dict]:
     return dups[:15]
 
 
+def _is_candidate(path: Path) -> bool:
+    return path.suffix == ".md" or path.suffix.lower() == ".toml"
+
+
+def _symlink_note(path: Path) -> dict:
+    extra = ("; Codex rejects symlinked agent files" if path.suffix.lower() == ".toml"
+             else "")
+    return {"path": str(path),
+            "reason": f"not scanned: symlink (not followed, it can point outside the scanned "
+                      f"folder{extra})"}
+
+
 def gather(paths: list[str], notes: list | None = None) -> list[Path]:
-    """Agent candidates under `paths`. A symlinked .toml found in a directory
-    walk is skipped (Codex rejects symlinked agent files too) and, when `notes`
-    is given, recorded there."""
+    """Agent candidates under `paths`. Symlinked files are never followed,
+    whether named as an argument or met in a directory walk; when `notes` is
+    given, each one is recorded there."""
     out: list[Path] = []
+
+    def skip_link(f: Path) -> None:
+        if notes is not None:
+            notes.append(_symlink_note(f))
+
     for p in paths:
         pth = Path(p).expanduser()
-        if pth.is_file() and pth.suffix in (".md", ".toml"):
+        if pth.is_symlink() and _is_candidate(pth):
+            skip_link(pth)
+        elif pth.is_file() and _is_candidate(pth):
             out.append(pth)
         elif pth.is_dir():
             # SKILL.md also carries `name` + `description` frontmatter but is a
             # skill, not an agent; a directory walk must not audit it as one.
-            # A symlinked file could pull content from outside the scanned tree
-            # into the report; only plain files are agents.
-            out.extend(f for f in sorted(pth.rglob("*.md"))
-                       if f.name != "SKILL.md" and not f.is_symlink())
-            for f in sorted(pth.rglob("*.toml")):
-                if not f.is_symlink():
+            for f in sorted(pth.rglob("*")):
+                if not _is_candidate(f) or f.name == "SKILL.md":
+                    continue
+                if f.is_symlink():
+                    skip_link(f)
+                elif f.is_file():
                     out.append(f)
-                elif notes is not None:
-                    notes.append({"path": str(f),
-                                  "reason": "not scanned: symlink (Codex rejects symlinked agent files)"})
     # de-dup, preserve order
     seen, uniq = set(), []
     for f in out:
@@ -622,9 +673,15 @@ def scan_paths(paths: list[str], body_limit: int = DEFAULT_BODY_LINES,
     agents = []
     for f in gather(paths, skipped):
         try:
+            if f.stat().st_size > MAX_AGENT_FILE_BYTES:
+                raise NotScanned("not scanned: larger than 1 MiB")
             parsed = parse_agent(f)
         except NotScanned as exc:
             skipped.append({"path": str(f), "reason": str(exc)})
+            continue
+        except (OSError, UnicodeDecodeError, RecursionError, ValueError) as exc:
+            skipped.append({"path": str(f),
+                            "reason": f"not scanned: {type(exc).__name__} ({exc})"})
             continue
         if parsed:
             parsed["flags"] = flag_agent(parsed, body_limit, desc_limit)

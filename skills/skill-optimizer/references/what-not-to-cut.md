@@ -35,8 +35,10 @@ checks some of them mechanically, the rest are yours to protect.
 
 - Plain instructions and conditions without a rule word. "Read the
   conventions before editing" and "If the build fails, ask the maintainer" have
-  no MUST in them and are still instructions. The dry run lists them; give each
-  one an anchor in `requirements.md`, or nothing protects it.
+  no MUST in them and are still instructions. The dry run lists them in two
+  groups: sentences nothing protects, and sentences with a literal, where the
+  gate checks the literal and nothing else. Give each instruction an anchor in
+  `requirements.md`, or nothing protects its words.
 - Step order. When a skill says to freeze before rewriting, or measure
   before proposing, the order is the instruction.
 - Precedence: which rule wins when two apply.

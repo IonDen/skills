@@ -37,7 +37,9 @@ Read `references/troubleshooting.md` when a release step fails.
 
 The condition must be something the agent can observe at that moment ("when
 the build fails", "when publishing to PyPI"), not a judgement ("when it seems
-useful"). One reference per topic; do not move text into an existing reference
+useful"). Keep the line to at most 25 words besides the path, with no must,
+never, always, shall, required, forbidden, cannot or "do not" in it: the gate
+treats a longer or stronger line as new text. One reference per topic; do not move text into an existing reference
 file, since the gate freezes every file except SKILL.md.
 
 After moving, reverse reconstruction (step 6) is the check that matters: a

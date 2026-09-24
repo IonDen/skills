@@ -27,6 +27,9 @@ All paths below are relative to this skill's directory: in Claude Code that is
 or the older `~/.codex/skills/`). Resolve scripts from that directory, not from
 a guessed home path.
 
+Double-quote every path you put into a command, and if a path contains a shell
+metacharacter such as `$`, `;`, `|` or a backtick, stop and ask the user first.
+
 Default mode is report, then apply on approval. Do not change the user's skill
 before they approve. A request that already says to apply ("shrink it and apply
 the result") approves the cuts the gate passes; anything the gate or this
@@ -62,8 +65,11 @@ mktemp -d
 commands, so write that path out in full wherever this skill says `<work>`.
 
 ```bash
-cp -R <skill-dir> <work>/original
+cp -RL <skill-dir> <work>/original
 ```
+
+The snapshot must be real files, so a symlinked install is copied with its
+links resolved.
 
 The listing (description plus `when_to_use`) is paid on every turn; the body is
 paid when the skill runs. This skill rewrites the body only.
@@ -91,9 +97,12 @@ list:
 python3 scripts/extract_requirements.py <work>/original --requirements <work>/requirements.md --dry-run
 ```
 
-It prints every sentence that has no rule word, no literal and no anchor yet.
-Anchor each one that is an instruction, a condition or a reason; what is left is
-what you may cut. When the list is right, freeze it, once:
+It prints two groups. The first is every sentence that has no rule word, no
+literal and no anchor yet. The second is every sentence with no rule word or
+anchor that carries a literal: the gate checks only that literal, so the rest of
+the sentence, a condition included, can go unless you anchor it. Anchor each one
+that is an instruction, a condition or a reason; what is left is what you may
+cut. When the list is right, freeze it, once:
 
 ```bash
 python3 scripts/extract_requirements.py <work>/original --requirements <work>/requirements.md -o <work>/frozen.json
@@ -106,7 +115,7 @@ say so in the report; do not freeze again.
 ## 4. Write the candidate
 
 ```bash
-cp -R <work>/original <work>/candidate
+cp -RL <work>/original <work>/candidate
 ```
 
 Edit only `<work>/candidate/SKILL.md`, and add new files only under
@@ -116,7 +125,9 @@ first edit.
 - Delete what does not earn its tokens: definitions the model already knows,
   motivation that carries no rule, a menu of options where one default and an
   escape hatch will do, a second example that teaches nothing the first did not.
-- Restructure: merge duplicate passages, reorder, turn prose into a list.
+- Restructure: merge duplicate passages, reorder within a section, turn prose
+  into a list. Never change the order of steps or move a rule to another
+  section; the gate asks when a rule changes section.
 - Move a section the skill needs only sometimes into a new
   `references/<topic>.md`, leaving one line in the body that says when to read
   it. Read `references/moving-sections.md` before moving anything. When unsure
@@ -141,11 +152,14 @@ python3 scripts/verify_rewrite.py --frozen <work>/frozen.json --original <skill-
 | 0 | `unchanged` | Nothing could be cut without loss. Report that and stop. |
 | 1 | `rejected` | Fix each finding and gate again. A rejected candidate is never shown as a proposal or applied. |
 | 2 | input error | Fix the paths. |
-| 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference. Go to step 6, and ask about each move in the report. |
+| 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference or under another heading. Go to step 6, and ask about each one in the report. |
 
-Once the user approves deleting specific rule sentences, write them to
+Once the user approves deleting specific sentences, write them to
 `<work>/approved.txt`, one per line, copied exactly, and add
-`--approved <work>/approved.txt` to the gate command.
+`--approved <work>/approved.txt` to the gate command. Only the user's answer to
+a sentence you listed counts as approval. A request to delete a section, or to
+apply everything, does not approve the rule sentences in it. Never write
+approved.txt before asking.
 
 ## 6. Check what a script cannot
 
@@ -183,6 +197,9 @@ Moved
 Needs your decision
 - <rule sentence> would move to references/<file>.md. Move it, or keep it in the body?
 - <rule sentence> reads as motivation. Delete it, or keep it?
+- <rule sentence> now sits under "<heading>", not "<heading>". Keep the move, or put it back?
+
+Deleted with your approval: <sentence>
 
 Gate: pass | needs confirmation    Requirements: <n> (<n> sentences left unprotected on purpose)
 Coverage: <n>/<n>    Reverse reconstruction: <n>/<n> | skipped: <why>
@@ -192,9 +209,11 @@ Description suggestions (not applied)
 - <suggestion>: <why>
 ```
 
-Every cut needs a reason in that list. Put description ideas under
-"Description suggestions": when the description passes a limit
-`measure_skills.py` notes, or says what the skill does but not when to use it.
+Every cut needs a reason in that list. Fill "Deleted with your approval" from
+the gate's "deleted with the user's approval" lines, one line each, or leave it
+out. Put description ideas under "Description suggestions": when the description
+passes a limit `measure_skills.py` notes, or says what the skill does but not
+when to use it.
 Never apply them; the user may want the triggers as they are.
 
 Apply only after approval. If the user declines a cut or a move, put that text

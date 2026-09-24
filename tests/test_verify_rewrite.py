@@ -934,14 +934,30 @@ def test_emphasis_is_checked_where_the_sentence_lives(freezer, gate, make_skill,
 LOUD_HEAD = "# Guide\n\n" + EXPLANATION + "## **Never** skip the tests\n\nRun the suite.\n\nTag the release after the merge.\n"
 
 
-def test_emphasis_on_a_rule_heading_is_checked(freezer, gate, make_skill, tmp_path):
+@pytest.mark.parametrize("marked", ["**Never**", "__Never__", "_Never_"])
+def test_emphasis_on_a_rule_heading_is_checked(freezer, gate, make_skill, tmp_path, marked):
     # Bug caught: recording emphasis for sentences only, so "## **Never** skip the
-    # tests" can lose its bold and still pass.
-    stripped = LOUD_HEAD.replace(EXPLANATION, "").replace("## **Never**", "## Never")
-    r = gate_on(freezer, gate, make_skill, tmp_path, LOUD_HEAD, TAG, stripped)
+    # tests" can lose its bold and still pass; and testing the raw heading for a rule
+    # word, where `_` joins the word, so "## __Never__ skip" is not a rule heading.
+    loud = LOUD_HEAD.replace("**Never**", marked)
+    stripped = loud.replace(EXPLANATION, "").replace("## " + marked, "## Never")
+    r = gate_on(freezer, gate, make_skill, tmp_path, loud, TAG, stripped)
     assert r["status"] == "needs_confirmation", r["rejected"]
     assert emphasis_asks(r) == [("EMPHASIS_LOST", "SKILL.md")], r["confirm"]
-    assert gate_on(freezer, gate, make_skill, tmp_path, LOUD_HEAD, TAG, LOUD_HEAD)["status"] == "unchanged"
+    assert gate_on(freezer, gate, make_skill, tmp_path, loud, TAG, loud)["status"] == "unchanged"
+
+
+def test_an_underscore_emphasised_rule_heading_is_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: is_rule() on the raw heading, where `__Never__` has no word
+    # boundary, so the heading can be deleted with only SECTION_CHANGED.
+    orig = make_skill(EXPLANATION + "## __Never__ on Fridays\n\nDeploy with the script.\n")
+    frozen = freezer.freeze(orig, "R1: Deploy.\n  anchor: Deploy with the script\n")
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    (cand / "SKILL.md").write_text((orig / "SKILL.md").read_text(encoding="utf-8")
+                                   .replace(EXPLANATION, "").replace("## __Never__ on Fridays\n\n", ""),
+                                   encoding="utf-8")
+    assert "RULE_LOST" in codes(gate.verify(frozen, cand, orig))
 
 
 WRAPPED_QUOTE = EXPLANATION + "> Keep the cache small\n> and clear it often.\n\nTag the release after the merge.\n"
@@ -962,3 +978,19 @@ def test_an_older_freeze_of_a_wrapped_quote_asks_for_a_new_freeze(freezer, gate,
     assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(orig)]) == code
     err = capsys.readouterr().err
     assert ("freeze the original again" in err) == (code == 2), err
+
+
+def test_an_older_freeze_that_split_the_text_differently_asks_for_a_new_freeze(freezer, gate, make_skill,
+                                                                              tmp_path, capsys):
+    # Bug caught: detecting only wrapped quotes, so a 1.0.x freeze whose sentences
+    # were split another way (a `>` indented as a list continuation) rejects the
+    # unchanged skill with NEW_TEXT / RULE_LOST instead of asking for a new freeze.
+    orig = make_skill(LOUD)
+    frozen = freezer.freeze(orig, TAG)
+    for field in ("emphasis", "literal_spans"):
+        del frozen[field]
+    frozen["sentences"] = sorted(frozen["sentences"] + ["27 never)."])  # a split 1.0.x made
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(frozen), encoding="utf-8")
+    assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(orig)]) == 2
+    assert "freeze the original again" in capsys.readouterr().err

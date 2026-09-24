@@ -110,11 +110,14 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         if skillmd.sha256_file(original_md) != frozen["files"]["SKILL.md"]:
             reject("ORIGINAL_CHANGED", "the skill's SKILL.md changed after it was frozen")
         # A 1.0.x freeze (no emphasis or literal_spans) read each line of a wrapped
-        # quote as its own sentence; this version joins them, so every such
-        # sentence would read as lost. The format number stays, so say so here.
+        # quote, and a `>` indented as a list continuation, as its own sentence;
+        # this version reads them differently, so such sentences would look lost.
+        # The format number stays, so compare what the freeze recorded with how
+        # this version reads the unchanged original, and ask for a new freeze.
         _, original_body = skillmd.split_frontmatter(skillmd.read_text(original_md))
         if ("emphasis" not in frozen and "literal_spans" not in frozen
-                and skillmd.has_wrapped_quote(original_body)):
+                and (skillmd.has_wrapped_quote(original_body)
+                     or set(frozen["sentences"]) != {s["key"] for s in skillmd.sentences(original_body)})):
             raise FrozenFormatError("this freeze was written by skill-optimizer 1.0.x, which read each line of a "
                                     "wrapped blockquote as its own sentence; freeze the original again into a new "
                                     "file and gate against that")

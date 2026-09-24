@@ -182,7 +182,9 @@ def freeze(skill_dir, requirements_text: str) -> dict:
     rule_headings, seen = [], {}
     for u in skillmd.units(body):
         key = skillmd.normalise(u["text"])
-        if u["kind"] == "heading" and skillmd.is_rule(u["text"]):
+        # Test the heading with its emphasis removed: in `__Never__`, `_` joins the
+        # word, so the raw text has no rule word at a word boundary.
+        if u["kind"] == "heading" and skillmd.is_rule(skillmd._unemphasise(u["text"])):
             if key in seen:
                 seen[key]["depth"] = min(seen[key]["depth"], u["depth"])
                 continue

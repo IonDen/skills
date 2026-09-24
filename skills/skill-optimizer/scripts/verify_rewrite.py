@@ -46,8 +46,9 @@ Needs the user's decision (exit 3):
   SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
                        (a trimmed heading is the original heading it was cut from, when
                        exactly one fits and that original is not still in the body)
-  EMPHASIS_LOST        a rule or an anchored sentence lost bold or italic it had (or bold
-                       became italic); emphasis added or kept passes
+  EMPHASIS_LOST        a rule, a rule heading or an anchored sentence lost bold or italic it
+                       had where it now lives (or bold became italic); emphasis added or
+                       kept passes
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
@@ -55,8 +56,9 @@ Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate
 --original may name a skill whose SKILL.md is a link to a file named SKILL.md
 (a per-file install); the gate reads that file. Exit 2 on a missing or
 unreadable input, a candidate SKILL.md that is a symlink, an original SKILL.md
-linked to anything but a SKILL.md, or a frozen file from an older
-extract_requirements.py.
+linked to anything but a SKILL.md, a frozen file from an older
+extract_requirements.py, or a 1.0.x freeze of a skill with a blockquote wrapped
+over two `>` lines (freeze it again).
 """
 from __future__ import annotations
 

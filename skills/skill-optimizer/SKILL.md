@@ -101,10 +101,12 @@ R2: Read the repository conventions before starting.
 An anchor has at least three words, sits inside one sentence, and protects that
 whole sentence word for word. In a table each cell is a separate target, so
 anchor inside one cell. Do not let an anchor cross a line that ends in a hyphen
-(`what-to-` / `read-for-what`): the lines join with a space, and it never matches. List plain instructions as well as MUST and NEVER
-rules: each step and its order, conditions ("if the build fails, ..."),
-commands, thresholds, gotchas, and the reason attached to a rule. Then check the
-list:
+(`what-to-` / `read-for-what`): the lines join with a space, and it never
+matches.
+
+List plain instructions as well as MUST and NEVER rules: each step and its
+order, conditions ("if the build fails, ..."), commands, thresholds, gotchas,
+and the reason attached to a rule. Then check the list:
 
 ```bash
 python3 scripts/extract_requirements.py "<work>/original" --requirements "<work>/requirements.md" --dry-run

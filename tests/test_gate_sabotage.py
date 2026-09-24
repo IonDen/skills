@@ -19,8 +19,8 @@ SKILLS = {
 
 
 def span(body, text):
-    """Locate a sentence in the raw body, across line wraps and list markers."""
-    words = [re.escape(w) for w in text.split()]
+    """Locate a sentence in the raw body, across line wraps, list markers and emphasis."""
+    words = ["[*_]*" + "[*_]*".join(re.escape(c) for c in w) + "[*_]*" for w in text.split()]
     return re.search(r"\s+".join(words), body)
 
 

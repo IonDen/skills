@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-24 (skill-optimizer 1.1.0)
+
+- `skill-optimizer` let a rule lose its emphasis without saying so. The gate compares sentences with bold and italic removed, so a candidate that stripped `**bold**` off the lead-ins of rules passed as if nothing had changed, and the removed markers counted as savings. The freeze now records the bold and italic phrases in each rule sentence and anchored sentence, and the gate reports a new code, `EMPHASIS_LOST`, when one of them is gone or has gone from bold to italic. Like a moved rule, it asks instead of rejecting (exit 3), and the workflow puts the emphasis back unless the user approved dropping it. Emphasis that is kept or added passes.
+- A literal that runs across two sentences, such as `under 20` at the end of one paragraph and `GiB` at the start of the next, could never be approved: deleting both sentences with the user's approval still failed with `LITERAL_LOST`. The freeze now records which sentences hold such a literal between them. Deleting all of them with approval lets it go. Moving them together into one reference, where the literal no longer reads as written, makes the gate ask. Deleting only one of them still rejects. A freeze written by an earlier version is read as before.
+- The lines of one blockquote are now read as one paragraph, as wrapped paragraph lines already were, so `> under 20` / `> GiB` is protected as `under 20 GiB` and the gate finds it in the file. When a wrap puts a bound's `>` at the start of a line inside a list item (`≤ 23 fits,` then `> 27 never).`), Markdown reads that `>` as a quote marker. The freeze now keeps it as part of the bound, `> 27 never`, so changing the number or deleting that sentence is caught. A `>` indented four or more columns past the text above it continues that paragraph, which is how CommonMark reads it.
+- The three-word minimum for an anchor counted words by spaces, while the gate also splits words at an en dash, so "Subject–verb proximity" was refused as two words. It is now counted the way the gate reads it, and a backticked code span counts as one word.
+- SKILL.md and the list of what not to cut now say four more things. An anchor should not cross a line that ends in a hyphen. Each table cell is a separate anchor target. Bold on a rule is not decoration. And a "Common mistakes" or "Red flags" table repeats rules on purpose, so its rows are listed as optional cuts, not cut. The version goes to 1.1.0 and the plugin to 0.5.0.
+
+## 2026-09-24 (subagent-optimizer 1.4.1)
+
+- `scan_agents.py --json` now gives each agent a `total_tokens` field: the frontmatter plus the body, the same total the readable output prints. The JSON also carries `desc_tokens`, but the description is already part of `frontmatter_tokens`, and an audit that added all three together overstated every agent's size. SKILL.md now says so, and the report template takes an agent's definition text from `total_tokens`. The version goes to 1.4.1.
+
 ## 2026-09-24 (skill-optimizer evidence)
 
 - `skill-optimizer` was run on five real skills, four of them from the author's own setup. Each passed the gate and kept every requirement it extracted; the bodies shrank by 1.2% to 3.5%, 2.3% overall, and the cuts the runs were unsure of were listed rather than made. The README carries a chart and a table, and `skills/skill-optimizer/evals/recorded/2026-09-24-real-skills/` holds the numbers, gate lines and reader checks without the personal skills' text. The root README's one-skill figure is replaced by this range.

@@ -54,6 +54,10 @@ MUTATING_TOOLS = WRITE_FILE_TOOLS | {"Bash"}
 # given model accepts varies, so this is only the outer set.
 EFFORT_LEVELS = {"low", "medium", "high", "xhigh", "max"}
 TOP_EFFORT_LEVELS = {"xhigh", "max"}
+# Model aliases Claude Code's effort table leaves out ("Models not listed here do
+# not support effort", code.claude.com/docs/en/model-config). Full model IDs and
+# `inherit` are not resolved here, so they keep the ordinary effort checks.
+EFFORT_UNSUPPORTED_MODELS = {"haiku"}
 # An explicit "I don't write/edit/change code" statement in the BODY is a
 # high-signal read-only mandate. Matching role words in the NAME instead caused
 # false positives (e.g. "plan-driven-coder" matched "plan" yet genuinely codes),
@@ -268,7 +272,12 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             "No `model`: defaults to `inherit` (uses parent's model). Pin "
             "haiku for mechanical/read-only, or sonnet/opus if competence is fixed.")
 
-    if not a["effort"]:
+    if a["model"].lower() in EFFORT_UNSUPPORTED_MODELS:
+        if a["effort"]:
+            add("low", "EFFORT_UNSUPPORTED",
+                f"effort {a['effort']} on `{a['model']}`: this model ignores effort. "
+                "Drop the field, or move to a model that supports it if the job needs it.")
+    elif not a["effort"]:
         add("low", "EFFORT_INHERIT",
             "No `effort`: runs at the session's effort level. Pin it with the model "
             "when the job's depth is fixed (low for lookups, high for planners).")

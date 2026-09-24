@@ -27,6 +27,7 @@ Measured on Claude Code 2.1.278, the same one-line agent cost 18,437 input token
 | `MODEL_INHERIT` | No `model`, so it runs on whatever the session uses | Pin when competence is fixed, together with effort |
 | `EFFORT_INHERIT` | No `effort`, so it reasons at the session's effort level | Pin with the model when the job's depth is fixed |
 | `EFFORT_INVALID` | An `effort` value other than `low`, `medium`, `high`, `xhigh`, `max` | Use one of the five |
+| `EFFORT_UNSUPPORTED` | `effort` set on `haiku`, which ignores it | Drop the field, or pick a model that supports effort |
 | `HIGH_EFFORT_READONLY` | `xhigh` or `max` on an agent that cannot edit files or run shell commands | Asked as a question; a lower level is a candidate to test on the agent's real task |
 | `OMITS_CLAUDE_MD` | `omitClaudeMd: true`, so body rules may be the only copy | Never trimmed as duplicates |
 
@@ -118,7 +119,7 @@ The flag list follows Anthropic's own documentation: [subagents](https://code.cl
 <details>
 <summary>Show release notes</summary>
 
-**1.4.0**: The model advice now covers reasoning effort too. The scanner reads the `effort` field, prints it next to the model, and raises three new flags: `EFFORT_INHERIT` when the field is missing, `EFFORT_INVALID` for a value outside the five documented levels, and `HIGH_EFFORT_READONLY` when a read-only agent runs at `xhigh` or `max`. The skill recommends model and effort together from the agent's job and presents any change as a candidate to test. The description now says the skill is for subagent definitions and that agent skills belong to `skill-optimizer`.
+**1.4.0**: The model advice now covers reasoning effort too. The scanner reads the `effort` field, prints it next to the model, and raises four new flags: `EFFORT_INHERIT` when the field is missing (not on `haiku`, which has no effort levels), `EFFORT_UNSUPPORTED` when it is set on `haiku`, `EFFORT_INVALID` for a value outside the five documented levels, and `HIGH_EFFORT_READONLY` when a read-only agent runs at `xhigh` or `max`. The skill recommends model and effort together from the agent's job and presents any change as a candidate to test. The description now says the skill is for subagent definitions and that agent skills belong to `skill-optimizer`.
 
 **1.3.1**: Two sentences in SKILL.md that only restated the sentence before them are gone. Behaviour is unchanged.
 

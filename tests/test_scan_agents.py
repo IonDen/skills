@@ -343,3 +343,23 @@ def test_reports_show_effort_next_to_the_model(scan, agent_file):
     data = json.loads(subprocess.run([sys.executable, str(scan.__file__), str(p), "--json"],
                                      capture_output=True, text=True, check=True).stdout)
     assert data["agents"][0]["effort"] == "max"
+
+
+def test_haiku_does_not_get_effort_inherit(scan, agent_file):
+    # Bug caught: checking EFFORT_INHERIT before the model asks a haiku agent to pin a level it ignores.
+    haiku = flags_of(scan, agent_file("a", "description: Use when x\ntools: Read\nmodel: haiku\n"))
+    assert "EFFORT_INHERIT" not in haiku and "EFFORT_UNSUPPORTED" not in haiku
+    for model in ("inherit", "sonnet", "claude-opus-5-5"):
+        other = flags_of(scan, agent_file(f"m-{model}", f"description: Use when x\ntools: Read\nmodel: {model}\n"))
+        assert "EFFORT_INHERIT" in other, model
+
+
+def test_effort_set_on_haiku_is_unsupported(scan, agent_file):
+    # Bug caught: validating effort without looking at the model lets `effort: max` on haiku pass as HIGH_EFFORT_READONLY.
+    p = agent_file("a", "description: Use when x\ntools: Read, Grep\nmodel: haiku\neffort: max\n")
+    flags = flags_of(scan, p)
+    assert flags["EFFORT_UNSUPPORTED"]["severity"] == "low"
+    assert "ignores effort" in flags["EFFORT_UNSUPPORTED"]["message"]
+    assert "HIGH_EFFORT_READONLY" not in flags
+    sonnet = flags_of(scan, agent_file("b", "description: Use when x\ntools: Read, Grep\nmodel: sonnet\neffort: max\n"))
+    assert "EFFORT_UNSUPPORTED" not in sonnet and "HIGH_EFFORT_READONLY" in sonnet

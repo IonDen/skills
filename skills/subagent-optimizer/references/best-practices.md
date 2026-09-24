@@ -87,8 +87,15 @@ Checked 2026-09-24 against the subagent docs, Claude Code's model configuration 
 page (https://platform.claude.com/docs/en/build-with-claude/effort).
 
 - `[low] EFFORT_INHERIT` — no `effort`, so the agent runs at whatever level the
-  session uses. Fine if intentional; pin it when the job's depth is fixed. Irrelevant
-  on `haiku`, which has no effort levels.
+  session uses. Fine if intentional; pin it when the job's depth is fixed. Not raised
+  on `model: haiku`, which has no effort levels.
+- `[low] EFFORT_UNSUPPORTED` — `effort` set on `model: haiku`. The model
+  configuration page lists the models that take effort and says "Models not listed
+  here do not support effort"
+  (https://code.claude.com/docs/en/model-config#adjust-effort-level); Haiku is not
+  listed, so the field does nothing. Drop it, or move to a listed model if the job
+  needs the control. The scanner checks the `haiku` alias only: a full model ID or
+  `inherit` gets the ordinary effort checks.
 - `[med] EFFORT_INVALID` — a value outside `low`, `medium`, `high`, `xhigh`, `max`.
 - `[low] HIGH_EFFORT_READONLY` — `xhigh` or `max` on an agent whose tools are
   read-only (no `Edit`, `Write`, `NotebookEdit` or `Bash`). Ask whether the job needs
@@ -106,8 +113,8 @@ page (https://platform.claude.com/docs/en/build-with-claude/effort).
   coding problems, agentic tasks"; `xhigh` for "Long-running agentic and coding tasks
   (over 30 minutes) with token budgets in the millions"; `max` for "Tasks requiring
   the deepest possible reasoning and most thorough analysis".
-- Mapped to archetypes: read-only search or filter workers, a small model at low or
-  medium; implementation workers, medium; planners, architects and security
+- Mapped to archetypes: read-only search or filter workers, `haiku` with no `effort`
+  field or a larger model at low or medium; implementation workers, medium; planners, architects and security
   reviewers, a strong model at high; `xhigh`/`max` only for long-running or hardest
   work the user confirms. The API page says to "Evaluate performance on your specific
   use cases before deploying", so any change is a candidate to verify on the agent's

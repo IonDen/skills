@@ -111,11 +111,12 @@ mechanical work (formatting, mechanical checks, lookups); read-only is not by it
 a reason to downgrade — a security review or an architecture analysis reads only and
 still needs a strong model. `effort` (`low` to `max`) sets how hard the model
 reasons; without it the agent runs at the session's level. Starting points:
-read-only search or filter workers get a small model and low or medium effort;
-implementation workers medium; planners, architects and security reviewers a strong
+read-only search or filter workers get `haiku` (no effort field) or a larger model
+at low or medium; implementation workers medium; planners, architects and security reviewers a strong
 model at high; `xhigh` or `max` only for long-running or the hardest work, and only
 if the user confirms the job needs it. Levels depend on the model (see
-`best-practices.md`; Haiku has none). Flag complex agents left on default `inherit`
+`best-practices.md`); never recommend a level for a model that does not support
+effort, such as Haiku. Flag complex agents left on default `inherit`
 that could silently run on a weak session model. Present any model or effort change
 as a candidate to verify on the agent's real task, not as a saving; without a
 before/after comparison on that task it is a guess.

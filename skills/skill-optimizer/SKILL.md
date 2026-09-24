@@ -1,14 +1,15 @@
 ---
 name: skill-optimizer
 description: >-
-  Use when asked to shrink, trim, compress or optimize a skill (a SKILL.md) so
-  it costs fewer tokens, or when a skill feels too long. Cuts by deletion and
-  restructuring only, can move rarely needed sections into references/ behind a
-  load trigger, and checks that every rule, exception, command and threshold
-  survives before anything is applied. Never edits the frontmatter; suggests
-  description changes instead. Triggers: "optimize this skill", "shrink my
-  skill", "this skill is too long", "trim SKILL.md", "my skills eat my context",
-  "skill optimizer".
+  Use when asked to shrink, trim, compress or optimize an agent skill (a folder
+  with a SKILL.md) so it costs fewer tokens, or when a skill feels too long.
+  Cuts by deletion and restructuring only, can move rarely needed sections into
+  references/ behind a load trigger, and checks that every rule, exception,
+  command and threshold survives before anything is applied. Never edits the
+  frontmatter; suggests description changes instead. Subagent definitions in
+  .claude/agents/ are a different thing, handled by subagent-optimizer.
+  Triggers: "optimize this skill", "shrink my skill", "this skill is too long",
+  "trim SKILL.md", "my skills eat my context", "skill optimizer".
 license: MIT
 metadata:
   version: "1.0.0"
@@ -31,9 +32,14 @@ Double-quote every path you put into a command, and if a path contains a shell
 metacharacter such as `$`, `;`, `|` or a backtick, stop and ask the user first.
 
 Default mode is report, then apply on approval. Do not change the user's skill
-before they approve. A request that already says to apply ("shrink it and apply
-the result") approves the cuts the gate passes; anything the gate or this
-workflow says to ask about still needs an answer.
+before they approve. A report-only request writes nothing. A request that
+already says to apply ("shrink it and apply the result") applies every cut the
+gate passes, with no questions.
+
+Run the workflow through to the report without stopping to ask. When you are
+not sure a cut or a move is safe, keep the text, carry on, and list the cut in
+the report under "Optional further cuts (not applied)". Trimming less is fine;
+losing an instruction is not.
 
 ## 1. Sanity check with /skill-doctor
 
@@ -44,10 +50,11 @@ Otherwise, in Claude Code, get the `/skill-doctor` report: run
 `claude -p "/skill-doctor"` if the shell allows it, or ask the user to run
 `/skill-doctor` and paste the table. Quote only the rows you act on.
 
-- A general request ("my skills eat my context"): the report is most of the
-  answer. A skill that is never invoked should be disabled, not optimized. Say
-  so, quote where the report says to turn it off, and ask which skill to optimize.
-- The named skill was never invoked: say so, and ask whether to optimize it anyway or disable it.
+- Usage data is information only. Show which skills are never invoked or cost
+  the most, and never recommend disabling or deleting a skill; the user decides.
+- A general request ("my skills eat my context"): list the skills by listing
+  cost, each with its usage, and ask which to optimize.
+- A named skill: proceed, and note its usage data in the report.
 - No report (Codex, an older Claude Code): say that no usage data was available and continue.
 
 Spec compliance, broken links and frontmatter faults belong to other tools:
@@ -65,11 +72,13 @@ mktemp -d
 commands, so write that path out in full wherever this skill says `<work>`.
 
 ```bash
-cp -RL <skill-dir> <work>/original
+python3 scripts/snapshot.py "<skill-dir>" "<work>/original"
 ```
 
-The snapshot must be real files, so a symlinked install is copied with its
-links resolved.
+The snapshot is real files. It follows the skill itself, a symlinked skill
+directory or a SKILL.md linked to another SKILL.md, but never copies or reads
+any other link inside the skill. It prints each link it skipped; list them in
+the report.
 
 The listing (description plus `when_to_use`) is paid on every turn; the body is
 paid when the skill runs. This skill rewrites the body only.
@@ -115,7 +124,7 @@ say so in the report; do not freeze again.
 ## 4. Write the candidate
 
 ```bash
-cp -RL <work>/original <work>/candidate
+python3 scripts/snapshot.py "<work>/original" "<work>/candidate"
 ```
 
 Edit only `<work>/candidate/SKILL.md`, and add new files only under
@@ -131,14 +140,16 @@ first edit.
 - Move a section the skill needs only sometimes into a new
   `references/<topic>.md`, leaving one line in the body that says when to read
   it. Read `references/moving-sections.md` before moving anything. When unsure
-  whether a section is needed on every run, ask the user.
+  whether a section is needed on every run, keep it in the body and list the
+  move as an optional cut.
 
 Add no words of your own except that one line per moved section. Never
 paraphrase or shorten a sentence that carries a rule word or an anchor, never
 change a command, path, flag, URL or threshold, and never edit the frontmatter
 or an existing file other than SKILL.md. A sentence with a rule word that reads
-as pure motivation ("so that nothing important is forgotten") may be deleted
-only if the user approves that exact sentence; list it under "Needs your decision".
+as pure motivation ("so that nothing important is forgotten") stays in the
+body: list it as an optional cut. It goes only if the user approves that exact
+sentence.
 
 ## 5. Gate the candidate
 
@@ -152,14 +163,14 @@ python3 scripts/verify_rewrite.py --frozen <work>/frozen.json --original <skill-
 | 0 | `unchanged` | Nothing could be cut without loss. Report that and stop. |
 | 1 | `rejected` | Fix each finding and gate again. A rejected candidate is never shown as a proposal or applied. |
 | 2 | input error | Fix the paths. |
-| 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference or under another heading. Go to step 6, and ask about each one in the report. |
+| 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference or under another heading. Put each listed item back where it was, gate again, and list the move as an optional cut. A move stays only if the user's request already approved moving that specific item. |
 
-Once the user approves deleting specific sentences, write them to
-`<work>/approved.txt`, one per line, copied exactly, and add
-`--approved <work>/approved.txt` to the gate command. Only the user's answer to
-a sentence you listed counts as approval. A request to delete a section, or to
-apply everything, does not approve the rule sentences in it. Never write
-approved.txt before asking.
+Use `--approved` only after the user answers the optional-cuts list. Write the
+sentences they approve deleting to `<work>/approved.txt`, one per line, copied
+exactly, and add `--approved <work>/approved.txt` to the gate command. Only the
+user's answer to a sentence you listed counts as approval. A request to delete
+a section, or to apply everything, does not approve the rule sentences in it.
+Never write approved.txt before the user answers.
 
 ## 6. Check what a script cannot
 
@@ -187,6 +198,7 @@ Without a way to start a fresh agent, say which of 2 and 3 were skipped and why.
 Body: <before> -> <after> chars (<-n%>), <before> -> <after> lines
 Moved to references: <n> chars, read only when <condition>
 Listing: <n> chars, unchanged (the frontmatter is never edited)
+Links skipped by the snapshot: <path>, ... | none
 
 Cuts
 - <what was cut>: <why it does not earn its tokens>
@@ -194,14 +206,15 @@ Cuts
 Moved
 - <section> -> references/<file>.md, loaded by: "<the line left in the body>"
 
-Needs your decision
-- <rule sentence> would move to references/<file>.md. Move it, or keep it in the body?
-- <rule sentence> reads as motivation. Delete it, or keep it?
-- <rule sentence> now sits under "<heading>", not "<heading>". Keep the move, or put it back?
+Optional further cuts (not applied)
+- Move <section> to references/<file>.md: saves <n> chars; you agree it is needed only when <condition>
+- Move <rule sentence> to references/<file>.md: saves <n> chars; you agree an agent reads it only after following the load line
+- Delete <rule sentence>: saves <n> chars; you agree it is motivation, not an instruction
+- Put <rule sentence> under "<heading>": you agree it applies there, not under "<heading>"
 
 Deleted with your approval: <sentence>
 
-Gate: pass | needs confirmation    Requirements: <n> (<n> sentences left unprotected on purpose)
+Gate: pass | needs confirmation (moves you approved)    Requirements: <n> (<n> sentences left unprotected on purpose)
 Coverage: <n>/<n>    Reverse reconstruction: <n>/<n> | skipped: <why>
 Behaviour: <n>/<n> clauses unchanged | skipped: <why>
 
@@ -209,16 +222,18 @@ Description suggestions (not applied)
 - <suggestion>: <why>
 ```
 
-Every cut needs a reason in that list. Fill "Deleted with your approval" from
-the gate's "deleted with the user's approval" lines, one line each, or leave it
-out. Put description ideas under "Description suggestions": when the description
+Every cut needs a reason in that list, and every optional cut its saving. Fill
+"Deleted with your approval" from the gate's "deleted with the user's approval"
+lines, one line each, or leave it out. Put description ideas under "Description suggestions": when the description
 passes a limit `measure_skills.py` notes, or says what the skill does but not
 when to use it.
 Never apply them; the user may want the triggers as they are.
 
-Apply only after approval. If the user declines a cut or a move, put that text
-back in the candidate and gate again. Right before copying, gate once more; it
-must exit 0, or 3 when the user approved every move it lists. Then run
+Apply when the request approved applying, or after the user approves. Optional
+cuts stay unapplied until the user picks them; then make those cuts, add any
+approved sentences to approved.txt, and gate again. If the user declines a cut,
+put that text back in the candidate and gate again. Right before copying, gate
+once more; it must exit 0, or 3 when the user approved every move it lists. Then run
 `mkdir -p <skill-dir>/references` if the candidate has references, and copy
 `<work>/candidate/SKILL.md` and each new reference file over the skill. If the
 skill lives in a plugin cache or a directory an installer manages, say that an

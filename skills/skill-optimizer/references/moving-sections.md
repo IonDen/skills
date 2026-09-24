@@ -20,12 +20,14 @@ under which it is needed, and that condition does not hold on most runs.
 - Anything the agent needs in order to recognise that it should open a
   reference: the reference cannot tell the agent when to read itself.
 
-## When unsure, ask
+## When unsure, keep it and list it
 
-If you cannot tell whether a section is needed on every run, list it in the
-report under "Needs your decision" with what it contains and the condition you
-would use, and keep it in the body until the user answers. The gate also asks
-for every sentence with a rule word that ends up only in a reference.
+If you cannot tell whether a section is needed on every run, keep it in the
+body and list the move in the report under "Optional further cuts (not
+applied)": what the section contains, the condition you would use, and what the
+move would save. The gate asks about every sentence with a rule word that ends
+up only in a reference; put each one back and list it the same way, unless the
+user's request already approved moving that sentence.
 
 ## The line left behind
 

@@ -1,7 +1,9 @@
 # What not to cut
 
 Read before the first edit. Each item says what to keep and why; the gate
-checks some of them mechanically, the rest are yours to protect.
+checks some of them mechanically, the rest are yours to protect. When unsure
+whether something is safe to cut, keep it and list it in the report under
+"Optional further cuts (not applied)" with what it would save.
 
 ## Kept word for word (the gate checks)
 
@@ -12,7 +14,8 @@ checks some of them mechanically, the rest are yours to protect.
   shorten or merge it. Small wording changes flip meaning: "never" to "avoid"
   turns a ban into advice, and dropping "unless the user asks" turns an
   exception into a ban. Some of these sentences are only motivation ("so that
-  nothing is forgotten"); delete one only after the user approves that sentence.
+  nothing is forgotten"); keep each one and list it as an optional cut, and
+  delete it only after the user approves that sentence.
 - Sentences a requirement anchors, word for word, like rule sentences.
 - Anything to run or type: inline code, lines of a code fence with no
   language or a shell language, URLs, `--flags`, version pins, versions
@@ -59,7 +62,7 @@ checks some of them mechanically, the rest are yours to protect.
 - An option menu where one default and one escape hatch would do; keep the
   sentence that states the default, since it usually carries "only" or "should".
   If that sentence points back at the options ("any of these"), cutting them
-  leaves it dangling: keep the list or ask.
+  leaves it dangling: keep the list and offer the cut as optional.
 - A second example that shows nothing the first did not.
 - The same instruction said twice in different words. Keep the version with the
   rule word; the gate will insist on it.

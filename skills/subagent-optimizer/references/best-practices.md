@@ -93,8 +93,10 @@ page (https://platform.claude.com/docs/en/build-with-claude/effort).
   configuration page lists the models that take effort and says "Models not listed
   here do not support effort"
   (https://code.claude.com/docs/en/model-config#adjust-effort-level); Haiku is not
-  listed, so the field does nothing. Drop it, or move to a listed model if the job
-  needs the control. The scanner treats any model value containing "haiku" (the
+  listed, so the pinned model does not support effort. This is a note, not a rule:
+  "the per-invocation `model` parameter" comes first in the subagent model order
+  (https://code.claude.com/docs/en/sub-agents#choose-a-model), so a call can still
+  run the agent on a model that takes effort. The scanner treats any model value containing "haiku" (the
   alias or a full ID) this way; `inherit` and other IDs get the ordinary checks.
 - `[med] EFFORT_INVALID` — a value outside `low`, `medium`, `high`, `xhigh`, `max`.
 - `[low] HIGH_EFFORT_READONLY` — `xhigh` or `max` on an agent whose tools are
@@ -115,8 +117,9 @@ page (https://platform.claude.com/docs/en/build-with-claude/effort).
   the deepest possible reasoning and most thorough analysis".
 - Mapped to archetypes: read-only search or filter workers, `haiku` with no `effort`
   field or a larger model at low or medium; implementation workers, medium;
-  planners, architects and security reviewers, a strong model at high; `xhigh`/`max` only for long-running or hardest
-  work the user confirms. The API page says to "Evaluate performance on your specific
+  planners, architects, and reviewer or security agents that trace complex logic, a
+  strong model at high; `xhigh`/`max` only for long-running or hardest work the user
+  confirms. The API page says to "Evaluate performance on your specific
   use cases before deploying", so any change is a candidate to verify on the agent's
   real task.
 - Codex custom agents use different keys and levels; see the Codex section below.
@@ -157,8 +160,9 @@ Checked 2026-09-24 against https://learn.chatgpt.com/docs/agent-configuration/su
 https://learn.chatgpt.com/docs/models and
 https://learn.chatgpt.com/docs/config-file/config-reference. Quotes below are from
 those pages. What Codex's own code applies or rejects is reported from a reading of
-openai/codex at release rust-v0.156.1 and is marked "reported"; where it differs
-from the docs, the code is what runs.
+openai/codex at release rust-v0.156.1 (https://github.com/openai/codex/tree/rust-v0.156.1)
+and is marked "reported" with the file; where it differs from the docs, the code is
+what runs, on that release.
 
 **Format**
 - "add standalone TOML files under `~/.codex/agents/` for personal agents or
@@ -169,36 +173,68 @@ from the docs, the code is what runs.
   `developer_instructions`, and "the `name` field is the source of truth", not the
   filename. The docs' own names use underscores (`pr_explorer`), so `NAME_FORMAT`
   does not apply.
+- A role can also be declared in `config.toml` as an `[agents.<name>]` table whose
+  `config_file` is "Path to a TOML config layer for that role; relative paths resolve
+  from the config file that declares the role." The scanner reads these tables from
+  `$CODEX_HOME/config.toml` (default `~/.codex/config.toml`) and
+  `./.codex/config.toml` and scans the declared files wherever they live. It reports
+  a declared role under the table key. In the code (reported,
+  `codex-rs/agent-roles/src/loader.rs` and `agent_role_config.rs`), the name comes
+  from the file's `name` when it sets one and from the table key otherwise, the
+  description from the file first and then the table, and a declared file may leave
+  `developer_instructions` out (the child keeps the parent's) but not blank.
 - Codex has no per-agent tool allowlist; the scanner raises no tool flags for Codex
   agents (see tool-catalog.md).
 
 **Flags**
-- `[high] CODEX_MISSING_REQUIRED` — one of the three required keys is missing or
-  blank; Codex refuses the agent.
-- `[high] CODEX_CLAUDE_KEY` — a Claude Code key (`tools`, `disallowedTools`,
-  `permissionMode`, `effort`, `color`, `memory`, `hooks`, `maxTurns`, `skills` as a
-  list, `mcpServers`, `background`, `isolation`, `initialPrompt`). Codex rejects
-  unknown top-level keys and skips the whole agent (reported). Remove them; Claude's
-  `effort` is `model_reasoning_effort` here.
-- `[med] CODEX_IGNORED_KEY` — `sandbox_mode`, `approval_policy`, `mcp_servers`,
-  `model_provider`, `notify`, `apps`, `service_tier`, `openai_base_url`,
-  `chatgpt_base_url`. The docs still say a file may include "other supported
+- `[high] CODEX_MISSING_REQUIRED` — a required key is missing or blank; Codex
+  refuses the agent. For a declared role only the description (file or table) and a
+  blank `developer_instructions` count.
+- `[high] CODEX_CLAUDE_KEY` — a Claude Code key (`tools` or `skills` as a list,
+  `disallowedTools`, `permissionMode`, `effort`, `color`, `memory`, `maxTurns`,
+  `mcpServers`, `background`, `isolation`, `initialPrompt`). The role-file parser
+  denies unknown fields, and Codex's own `tools` and `skills` are tables, so Codex
+  skips the whole agent (reported, `codex-rs/agent-roles/src/agent_role_config.rs`).
+  Remove them; Claude's `effort` is `model_reasoning_effort` here. A `[tools]` or
+  `[[skills.config]]` table is Codex's own and is not flagged.
+- `[high] CODEX_UNKNOWN_KEY` — a top-level key that is neither a Codex key nor a
+  Claude key (`prompt`, `version`). The known list is the role-file keys (`name`,
+  `description`, `nickname_candidates`) plus every `ConfigToml` field at
+  rust-v0.156.1 (reported, `codex-rs/config/src/config_toml.rs`); Codex skips an
+  agent with a key it does not know. Fix a misspelling or move the content into
+  `developer_instructions`.
+- `[high] CODEX_CLAUDE_MODEL` — `model` is a Claude value (`sonnet`, `opus`,
+  `haiku`, `fable`, `inherit`, or `claude-...`). Codex cannot resolve it.
+- `[info] CODEX_DECLARED_NAME` — a declared role's file sets a `name` that differs
+  from its table key. The code registers the role under the file's `name`
+  (reported). The scanner keeps the table key and never proposes a rename; ask
+  which name callers use.
+- `[low] CODEX_IGNORED_KEY` — `sandbox_mode`, `approval_policy`, `mcp_servers`,
+  `model_provider`, `notify`, `apps`, `hooks`, `openai_base_url`,
+  `chatgpt_base_url`. The docs say a file may include "other supported
   `config.toml` keys ... such as `model`, `model_reasoning_effort`, `sandbox_mode`,
-  `mcp_servers`, and `skills.config`", but since Codex 0.149 the code applies only
+  `mcp_servers`, and `skills.config`". The code since Codex 0.149 applies only
   `developer_instructions`, `model`, `model_reasoning_effort`,
-  `model_reasoning_summary`, `model_verbosity`, `personality`, and disable-only
-  `[features]` and `skills` entries (reported). The docs agree on sandboxing:
-  "Subagents inherit your current sandbox policy." Don't claim these keys take effect.
+  `model_reasoning_summary`, `model_verbosity`, `personality`, `service_tier`, and
+  disable-only `[features]` and `skills` entries; the other keys parse and are not
+  applied (reported, `codex-rs/core/src/agent/role.rs`). On sandboxing the docs say
+  "Subagents inherit your current sandbox policy." Older Codex still applies these
+  keys, so keep them and report them as inert on 0.149 and later; never propose
+  removing them.
 - `[med] CODEX_EFFORT_INVALID` — outside `low`, `medium`, `high`, `xhigh`, `max`,
   `ultra` ("Reasoning effort advertised by the selected model, such as `low`,
   `medium`, `high`, `xhigh`, `max`, or `ultra`. Available levels depend on the model
-  and client."). `minimal` and `none` exist in the code but no current model offers
-  them (reported).
+  and client."). `minimal` and `none` exist in the code but no model in the bundled
+  catalog offers them (reported, `codex-rs/models-manager/models.json`).
 - `[med] CODEX_EFFORT_UNSUPPORTED` — the level is outside what the model offers,
   per the scanner's dated table. The docs say "GPT-6 Luna supports reasoning efforts
-  up to **Max**, but not **Ultra**"; `gpt-5.6-luna` (up to `max`) and `gpt-5.5` (up
-  to `xhigh`) come from the bundled model catalog (reported). Unknown models are not
-  checked, because the live catalog is per account.
+  up to **Max**, but not **Ultra**"; the other ranges, such as `gpt-5.6-luna` (up
+  to `max`) and `gpt-5.5` (up to `xhigh`), come from the bundled model catalog
+  (reported, `codex-rs/models-manager/models.json`). When a role changes the model
+  or effort, the code checks the level against the model and fails the spawn with
+  "Reasoning effort ... is not supported for model ..." (reported,
+  `codex-rs/core/src/agent/child_config.rs`). Unknown models are not checked,
+  because the live catalog is per account.
 - `[med] CODEX_MODEL_RETIRED` — for ChatGPT sign-in: "On October 14, 2026, GPT-5.5
   will retire from ChatGPT, ChatGPT Work, and Codex on all plans"; "The `gpt-5.4`
   and `gpt-5.4-mini` models retired from Codex with ChatGPT sign-in on August 31,
@@ -218,17 +254,22 @@ from the docs, the code is what runs.
   the subagent inherits the parent agent's model and reasoning effort." Values in
   the agent file take precedence. The default model depends on the account; don't
   name a fixed one.
-- Models: `gpt-6-sol` — "Start here for demanding agents. It's strongest for
+- Models (subagents page): `gpt-6-sol` — "Start here for demanding agents. It's strongest for
   ambiguous, multi-step work that needs planning, tool use, validation, and
   follow-through across a larger context." `gpt-6-luna` — "Use for fast, narrowly
   scoped agents handling clear, repeatable, or high-volume work."
-- Effort: "start with `medium` for GPT-6 Sol, `high` for GPT-6 Luna, or `low` for
-  GPT-6 Astra. Adjust for the task using a level the selected model supports."
-  `high`: "Use when an agent needs to trace complex logic, check assumptions, or work
-  through edge cases (for example, reviewer or security-focused agents)." `low`:
-  "Use when the task is straightforward and speed matters most." "Most tasks do not
-  need Max or Ultra." "Reasoning efforts don't map exactly between model
-  generations", and they do not map to Claude's levels either.
+- Effort (subagents page): "start with `medium` for GPT-6 Sol, `high` for GPT-6
+  Luna, or `low` for GPT-6 Astra. Adjust for the task using a level the selected
+  model supports." `high`: "Use when an agent needs to trace complex logic, check
+  assumptions, or work through edge cases (for example, reviewer or
+  security-focused agents)." `low`: "Use when the task is straightforward and speed
+  matters most." The page's examples run Luna at `high` (explorers, mappers,
+  fixers) and Sol at `medium` (a reviewer, a debugger). The models page adds "Most
+  tasks do not need Max or Ultra." and "Reasoning efforts don't map exactly between
+  model generations"; they do not map to Claude's levels either.
+- So: Sol at medium is the starting point for demanding agents, Luna for narrow,
+  repeatable, high-volume work (at high in the docs' examples), and high effort for
+  reviewer or security agents that trace complex logic, whatever the model.
 - Fleet defaults: `[agents] default_subagent_model` ("Default model for spawned
   agents. An explicit spawn model takes precedence.") and
   `default_subagent_reasoning_effort` in `config.toml`, instead of pinning every file.
@@ -241,7 +282,9 @@ from the docs, the code is what runs.
   header, or TOML reads them as part of that table.
 - `developer_instructions` stays a TOML string (a `"""` block is fine).
 - Never add a key Codex does not know: that disables the agent. So no `version`
-  field and no version bump; `bump_version.py` refuses `.toml` files.
+  field and no version bump; `bump_version.py` refuses `.toml` files. Adding
+  `model_reasoning_effort` is fine. Never add or change `name` on a declared role.
+- Leave `CODEX_IGNORED_KEY` keys in place; they still work on older Codex.
 - Symlinked agent files are skipped by the scanner, and Codex rejects them too
   (reported).
 

@@ -42,7 +42,7 @@ except ModuleNotFoundError:  # Python 3.10: Codex files are listed as not scanne
 # Tools a SUBAGENT can never use even if listed -> dead entries in `tools`.
 # Documented "universal blacklist" for subagents (code.claude.com/docs/en/sub-agents).
 # `ExitPlanMode` is usable only with `permissionMode: plan`. `Agent` is NOT here:
-# nested subagents are on by default (up to three layers), so a fan-out agent may
+# nested subagents are on by default (up to three layers), so a delegating agent may
 # legitimately list it; it is surfaced as a question instead (NESTED_AGENT_TOOL).
 SUBAGENT_DEAD_TOOLS = {
     "AskUserQuestion", "EndConversation", "EnterPlanMode", "ExitPlanMode",

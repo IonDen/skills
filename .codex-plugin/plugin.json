@@ -1,6 +1,6 @@
 {
   "name": "ionden-skills",
-  "description": "Agent skills for Claude Code and OpenAI Codex. subagent-optimizer audits Claude Code subagents for tool allowlists, prompt bloat and launch token cost.",
+  "description": "Agent skills for Claude Code and OpenAI Codex. subagent-optimizer audits Claude Code subagents and Codex custom agents for tool allowlists, keys Codex rejects, prompt bloat, model and effort, and launch token cost.",
   "version": "0.2.0",
   "author": { "name": "Denis Ineshin", "url": "https://github.com/IonDen" },
   "homepage": "https://github.com/IonDen/skills",

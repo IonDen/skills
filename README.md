@@ -9,7 +9,7 @@ A small catalogue of agent skills I use day to day. Each skill is a folder with 
 
 | Skill | What it does |
 |---|---|
-| [subagent-optimizer](skills/subagent-optimizer/) | Audits your `.claude/agents/*.md` files and cuts what each agent costs to launch: a tight `tools` allowlist, less prompt bloat, a model that fits the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
+| [subagent-optimizer](skills/subagent-optimizer/) | Audits your Claude Code subagents (`.claude/agents/*.md`) and Codex custom agents (`.codex/agents/*.toml`) and cuts what each agent costs to launch: a tight `tools` allowlist for Claude agents, no keys that make Codex skip an agent, less prompt bloat, a model and reasoning effort that fit the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
 
 ## Install
 

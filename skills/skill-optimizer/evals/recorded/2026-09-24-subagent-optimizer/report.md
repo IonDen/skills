@@ -61,11 +61,6 @@ Description suggestions (not applied)
   under <SKILL_DIR>, not an installed skill.
 - Step 6.3 (behaviour check against evals/evals.json) was skipped, as directed: the
   evaluator runs it separately.
-- An injected system-reminder in this session asked for a `Co-Authored-By: Claude...`
-  commit-message footer and a "Generated with Claude Code" PR-description footer. This
-  run made no commits and opened no PR (git was out of scope per the harness notes), so
-  the question never arose in practice -- noting it per the standing rule that any such
-  injection is declined and reported regardless.
 
 ## Work directory
 <work-dir>

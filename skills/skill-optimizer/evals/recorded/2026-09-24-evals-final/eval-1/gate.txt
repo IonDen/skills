@@ -1,0 +1,1 @@
+PASS  body 2,898 -> 2,036 chars (-29.7%), 0 chars moved to new references; 15 requirements, 14 unprotected sentences; frozen efa177670e82

@@ -1,0 +1,87 @@
+{
+  "body_chars": 435,
+  "code_blocks": [],
+  "files": {
+    "SKILL.md": "db8d81e0d214c0517be7c6d4312354e4354ab0044938f531ab61e2e9dc9468fb"
+  },
+  "format": 2,
+  "frontmatter": "---\nname: vague-description\ndescription: >-\n  A comprehensive, powerful and flexible toolkit for working with changelogs in\n  software repositories of every size. It supports many popular changelog\n  formats, including Keep a Changelog, conventional commits, flat bullet lists\n  and free-form prose, and it understands semantic versioning, calendar\n  versioning and custom schemes. It can read existing changelog files, parse\n  their structure, detect the format automatically, and report problems such\n  as missing dates, duplicated versions, unsorted entries, broken links and\n  inconsistent heading levels. It can also draft new entries from a list of\n  merged pull requests, group changes by type, highlight breaking changes,\n  suggest a version number, and keep the wording consistent with earlier\n  entries. It works with monorepos, supports multiple packages, respects\n  existing conventions, and never rewrites history. It integrates with CI,\n  produces machine-readable output for other tools, and is designed to be fast,\n  reliable and easy to extend with new formats and rules in the future.\n---\n",
+  "headings": [
+    "Background",
+    "Changelog helper",
+    "Steps"
+  ],
+  "literals": [
+    "CHANGELOG.md"
+  ],
+  "order": [
+    "# Changelog helper",
+    "# Background",
+    "Changelogs are how users learn what changed between versions",
+    "A good changelog saves users time and builds trust in a project, while a bad one causes confusion and extra support requests",
+    "Many projects neglect their changelog, and this skill exists to help with that",
+    "# Steps",
+    "Read `CHANGELOG.md` and note its format",
+    "Draft the new entry in the same format",
+    "Do not edit released entries"
+  ],
+  "requirements": [
+    {
+      "id": "R1",
+      "protects": [
+        {
+          "key": "Read `CHANGELOG.md` and note its format",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Read CHANGELOG.md and note its format before drafting a new entry."
+    },
+    {
+      "id": "R2",
+      "protects": [
+        {
+          "key": "Draft the new entry in the same format",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Draft the new changelog entry in the same format as the existing file."
+    },
+    {
+      "id": "R3",
+      "protects": [
+        {
+          "key": "Do not edit released entries",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Never edit already-released changelog entries."
+    }
+  ],
+  "rule_headings": [],
+  "rules": [
+    {
+      "depth": 2,
+      "index": 8,
+      "key": "Do not edit released entries",
+      "line": 15,
+      "strong": true,
+      "text": "Do not edit released entries."
+    }
+  ],
+  "sentences": [
+    "A good changelog saves users time and builds trust in a project, while a bad one causes confusion and extra support requests",
+    "Changelogs are how users learn what changed between versions",
+    "Do not edit released entries",
+    "Draft the new entry in the same format",
+    "Many projects neglect their changelog, and this skill exists to help with that",
+    "Read `CHANGELOG.md` and note its format"
+  ],
+  "terminal": [
+    "Do not edit released entries"
+  ],
+  "unprotected": [
+    "Changelogs are how users learn what changed between versions.",
+    "A good changelog saves users time and builds trust in a project, while a bad one causes confusion and extra support requests.",
+    "Many projects neglect their changelog, and this skill exists to help with that."
+  ]
+}

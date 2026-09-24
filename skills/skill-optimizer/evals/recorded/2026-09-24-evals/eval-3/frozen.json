@@ -1,0 +1,397 @@
+{
+  "body_chars": 2898,
+  "code_blocks": [
+    "## v1.3.1 (2026-02-11)\n- Fixed the version shown by the help screen.",
+    "## v1.4.0 (2026-03-02)\n- Added JSON output to the check command.\n- Fixed a crash when the config file is empty.",
+    "python3 -m build"
+  ],
+  "files": {
+    "SKILL.md": "f50fbcf9c3aa7a63f3df2926be3d5554a9220a2a9147cae51af3acb3df2a8bf6"
+  },
+  "format": 2,
+  "frontmatter": "---\nname: release-checklist\ndescription: Use when preparing a release of the Python package in this repository, from the version bump and changelog to the tag and the PyPI upload.\n---\n",
+  "headings": [
+    "Changelog format",
+    "Release checklist",
+    "Reminder",
+    "Rules",
+    "Steps",
+    "Troubleshooting",
+    "What a release is",
+    "Why this skill exists"
+  ],
+  "literals": [
+    "## vX.Y.Z (YYYY-MM-DD)",
+    "--maxfail=1",
+    ".github/workflows/publish.yml",
+    "20 GiB",
+    "32 GB",
+    "40 seconds",
+    "403 Forbidden",
+    "CHANGELOG.md",
+    "No module named build",
+    "https://pypi.org/manage/account/publishing/",
+    "main",
+    "origin/main",
+    "pypi",
+    "pytest -q --maxfail=1",
+    "python3 -m build",
+    "python3 -m pip install build",
+    "release/vX.Y.Z",
+    "under 20 GiB",
+    "vX.Y.Z"
+  ],
+  "order": [
+    "# Release checklist",
+    "# Why this skill exists",
+    "Releases are one of the most important moments in the life of a software project",
+    "A release is the point where the work of many weeks reaches users, so it is worth taking a little extra care",
+    "In the past, releases that were rushed caused problems for users, and those problems took time to fix",
+    "This skill exists to make sure that every release follows the same steps in the same order, so that nothing important is forgotten",
+    "Following the checklist below lets you release with confidence",
+    "# What a release is",
+    "A release is a published version of the package",
+    "It has a version number, a changelog entry, a git tag, and a build uploaded to PyPI",
+    "Semantic versioning means the version number has three parts: major, minor and patch",
+    "The major part changes when the public API breaks, the minor part when features are added, and the patch part for fixes",
+    "# Rules",
+    "NEVER commit directly to `main`",
+    "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run",
+    "You MUST run `pytest -q --maxfail=1` before opening a pull request",
+    "Keep the wired memory limit under 20 GiB on a 32 GB machine",
+    "# Steps",
+    "Create a branch named `release/vX.Y.Z` from a fresh `origin/main`",
+    "Add a dated entry for the new version to `CHANGELOG.md`",
+    "Run the test suite with `pytest -q --maxfail=1`",
+    "It takes about 40 seconds",
+    "Open a pull request and wait for the review",
+    "After the merge, tag the merge commit as `vX.Y.Z` and push the tag",
+    "Build the distribution with",
+    "Here is an example of a good changelog entry",
+    "Here is another example of a good changelog entry",
+    "# Changelog format",
+    "You can write the changelog entry in several ways",
+    "You could use Keep a Changelog headings (Added, Changed, Fixed)",
+    "You could use a flat bullet list",
+    "You could write a short paragraph",
+    "Any of these works, but a flat bullet list is the default here, and you should use one of the others only if the repository already does",
+    "# Troubleshooting",
+    "If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository",
+    "Open https://pypi.org/manage/account/publishing/ and add the repository, the workflow file `.github/workflows/publish.yml` and the environment `pypi`",
+    "If the build fails with `No module named build`, install it with `python3 -m pip install build` and build again",
+    "If the tag already exists on the remote, do not delete it",
+    "Ask the maintainer",
+    "If the changelog check fails in CI, the entry heading does not match the tag",
+    "The heading must be `## vX.Y.Z (YYYY-MM-DD)`",
+    "# Reminder",
+    "NEVER commit directly to `main`"
+  ],
+  "requirements": [
+    {
+      "id": "R1",
+      "protects": [
+        {
+          "key": "NEVER commit directly to `main`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Never commit directly to main, no exceptions."
+    },
+    {
+      "id": "R2",
+      "protects": [
+        {
+          "key": "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Never push a tag without the maintainer's explicit approval, except for an approved dry run."
+    },
+    {
+      "id": "R3",
+      "protects": [
+        {
+          "key": "You MUST run `pytest -q --maxfail=1` before opening a pull request",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Running the test suite before opening a pull request is mandatory."
+    },
+    {
+      "id": "R4",
+      "protects": [
+        {
+          "key": "Keep the wired memory limit under 20 GiB on a 32 GB machine",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Keep wired memory usage under a fixed bound on this machine."
+    },
+    {
+      "id": "R5",
+      "protects": [
+        {
+          "key": "Create a branch named `release/vX.Y.Z` from a fresh `origin/main`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Step 1: branch from a fresh origin/main with the release naming convention."
+    },
+    {
+      "id": "R6",
+      "protects": [
+        {
+          "key": "Add a dated entry for the new version to `CHANGELOG.md`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Step 2: record the release in the changelog with a date."
+    },
+    {
+      "id": "R7",
+      "protects": [
+        {
+          "key": "Run the test suite with `pytest -q --maxfail=1`",
+          "kind": "sentence"
+        },
+        {
+          "key": "It takes about 40 seconds",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Step 3: run the test suite; it takes about 40 seconds."
+    },
+    {
+      "id": "R8",
+      "protects": [
+        {
+          "key": "Open a pull request and wait for the review",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Step 4: open the pull request and wait for review."
+    },
+    {
+      "id": "R9",
+      "protects": [
+        {
+          "key": "After the merge, tag the merge commit as `vX.Y.Z` and push the tag",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Step 5: after merge, tag the merge commit and push the tag."
+    },
+    {
+      "id": "R10",
+      "protects": [
+        {
+          "key": "Build the distribution with",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Build the distribution with the build module."
+    },
+    {
+      "id": "R11",
+      "protects": [
+        {
+          "key": "Any of these works, but a flat bullet list is the default here, and you should use one of the others only if the repository already does",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "The default changelog format is a flat bullet list; use another format only if the repository already uses one."
+    },
+    {
+      "id": "R12",
+      "protects": [
+        {
+          "key": "If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository",
+          "kind": "sentence"
+        },
+        {
+          "key": "Open https://pypi.org/manage/account/publishing/ and add the repository, the workflow file `.github/workflows/publish.yml` and the environment `pypi`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "A 403 on publish means the PyPI trusted publisher isn't configured; fix it on pypi.org, naming the repo, workflow file and environment."
+    },
+    {
+      "id": "R13",
+      "protects": [
+        {
+          "key": "If the build fails with `No module named build`, install it with `python3 -m pip install build` and build again",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "A missing build module must be installed before rebuilding."
+    },
+    {
+      "id": "R14",
+      "protects": [
+        {
+          "key": "If the tag already exists on the remote, do not delete it",
+          "kind": "sentence"
+        },
+        {
+          "key": "Ask the maintainer",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Never delete an existing remote tag; ask the maintainer instead."
+    },
+    {
+      "id": "R15",
+      "protects": [
+        {
+          "key": "If the changelog check fails in CI, the entry heading does not match the tag",
+          "kind": "sentence"
+        },
+        {
+          "key": "The heading must be `## vX.Y.Z (YYYY-MM-DD)`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "A CI changelog-check failure means the heading doesn't match the required tag format."
+    },
+    {
+      "id": "R16",
+      "protects": [
+        {
+          "key": "This skill exists to make sure that every release follows the same steps in the same order, so that nothing important is forgotten",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "The stated reason the skill exists is to keep every release following the same steps in the same order."
+    }
+  ],
+  "rule_headings": [],
+  "rules": [
+    {
+      "depth": 2,
+      "index": 5,
+      "key": "This skill exists to make sure that every release follows the same steps in the same order, so that nothing important is forgotten",
+      "line": 6,
+      "strong": false,
+      "text": "This skill exists to make sure that every release follows the same steps in the same order, so that nothing important is forgotten."
+    },
+    {
+      "depth": 2,
+      "index": 13,
+      "key": "NEVER commit directly to `main`",
+      "line": 24,
+      "strong": true,
+      "text": "NEVER commit directly to `main`."
+    },
+    {
+      "depth": 2,
+      "index": 14,
+      "key": "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run",
+      "line": 26,
+      "strong": true,
+      "text": "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run."
+    },
+    {
+      "depth": 2,
+      "index": 15,
+      "key": "You MUST run `pytest -q --maxfail=1` before opening a pull request",
+      "line": 29,
+      "strong": true,
+      "text": "You MUST run `pytest -q --maxfail=1` before opening a pull request."
+    },
+    {
+      "depth": 2,
+      "index": 32,
+      "key": "Any of these works, but a flat bullet list is the default here, and you should use one of the others only if the repository already does",
+      "line": 66,
+      "strong": false,
+      "text": "Any of these works, but a flat bullet list is the default here, and you should use one of the others only if the repository already does."
+    },
+    {
+      "depth": 2,
+      "index": 34,
+      "key": "If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository",
+      "line": 74,
+      "strong": false,
+      "text": "If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository."
+    },
+    {
+      "depth": 2,
+      "index": 37,
+      "key": "If the tag already exists on the remote, do not delete it",
+      "line": 82,
+      "strong": true,
+      "text": "If the tag already exists on the remote, do not delete it."
+    },
+    {
+      "depth": 2,
+      "index": 39,
+      "key": "If the changelog check fails in CI, the entry heading does not match the tag",
+      "line": 84,
+      "strong": false,
+      "text": "If the changelog check fails in CI, the entry heading does not match the tag."
+    },
+    {
+      "depth": 2,
+      "index": 40,
+      "key": "The heading must be `## vX.Y.Z (YYYY-MM-DD)`",
+      "line": 84,
+      "strong": true,
+      "text": "The heading must be `## vX.Y.Z (YYYY-MM-DD)`."
+    }
+  ],
+  "sentences": [
+    "A release is a published version of the package",
+    "A release is the point where the work of many weeks reaches users, so it is worth taking a little extra care",
+    "Add a dated entry for the new version to `CHANGELOG.md`",
+    "After the merge, tag the merge commit as `vX.Y.Z` and push the tag",
+    "Any of these works, but a flat bullet list is the default here, and you should use one of the others only if the repository already does",
+    "Ask the maintainer",
+    "Build the distribution with",
+    "Create a branch named `release/vX.Y.Z` from a fresh `origin/main`",
+    "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run",
+    "Following the checklist below lets you release with confidence",
+    "Here is an example of a good changelog entry",
+    "Here is another example of a good changelog entry",
+    "If the build fails with `No module named build`, install it with `python3 -m pip install build` and build again",
+    "If the changelog check fails in CI, the entry heading does not match the tag",
+    "If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository",
+    "If the tag already exists on the remote, do not delete it",
+    "In the past, releases that were rushed caused problems for users, and those problems took time to fix",
+    "It has a version number, a changelog entry, a git tag, and a build uploaded to PyPI",
+    "It takes about 40 seconds",
+    "Keep the wired memory limit under 20 GiB on a 32 GB machine",
+    "NEVER commit directly to `main`",
+    "Open a pull request and wait for the review",
+    "Open https://pypi.org/manage/account/publishing/ and add the repository, the workflow file `.github/workflows/publish.yml` and the environment `pypi`",
+    "Releases are one of the most important moments in the life of a software project",
+    "Run the test suite with `pytest -q --maxfail=1`",
+    "Semantic versioning means the version number has three parts: major, minor and patch",
+    "The heading must be `## vX.Y.Z (YYYY-MM-DD)`",
+    "The major part changes when the public API breaks, the minor part when features are added, and the patch part for fixes",
+    "This skill exists to make sure that every release follows the same steps in the same order, so that nothing important is forgotten",
+    "You MUST run `pytest -q --maxfail=1` before opening a pull request",
+    "You can write the changelog entry in several ways",
+    "You could use Keep a Changelog headings (Added, Changed, Fixed)",
+    "You could use a flat bullet list",
+    "You could write a short paragraph"
+  ],
+  "terminal": [
+    "NEVER commit directly to `main`"
+  ],
+  "unprotected": [
+    "Releases are one of the most important moments in the life of a software project.",
+    "A release is the point where the work of many weeks reaches users, so it is worth taking a little extra care.",
+    "In the past, releases that were rushed caused problems for users, and those problems took time to fix.",
+    "Following the checklist below lets you release with confidence.",
+    "A release is a published version of the package.",
+    "It has a version number, a changelog entry, a git tag, and a build uploaded to PyPI.",
+    "Semantic versioning means the version number has three parts: major, minor and patch.",
+    "The major part changes when the public API breaks, the minor part when features are added, and the patch part for fixes.",
+    "Here is an example of a good changelog entry:",
+    "Here is another example of a good changelog entry:",
+    "You can write the changelog entry in several ways.",
+    "You could use Keep a Changelog headings (Added, Changed, Fixed).",
+    "You could use a flat bullet list.",
+    "You could write a short paragraph."
+  ]
+}

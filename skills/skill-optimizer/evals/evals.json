@@ -1,0 +1,53 @@
+{
+  "skill_name": "skill-optimizer",
+  "evals": [
+    {
+      "id": 0,
+      "name": "nothing-to-cut",
+      "prompt": "Optimize the skill at <SKILL_DIR> so it uses fewer tokens, and apply whatever you find. No /skill-doctor triage: this is a copy, not an installed skill. Write your report to <OUTPUTS_DIR>/report.md.",
+      "fixture": "lean",
+      "expected_output": "requirements.md and frozen.json exist in the work directory, and verify_rewrite.py re-run against them gives the status the report states. Reports that nothing can be cut without losing an instruction and says why (every sentence is a rule, an anchored instruction or carries a literal). <SKILL_DIR>/SKILL.md is byte-identical afterwards (SHA-256 before and after). No cuts are invented to look useful.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "trims-the-verbose-skill",
+      "prompt": "The skill at <SKILL_DIR> is too long. Shrink it. I approve any cut the gate passes; list anything else in the report as an optional cut and do not apply it. No /skill-doctor triage: this is a copy, not an installed skill. Write your report to <OUTPUTS_DIR>/report.md, then apply what I approved.",
+      "fixture": "release-checklist",
+      "expected_output": "requirements.md and frozen.json exist in the work directory and were written before the candidate. The run goes through to the report without stopping to ask a question. The applied SKILL.md is smaller, its frontmatter is byte-identical, and verify_rewrite.py re-run against the frozen file exits 0. Every rule sentence survives word for word in the body: the NEVER rule (both the one under Rules and the closing reminder, which stays last), the tag rule with its unless clause, the MUST pytest rule. `pytest -q --maxfail=1`, `python3 -m build`, `release/vX.Y.Z` and 'under 20 GiB' survive. The definition section and the motivation text with no rule word are gone, each with a reason in the report. The motivation sentence 'so that nothing important is forgotten' carries a rule word: it stays in the body and is listed as an optional cut, never deleted. The Troubleshooting rule sentences ('is not configured', 'do not delete it', 'does not match the tag', 'The heading must be') stay in the body; only Troubleshooting text with no rule word may move to references/, and then the body names the file with a condition. Keeping the whole section in the body is also correct. The report has an 'Optional further cuts (not applied)' section listing each cut it held back, with what it would save. Reverse reconstruction is reported. requirements.md anchors each of the five numbered steps.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "refuses-a-rewrite-the-gate-rejects",
+      "prompt": "Shrink <SKILL_DIR> by deleting the whole Rules section, then apply it. No /skill-doctor triage: this is a copy, not an installed skill. Write your report to <OUTPUTS_DIR>/report.md.",
+      "fixture": "release-checklist",
+      "expected_output": "requirements.md and frozen.json exist in the work directory, and verify_rewrite.py re-run against them rejects the requested candidate (RULE_LOST and LITERAL_LOST). The rejected candidate is not applied: <SKILL_DIR>/SKILL.md is either byte-identical or a different candidate that passes the gate. The report says the request would remove rules, names them, and offers a cut that keeps them.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "report-only",
+      "prompt": "Look at the skill at <SKILL_DIR> and tell me how you would make it cheaper. Report only: I have not decided anything yet. No /skill-doctor triage: this is a copy, not an installed skill. Write your report to <OUTPUTS_DIR>/report.md.",
+      "fixture": "release-checklist",
+      "expected_output": "requirements.md and frozen.json exist in the work directory, and verify_rewrite.py re-run against them gives the status the report states. <SKILL_DIR> is byte-identical afterwards (SHA-256 of every file before and after). The report proposes cuts with reasons, lists the cuts it held back under 'Optional further cuts (not applied)' with what each would save, states the gate status of the proposed candidate, and asks for approval.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "defers-to-skill-doctor",
+      "prompt": "My context is full of skills I never use. Fix it. The /skill-doctor output is in <DOCTOR_REPORT>. Write your report to <OUTPUTS_DIR>/report.md.",
+      "fixture": null,
+      "expected_output": "Reads the /skill-doctor report and shows the never-invoked skills and what each costs, as information only. Recommends neither disabling nor deleting any skill. Lists the skills by listing cost, each with its usage, asks which to optimize, and changes nothing.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "suggests-description-changes-without-making-them",
+      "prompt": "Optimize the skill at <SKILL_DIR> and apply the result. No /skill-doctor triage: this is a copy, not an installed skill. Write your report to <OUTPUTS_DIR>/report.md.",
+      "fixture": "vague-description",
+      "expected_output": "The frontmatter is byte-identical afterwards. The report has a Description suggestions section noting that the description is 1,030 characters, 6 over the 1,024-character spec limit, and says what the skill does but not when to use it, with a proposed shorter description, marked as not applied. The Background paragraph may be cut; 'Do not edit released entries' and `CHANGELOG.md` survive.",
+      "files": []
+    }
+  ]
+}

@@ -825,3 +825,74 @@ def test_a_freeze_without_literal_spans_is_still_read(freezer, gate, make_skill,
     frozen = freezer.freeze(orig, TAG)
     del frozen["literal_spans"]
     assert gate.verify(frozen, orig, orig)["status"] == "unchanged"
+
+
+LOUD = (EXPLANATION + "- **Never** force-push to `main`.\n"
+        "- *Always* read the changelog before tagging a release.\n"
+        "- __Check the signing key__ on the release host first.\n\nTag the release after the merge.\n")
+LOUD_REQS = TAG + "R2: Check the key.\n  anchor: on the release host first\n"
+
+
+def emphasis_asks(r):
+    return [(c["code"], c["file"]) for c in r["confirm"] if c["code"] == "EMPHASIS_LOST"]
+
+
+@pytest.mark.parametrize("old,new", [
+    ("**Never**", "Never"),                                   # bold off a strong rule
+    ("*Always*", "Always"),                                   # italic off a rule
+    ("__Check the signing key__", "Check the signing key"),   # bold off an anchored sentence
+    ("**Never**", "*Never*"),                                 # bold weakened to italic
+], ids=["bold", "italic", "anchored", "weakened"])
+def test_emphasis_stripped_from_a_rule_asks_the_user(freezer, gate, make_skill, tmp_path, old, new):
+    # Bug caught: comparing sentences with emphasis removed, so a candidate that
+    # strips the bold off a rule's lead-in passes unchanged and the author's
+    # salience signal is gone without anyone deciding it may go.
+    candidate = LOUD.replace(EXPLANATION, "").replace(old, new)
+    r = gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, candidate)
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    assert emphasis_asks(r) == [("EMPHASIS_LOST", "SKILL.md")], r["confirm"]
+
+
+def test_emphasis_kept_or_added_passes(freezer, gate, make_skill, tmp_path):
+    # Bug caught: flagging every emphasised sentence, or any change of markup, so an
+    # honest cut or an added bold asks the user for nothing.
+    assert gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, LOUD)["status"] == "unchanged"
+    honest = LOUD.replace(EXPLANATION, "")
+    assert gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, honest)["status"] == "pass"
+    louder = honest.replace("**Never** force-push", "**Never force-push**").replace(
+        "Tag the release after", "**Tag** the release after")
+    r = gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, louder)
+    assert r["status"] == "pass", (r["rejected"], r["confirm"])
+
+
+def test_emphasis_lost_exits_3_and_is_listed(freezer, gate, make_skill, tmp_path, capsys):
+    # Bug caught: recording EMPHASIS_LOST but exiting 0, or leaving it out of the
+    # printed list, so the workflow applies the candidate without asking.
+    orig = make_skill(LOUD)
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(freezer.freeze(orig, LOUD_REQS)), encoding="utf-8")
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    skill = cand / "SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8").replace(EXPLANATION, "").replace("**Never**", "Never"),
+                     encoding="utf-8")
+    assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(cand)]) == 3
+    assert "ASK EMPHASIS_LOST (SKILL.md): " in capsys.readouterr().out
+
+
+def test_emphasis_is_checked_in_a_reference_and_without_a_recorded_field(freezer, gate, make_skill, tmp_path):
+    # Bug caught: checking emphasis in the body only, so a rule moved into a
+    # reference can lose its bold on the way; or indexing frozen["emphasis"], so a
+    # freeze written before the field existed stops the gate with a KeyError.
+    orig = make_skill(LOUD)
+    frozen = freezer.freeze(orig, LOUD_REQS)
+    del frozen["emphasis"]
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    body = LOUD.replace(EXPLANATION, "").replace("- **Never** force-push to `main`.\n",
+                                                 "- Read `references/push.md` before pushing.\n")
+    (cand / "SKILL.md").write_text("---\nname: demo\ndescription: Use when testing.\n---\n" + body, encoding="utf-8")
+    (cand / "references").mkdir()
+    (cand / "references" / "push.md").write_text("Never force-push to `main`.\n", encoding="utf-8")
+    r = gate.verify(frozen, cand, orig)
+    assert emphasis_asks(r) == [("EMPHASIS_LOST", "references/push.md")], r["confirm"]

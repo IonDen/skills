@@ -46,6 +46,8 @@ Needs the user's decision (exit 3):
   SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
                        (a trimmed heading is the original heading it was cut from, when
                        exactly one fits and that original is not still in the body)
+  EMPHASIS_LOST        a rule or an anchored sentence lost bold or italic it had (or bold
+                       became italic); emphasis added or kept passes
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
@@ -270,6 +272,29 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
                 ask(f"{req['id']} moved: {target['key']!r}", where)
             elif target["kind"] == "sentence":
                 same_section(target["key"], target["key"], target["section"])
+
+    # Emphasis: a rule or an anchored sentence keeps every bold or italic phrase
+    # it had, at least as strong, wherever it now lives. Stripping it asks the user.
+    # A freeze from before the field existed is read from the original on disk.
+    emph = frozen.get("emphasis")
+    if emph is None and original_dir is not None:
+        loud = {r["key"] for r in frozen["rules"]} | {t["key"] for r in frozen["requirements"]
+                                                      for t in r["protects"] if t["kind"] == "sentence"}
+        _, original_body = skillmd.split_frontmatter(skillmd.read_text(original_md))
+        emph = {k: v for k, v in skillmd.emphasis(original_body).items() if k in loud}
+    emph_now: dict[str, list] = {}
+    for _, text in sources:
+        for key, phrases in skillmd.emphasis(text).items():
+            emph_now.setdefault(key, []).extend(phrases)
+    rule_text = {r["key"]: r["text"] for r in frozen["rules"]}
+    for key, phrases in sorted((emph or {}).items()):
+        where = locate("sentence", key)
+        if where is None:
+            continue      # gone: RULE_LOST, ANCHOR_LOST or an approved deletion says so
+        lost_here = [p for p, level in phrases if not skillmd.keeps_emphasis(p, level, emph_now.get(key, []))]
+        if lost_here:
+            ask(f"{rule_text.get(key, key)!r} lost the emphasis on " + ", ".join(repr(p) for p in lost_here),
+                "SKILL.md" if where == "body" else where, "EMPHASIS_LOST")
 
     # Prominence: nothing that stood behind a strong rule or a rule heading may
     # stand in front of it, and it may not sit deeper than it did.

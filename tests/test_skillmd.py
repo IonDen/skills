@@ -315,3 +315,26 @@ def test_a_quote_marker_indented_past_the_paragraph_continues_it(skillmd):
     # or more columns past the paragraph's text as paragraph text, not a quote.
     body = "- Keep it small,\n      > 27 is too many. Stop there.\n"
     assert keys(skillmd, body) == ["Keep it small, > 27 is too many", "Stop there"]
+
+
+TRICKY = ["Edit `__init__.py` and **bold `x | y`** now.", "***Both*** at once, and a**b, and * not * this.",
+          "An unpaired ** marker and _snake_case_ and __dunder__.", "**Stop. Now.** Then *go*.",
+          "Use ``a `b` c`` with **care**."]
+
+
+@pytest.mark.parametrize("path", REAL_SKILLS, ids=lambda p: str(p.relative_to(REPO)))
+def test_emphasis_tracking_reads_the_same_text_as_the_keys(skillmd, path):
+    # Bug caught: _marked() removing markers differently from _unemphasise(), so
+    # emphasis is recorded under a key no sentence has and a stripped bold is never checked.
+    _, body = skillmd.split_frontmatter(skillmd.read_text(path))
+    texts = TRICKY + [u["text"] for u in skillmd.units(body) if u["kind"] == "text"]
+    assert [skillmd._marked(t)[0] for t in texts] == [skillmd._unemphasise(t) for t in texts]
+
+
+def test_emphasis_belongs_to_the_sentence_it_sits_in(skillmd):
+    # Bug caught: giving a unit's emphasis to every sentence in it, or losing a bold
+    # phrase that spans a sentence break, so the gate flags the wrong sentence or none.
+    assert skillmd.emphasis("- **Kept exactly.** Never edit it.\n") == {"Kept exactly": [["Kept exactly", 2]]}
+    assert skillmd.emphasis("**Stop. Now.** Then *go* home.\n") == {
+        "Stop": [["Stop", 2]], "Now": [["Now", 2]], "Then go home": [["go", 1]]}
+    assert skillmd.emphasis("Run `__init__.py` as is.\n") == {}

@@ -2,9 +2,11 @@
 
 A SKILL.md body is read as units: headings, lines inside code fences, table
 cells, and paragraphs (soft-wrapped lines joined, the lines of one quote too;
-list items and quotes kept apart). Paragraphs and cells split into sentences. Everything the gate compares goes
-through normalise(), so reflowing a paragraph or dropping emphasis is not a
-change, and any other edit to a sentence is.
+list items and quotes kept apart). Paragraphs and cells split into sentences.
+Every sentence the gate compares goes through normalise(), so reflowing a
+paragraph or changing emphasis does not change a sentence, and any other edit
+does. emphasis() keeps the bold and italic that normalise() drops, for the
+gate's separate check on rules and anchored sentences.
 """
 from __future__ import annotations
 
@@ -155,11 +157,96 @@ def _outside_code(s: str, fn) -> str:
     return "".join(parts)
 
 
+ITALIC_RES = (re.compile(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])"),
+              re.compile(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])"))
+
+
 def _unemphasise(s: str) -> str:
     s = _outside_code(s, lambda p: p.replace("**", "").replace("__", ""))
-    s = _outside_code(s, lambda p: re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", p))
-    s = _outside_code(s, lambda p: re.sub(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])", r"\1", p))
+    for pat in ITALIC_RES:
+        s = _outside_code(s, lambda p, pat=pat: pat.sub(r"\1", p))
     return s
+
+
+def _plain_parts(text: str):
+    """(offset, part) for each part of text outside a code span."""
+    pos = 0
+    for i, part in enumerate(CODE_SPAN_RE.split(text)):
+        if not i % 2:
+            yield pos, part
+        pos += len(part)
+
+
+def _strip_marks(text: str, strength: list[int], found: list) -> tuple[str, list[int]]:
+    """Drop the marker positions in `found` and raise the strength of what they enclose."""
+    drop = set()
+    for marks, (a, b), level in found:
+        drop.update(marks)
+        for k in range(a, b):
+            strength[k] = max(strength[k], level)
+    keep = [k for k in range(len(text)) if k not in drop]
+    return "".join(text[k] for k in keep), [strength[k] for k in keep]
+
+
+def _marked(s: str) -> tuple[str, list[int]]:
+    """_unemphasise(s), step for step, with each remaining character's emphasis:
+    2 inside bold (** or __), 1 inside italic (* or _), 0 outside."""
+    text, strength = s, [0] * len(s)
+    for marker in ("**", "__"):
+        found, opened = [], None
+        for off, part in _plain_parts(text):
+            for m in re.finditer(re.escape(marker), part):
+                at = off + m.start()
+                if opened is None:
+                    opened = at
+                else:
+                    found.append(([opened, opened + 1, at, at + 1], (opened + 2, at), 2))
+                    opened = None
+        if opened is not None:        # an unpaired marker is dropped too, and marks nothing
+            found.append(([opened, opened + 1], (0, 0), 0))
+        text, strength = _strip_marks(text, strength, found)
+    for pat in ITALIC_RES:
+        found = []
+        for off, part in _plain_parts(text):
+            for m in pat.finditer(part):
+                a, b = off + m.start(), off + m.end() - 1
+                found.append(([a, b], (a + 1, b), 1))
+        text, strength = _strip_marks(text, strength, found)
+    return text, strength
+
+
+def emphasis(body: str) -> dict[str, list[list]]:
+    """For each sentence that has emphasis, its emphasised phrases as
+    [normalised phrase, strength] pairs (2 bold, 1 italic), keyed like sentences()."""
+    out: dict[str, list[list]] = {}
+    for u in units(body):
+        if u["kind"] != "text":
+            continue
+        text, strength = _marked(u["text"])
+        start = 0
+        for a, b in [m.span() for m in SENTENCE_SPLIT_RE.finditer(text)] + [(len(text), len(text))]:
+            key = normalise(text[start:a])
+            k = start
+            while key and k < a:
+                j = k
+                while j < a and strength[j] == strength[k]:
+                    j += 1
+                phrase = normalise(text[k:j])
+                if strength[k] and tokens(phrase) and [phrase, strength[k]] not in out.get(key, []):
+                    out.setdefault(key, []).append([phrase, strength[k]])
+                k = j
+            start = b
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def keeps_emphasis(phrase: str, level: int, now: list[list]) -> bool:
+    """True when some phrase in `now` is at least as strong and holds `phrase`'s words in a row."""
+    want = tokens(phrase)
+    for p, lvl in now:
+        have = tokens(p)
+        if lvl >= level and any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1)):
+            return True
+    return False
 
 
 def normalise(s: str) -> str:

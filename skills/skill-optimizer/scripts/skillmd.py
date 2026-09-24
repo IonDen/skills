@@ -137,7 +137,8 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return (text[:m.end()], text[m.end():]) if m else ("", text)
 
 
-CODE_SPAN_RE = re.compile(r"(`[^`]*`)")
+# A code span: ``...`` (which may hold a single backtick) or `...`.
+CODE_SPAN_RE = re.compile(r"(``[^`](?:[^`]|`(?!`))*?``|`[^`]*`)")
 
 
 def _outside_code(s: str, fn) -> str:

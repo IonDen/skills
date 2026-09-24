@@ -8,8 +8,9 @@ Records, from the original skill directory:
     under references/). Symlinks are neither followed nor frozen, and a
     symlinked SKILL.md is refused.
   - every sentence and heading carrying a rule word (must, never, not, no,
-    only, unless, without, ...), with its position, its heading depth, the
-    heading it sits under, and whether it is a strong rule
+    only, unless, without, ...), with its position, its heading depth (the
+    shallowest, for a heading that repeats), the heading it sits under, and
+    whether it is a strong rule
   - every literal: inline code, runnable code lines, URLs, flags, versions,
     pins, dates, paths, numbers with a unit or bound
   - every code block, and every sentence and heading, so the gate can refuse
@@ -147,12 +148,17 @@ def freeze(skill_dir, requirements_text: str) -> dict:
             rules.append({"key": s["key"], "text": s["text"], "line": s["line"], "depth": s["depth"],
                           "index": order.index(s["key"]), "strong": skillmd.is_strong(s["key"]),
                           "section": s["section"]})
-    rule_headings, seen = [], set()
+    # One entry per rule heading: the index of its first copy, and the shallowest
+    # level any copy sits at (the same thing when it occurs once).
+    rule_headings, seen = [], {}
     for u in skillmd.units(body):
         key = skillmd.normalise(u["text"])
-        if u["kind"] == "heading" and skillmd.is_rule(u["text"]) and key not in seen:
-            seen.add(key)
-            rule_headings.append({"key": key, "index": order.index("# " + key), "depth": u["depth"]})
+        if u["kind"] == "heading" and skillmd.is_rule(u["text"]):
+            if key in seen:
+                seen[key]["depth"] = min(seen[key]["depth"], u["depth"])
+                continue
+            seen[key] = {"key": key, "index": order.index("# " + key), "depth": u["depth"]}
+            rule_headings.append(seen[key])
     # A closing reminder: rule sentences in a short final section (after the last heading).
     last_heading = max((u["line"] for u in skillmd.units(body) if u["kind"] == "heading"), default=0)
     closing = [s["key"] for s in sents if s["line"] > last_heading]

@@ -1,5 +1,6 @@
 """skill-optimizer verify_rewrite.py (the gate). Each test names the one-line bug that would make it fail."""
 import json
+import re
 import shutil
 
 import pytest
@@ -576,6 +577,8 @@ def test_an_approved_deletion_may_not_be_a_trim(freezer, gate, make_skill, tmp_p
     r = gate_on(freezer, gate, make_skill, tmp_path, TRIMS, SCRATCH_REQS, candidate, approved=[approved])
     assert r["status"] == "rejected"
     assert any(f["code"] == code and "trimmed, not deleted" in f["detail"] for f in r["rejected"]), r["rejected"]
+    # the detail names the candidate sentence that is left of it
+    assert any(repr(new.rstrip(".")) in f["detail"] for f in r["rejected"] if "trimmed" in f["detail"]), r["rejected"]
     assert r["approved_deletions"] == []
     if "make nuke" in old:
         # the literal goes only with a sentence that is truly deleted
@@ -660,3 +663,66 @@ def test_original_skill_md_linked_per_file_is_read(freezer, gate, make_skill, tm
     (installed / "SKILL.md").symlink_to(_secret(tmp_path))
     assert gate.main(args) == 2
     assert "PRIVATE" not in capsys.readouterr().err
+
+
+def test_only_an_identical_surviving_sentence_excuses_a_trim(freezer, gate, make_skill, tmp_path):
+    # Bug caught: excusing a candidate sentence that merely fits inside a surviving
+    # original sentence, so "Deploy on Fridays." passes as cut from "Deploy on Fridays
+    # after the freeze lifts." while it is really what is left of the approved rule.
+    original = EXPLANATION + FRIDAYS + "\n\nDeploy on Fridays after the freeze lifts.\n\nTag the release after the merge.\n"
+    candidate = "Deploy on Fridays.\n\nDeploy on Fridays after the freeze lifts.\n\nTag the release after the merge.\n"
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate, approved=[FRIDAYS])
+    assert any(f["code"] == "RULE_LOST" and "trimmed, not deleted" in f["detail"] for f in r["rejected"]), r["rejected"]
+
+
+PLATFORMS = ("# Linux\n\n" + EXPLANATION + "### Running the tests locally\n\nUse the apt package only on Debian hosts.\n\n"
+             "Run the suite from the repository root.\n\n# Windows\n\nInstall the tool with the installer.\n\n"
+             "Tag the release after the merge.\n")
+
+
+def test_a_trimmed_copy_of_a_kept_heading_is_a_new_section(freezer, gate, make_skill, tmp_path):
+    # Bug caught: mapping a trimmed heading to its original even while that original
+    # still stands unchanged elsewhere, so a rule moved under a new "### Running tests"
+    # in the Windows section reads as never having left Linux.
+    candidate = ("# Linux\n\n### Running the tests locally\n\nRun the suite from the repository root.\n\n# Windows\n\n"
+                 "Install the tool with the installer.\n\nTag the release after the merge.\n\n### Running tests\n\n"
+                 "Use the apt package only on Debian hosts.\n")
+    r = gate_on(freezer, gate, make_skill, tmp_path, PLATFORMS, TAG, candidate)
+    assert [c["code"] for c in r["confirm"]] == ["SECTION_CHANGED"], (r["rejected"], r["confirm"])
+
+
+@pytest.mark.parametrize("first,second", [("##", "###"), ("###", "##")], ids=["shallow-first", "deep-first"])
+def test_a_repeated_rule_heading_keeps_its_shallowest_level(freezer, gate, make_skill, tmp_path, first, second):
+    # Bug caught: skipping every prominence check for a heading the original repeats,
+    # so "## Pitfalls to avoid" can sink to "####" because a "###" copy exists too;
+    # or freezing the level of the first copy only, which misses it when that copy is the deeper one.
+    original = ("# Guide\n\n" + EXPLANATION + f"{first} Pitfalls to avoid\n\nThe cache can go stale.\n\n## Deploy\n\n"
+                f"{second} Pitfalls to avoid\n\nThe registry can be slow.\n\nTag the release after the merge.\n")
+    demoted = re.sub(r"(?m)^## Pitfalls to avoid$", "#### Pitfalls to avoid", original.replace(EXPLANATION, ""))
+    assert demoted.count("#### Pitfalls") == 1
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, demoted)
+    assert "PROMINENCE_LOST" in codes(r), r["rejected"]
+    honest = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, original.replace(EXPLANATION, ""))
+    assert honest["status"] == "pass", honest["rejected"]
+
+
+def test_a_new_reference_may_not_take_a_name_the_skill_already_uses(freezer, gate, make_skill, tmp_path):
+    # Bug caught: accepting a new references/<name>.md whose path is a link (or a
+    # dangling link) in the installed skill, which the snapshot skipped, so applying
+    # the candidate would write through that link or replace it.
+    orig = make_skill(ORIGINAL)
+    (orig / "references").mkdir()
+    (orig / "references" / "linked.md").symlink_to(_secret(tmp_path))
+    (orig / "references" / "stale.md").symlink_to(tmp_path / "nowhere.md")
+    frozen = freezer.freeze(orig, REQS)
+    body = ORIGINAL.replace(TROUBLESHOOTING, "Read `references/{}.md` when a build fails.\n\n")
+    for name, ok in (("linked", False), ("stale", False), ("fresh", True)):
+        cand = tmp_path / f"candidate-{name}"
+        cand.mkdir()
+        fm = "---\nname: demo\ndescription: Use when testing.\n---\n"
+        (cand / "SKILL.md").write_text(fm + body.format(name), encoding="utf-8")
+        (cand / "references").mkdir()
+        (cand / "references" / f"{name}.md").write_text(TROUBLESHOOTING, encoding="utf-8")
+        r = gate.verify(frozen, cand, orig)
+        clash = [f["detail"] for f in r["rejected"] if f["code"] == "UNEXPECTED_FILE"]
+        assert clash == ([] if ok else [f"references/{name}.md exists in the skill as a link or file; choose another name"]), name

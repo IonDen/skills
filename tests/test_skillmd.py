@@ -206,3 +206,10 @@ def test_a_pipe_inside_code_does_not_split_a_cell(skillmd):
     body = "| Step | How |\n|---|---|\n| Filter | Run `ps aux | grep mlx` to list them. |\n"
     assert keys(skillmd, body) == ["Step", "How", "Filter", "Run `ps aux | grep mlx` to list them"]
     assert "ps aux | grep mlx" in skillmd.literals(body)
+
+
+def test_a_double_backtick_code_span_keeps_its_pipe(skillmd):
+    # Bug caught: reading ``a | b`` as two empty code spans around plain text, so
+    # the pipe inside it splits the table cell and the command is cut in half.
+    body = "| Step | How |\n|---|---|\n| Filter | Run ``ps aux | grep `mlx` `` to list them. |\n"
+    assert keys(skillmd, body) == ["Step", "How", "Filter", "Run ``ps aux | grep `mlx` `` to list them"]

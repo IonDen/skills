@@ -13,8 +13,9 @@ most 25 words besides the path.
 Deleting a rule sentence, rule heading or anchored sentence passes only when
 the user approved that exact text (--approved) and it is gone whole. If a
 candidate sentence (or heading) keeps some of its words in order, it was
-trimmed, not deleted, and stays RULE_LOST or ANCHOR_LOST, unless that candidate
-sentence is also cut from another original sentence that survives unchanged. A
+trimmed, not deleted, and stays RULE_LOST or ANCHOR_LOST, naming that candidate
+sentence, unless it is identical to another original sentence that survives
+unchanged. A
 literal lost with it passes only when every original sentence holding it was
 approved and truly deleted, and no heading or code block of the original held
 it. Each approved deletion is listed.
@@ -23,7 +24,8 @@ Rejects (exit 1):
   ORIGINAL_CHANGED     the skill on disk is not the one that was frozen
   FRONTMATTER_CHANGED  any byte of the frontmatter differs
   FILE_CHANGED         a file other than SKILL.md differs or is missing
-  UNEXPECTED_FILE      a new file outside references/*.md, or a symlink anywhere
+  UNEXPECTED_FILE      a new file outside references/*.md, a symlink anywhere, or a new
+                       reference whose path already exists in the skill (as a file or link)
   NEW_TEXT             a sentence or heading uses words the original never put together
   CODE_EDITED          a code block that survives differs from every original block
   RULE_LOST            a sentence or heading with a rule word is gone or was edited
@@ -31,7 +33,8 @@ Rejects (exit 1):
   LITERAL_LOST         a command, path, flag, URL, version, date or threshold is gone or changed
   PROMINENCE_LOST      a strong rule or a rule heading has text in front of it that was behind
                        it, or sits deeper than it did (a rule heading the original repeats
-                       has no single position; only its existence is checked)
+                       has no single position; its shallowest copy may not sink below the
+                       shallowest level it had)
   TERMINAL_MOVED       a closing rule no longer closes the body
   REFERENCE_UNLINKED   a new references/ file is not named in the body
   NOT_SMALLER          the body did not get smaller
@@ -39,7 +42,7 @@ Needs the user's decision (exit 3):
   MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file
   SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
                        (a trimmed heading is the original heading it was cut from, when
-                       exactly one fits)
+                       exactly one fits and that original is not still in the body)
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
@@ -55,6 +58,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -117,6 +121,10 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
                 reject("FILE_CHANGED", f"{rel} differs from the original")
         elif NEW_REFERENCE_RE.match(rel):
             new_refs[rel] = skillmd.read_text(p)
+            # The snapshot skips links, so a per-file install can have a link (even
+            # a dangling one) at this path; applying would write through or over it.
+            if original_dir is not None and os.path.lexists(Path(original_dir) / rel):
+                reject("UNEXPECTED_FILE", f"{rel} exists in the skill as a link or file; choose another name")
         else:
             reject("UNEXPECTED_FILE", f"{rel}: new files may only be references/<name>.md")
     for rel in frozen["files"]:
@@ -182,39 +190,40 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
 
     # An approved deletion must be a deletion. A candidate sentence (or heading)
     # whose words all fit, in order, inside the approved text is a trim of it,
-    # unless it is also cut from another original sentence that survives unchanged.
+    # unless it is itself another original sentence that survives unchanged.
     cand_text = {"sentence": {s["key"] for _, t in sources for s in skillmd.sentences(t)},
                  "heading": body_heads.union(*ref_heads.values())}
     orig_text = {"sentence": frozen["sentences"], "heading": frozen["headings"]}
 
-    def trimmed(kind: str, key: str) -> bool:
+    def trimmed(kind: str, key: str):
+        """The candidate sentence (or heading) left of `key`, or None."""
         if kind not in cand_text:
-            return False
+            return None
         whole = skillmd.tokens(key)
-        kept = [skillmd.tokens(o) for o in orig_text[kind] if o != key and o in cand_text[kind]]
-        for c in cand_text[kind]:
+        kept = {o for o in orig_text[kind] if o != key and o in cand_text[kind]}
+        for c in sorted(cand_text[kind]):
             toks = skillmd.tokens(c)
-            if (toks and skillmd.is_subsequence(toks, whole)
-                    and not any(skillmd.is_subsequence(toks, o) for o in kept)):
-                return True
-        return False
+            if toks and c not in kept and skillmd.is_subsequence(toks, whole):
+                return c
+        return None
 
     def deleted_with_approval(kind: str, key: str) -> bool:
-        return key in approved and locate(kind, key) is None and not trimmed(kind, key)
+        return key in approved and locate(kind, key) is None and trimmed(kind, key) is None
 
     def lost(key: str, kind: str) -> str:
-        return "trimmed, not deleted" if key in approved and trimmed(kind, key) else "is gone or was edited"
+        left = trimmed(kind, key) if key in approved else None
+        return f"trimmed, not deleted: {left!r} is left of it" if left else "is gone or was edited"
 
     # Scope: a rule or anchored sentence still in the body must sit under the same
     # heading. A candidate heading is the original heading it was cut from: itself
-    # if unchanged, else the one original heading whose words it keeps in order.
-    # With no such heading, or more than one, it counts as a new section.
+    # if unchanged, else the one original heading whose words it keeps in order,
+    # provided that heading is not still in the body. Otherwise it is a new section.
     def section_of(heading: str) -> str:
         if not heading or heading in frozen["headings"]:
             return heading
         toks = skillmd.tokens(heading)
         found = [o for o in frozen["headings"] if skillmd.is_subsequence(toks, skillmd.tokens(o))]
-        return found[0] if len(found) == 1 else heading
+        return found[0] if len(found) == 1 and found[0] not in body_heads else heading
 
     section_now: dict[str, str] = {}
     for s in body_sents:
@@ -287,9 +296,15 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             prominence(repr(rule["text"]), rule["key"], rule["index"], rule["depth"])
     for head in frozen["rule_headings"]:
         # A heading the original repeats ("### Pitfalls to avoid" in two sections)
-        # has no single position to keep; that it still exists is checked above.
+        # has no single position to keep; its shallowest copy may still not sink.
         if frozen["order"].count("# " + head["key"]) == 1:
             prominence(f"heading {head['key']!r}", "# " + head["key"], head["index"], head["depth"])
+        else:
+            levels = [u["depth"] for u in skillmd.units(body)
+                      if u["kind"] == "heading" and skillmd.normalise(u["text"]) == head["key"]]
+            if levels and min(levels) > head["depth"]:
+                reject("PROMINENCE_LOST", f"heading {head['key']!r} now sits no higher than level "
+                                          f"{min(levels)}; its highest copy was level {head['depth']}")
 
     tail = {s["key"] for s in body_sents[-TERMINAL_WINDOW:]}
     for key in frozen["terminal"]:

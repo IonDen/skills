@@ -87,9 +87,13 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return (text[:m.end()], text[m.end():]) if m else ("", text)
 
 
+def _unemphasise(s: str) -> str:
+    return s.replace("**", "").replace("__", "")
+
+
 def normalise(s: str) -> str:
     s = MARKER_RE.sub("", s, count=1)
-    s = s.replace("**", "").replace("__", "")
+    s = _unemphasise(s)
     s = re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", s)
     s = re.sub(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])", r"\1", s)
     return " ".join(s.split()).rstrip(".;:,!?").strip()
@@ -169,7 +173,7 @@ def sentences(body: str) -> list[dict]:
         if u["kind"] != "text":
             offset += len(u["text"]) + 1
             continue
-        for piece in SENTENCE_SPLIT_RE.split(u["text"]):
+        for piece in SENTENCE_SPLIT_RE.split(_unemphasise(u["text"])):
             key = normalise(piece)
             if key:
                 out.append({"key": key, "text": piece.strip(), "line": u["line"],
@@ -185,7 +189,7 @@ def order(body: str) -> list[str]:
         if u["kind"] == "heading":
             out.append("# " + normalise(u["text"]))
         elif u["kind"] == "text":
-            out.extend(normalise(p) for p in SENTENCE_SPLIT_RE.split(u["text"]) if normalise(p))
+            out.extend(normalise(p) for p in SENTENCE_SPLIT_RE.split(_unemphasise(u["text"])) if normalise(p))
     return out
 
 

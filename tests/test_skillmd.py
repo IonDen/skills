@@ -33,6 +33,16 @@ def test_emphasis_and_final_punctuation_do_not_change_the_key(skillmd):
     assert skillmd.normalise("**NEVER** push to *main*.") == skillmd.normalise("NEVER push to main")
 
 
+def test_emphasis_does_not_change_sentence_boundaries(skillmd):
+    # Bug caught: splitting sentences before removing emphasis, so "**Label.** Rest"
+    # is one sentence but "Label. Rest" is two, and un-bolding a label reads as a lost rule.
+    bold = "- **Kept exactly.** Never edit it.\n"
+    plain = "- Kept exactly. Never edit it.\n"
+    assert [s["key"] for s in skillmd.sentences(bold)] == [s["key"] for s in skillmd.sentences(plain)] \
+        == ["Kept exactly", "Never edit it"]
+    assert skillmd.order(bold) == skillmd.order(plain)
+
+
 def test_rule_words_match_in_any_case(skillmd):
     # Bug caught: a case-sensitive rule pattern, which misses either "NEVER"/"MUST"
     # or "is not"/"don't", so those rules can be flipped or dropped unnoticed.

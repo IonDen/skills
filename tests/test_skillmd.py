@@ -116,6 +116,30 @@ def test_contains_literal_respects_token_boundaries(skillmd):
     assert skillmd.contains_literal("Keep it\nunder 20 GiB.", "under 20 GiB")
 
 
+@pytest.mark.parametrize("body", [
+    "Pinned to https://github.com/openai/codex/blob/rust-v0.156.1/x.rs and rust-v0.156.1 in prose.",
+    "Use python-3.12 or node-18.2 on the runner.",
+    "Logs land in build-2026-09-24.txt.",
+    "The tag is release-v1.4.0, not v1.3.0.",
+])
+def test_every_literal_is_found_in_its_own_body(skillmd, body):
+    # Bug caught: extraction and the survival check disagree on token boundaries,
+    # so `v0.156.1` is frozen out of `rust-v0.156.1` but never found again, and an
+    # unchanged skill is rejected with LITERAL_LOST.
+    lits = skillmd.literals(body)
+    assert lits
+    for lit in lits:
+        assert skillmd.contains_literal(body, lit), lit
+
+
+def test_a_prefixed_version_is_still_protected(skillmd):
+    # Bug caught: fixing the boundary mismatch by dropping the literal, so
+    # `rust-v0.156.1` could be edited to `rust-v0.155.0` without the gate noticing.
+    lits = skillmd.literals("Codex source at rust-v0.156.1 says so.")
+    assert "rust-v0.156.1" in lits
+    assert not skillmd.contains_literal("Codex source at rust-v0.155.0 says so.", "rust-v0.156.1")
+
+
 def test_frontmatter_split_handles_crlf_and_no_final_newline(skillmd):
     # Bug caught: a frontmatter pattern that needs "\n" after the closing fence,
     # so CRLF files and body-less files are read as all body.

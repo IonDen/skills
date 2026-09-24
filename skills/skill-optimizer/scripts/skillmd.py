@@ -332,7 +332,26 @@ def literals(body: str) -> list[str]:
         v = m.group(1).rstrip(".,;:")
         if _looks_like_path(v):
             found.add(v)
-    return sorted(found)
+    return sorted({w for v in found for w in _on_boundaries(text, v)})
+
+
+def _on_boundaries(text: str, literal: str) -> list[str]:
+    """The literal as `contains_literal` will look for it. A match inside a longer
+    token (`v0.156.1` in `rust-v0.156.1`) is widened to that token, so the freeze
+    never records a literal the survival check cannot find again."""
+    if contains_literal(text, literal):
+        return [literal]
+    hay = " ".join(text.split())
+    lit = " ".join(literal.split())
+    out = []
+    for m in re.finditer(re.escape(lit), hay):
+        start, end = m.start(), m.end()
+        while start and re.match(r"[\w./-]", hay[start - 1]):
+            start -= 1
+        while end < len(hay) and re.match(r"[\w/-]", hay[end]):
+            end += 1
+        out.append(hay[start:end])
+    return out or [literal]
 
 
 def contains_literal(haystack: str, literal: str) -> bool:

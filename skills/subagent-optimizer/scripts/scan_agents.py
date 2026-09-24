@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan Claude Code subagent definition files and report optimisation signals.
+"""Scan Claude Code subagents and Codex custom agents and report optimisation signals.
 
 Deterministic pass that does the measuring so the skill can spend its reasoning
 on judgement calls. Parses YAML-ish frontmatter (line based, tolerant of the
@@ -9,11 +9,15 @@ sizes, estimates tokens (~chars/4), and raises heuristic flags.
 Usage:
     python scan_agents.py [PATH ...] [--json] [--body-lines N] [--desc-chars N]
 
-PATH may be an agent .md file or a directory (searched recursively; a file with
-frontmatter carrying `name` is treated as an agent, and a missing `description`
-is reported as a flag rather than silently dropping the file).
-With no PATH, scans ~/.claude/agents and ./.claude/agents. SKILL.md files are
-skipped when walking a directory (they carry the same frontmatter but are skills).
+PATH may be an agent .md or .toml file or a directory (searched recursively; a
+.md file with frontmatter carrying `name` is a Claude Code subagent, a .toml file
+with a top-level `name`, `description` or `developer_instructions` is a Codex
+custom agent, and a missing required field is reported as a flag rather than
+silently dropping the file).
+With no PATH, scans ~/.claude/agents, ./.claude/agents, ~/.codex/agents and
+./.codex/agents. SKILL.md files are skipped when walking a directory (they carry
+the same frontmatter but are skills). Codex files need Python 3.11+ (tomllib);
+on older Pythons they are listed as not scanned.
 
 Exit code is always 0; this is a reporter, not a gate.
 """
@@ -25,6 +29,11 @@ import os
 import re
 import sys
 from pathlib import Path
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10: Codex files are listed as not scanned
+    tomllib = None
 
 # --- Tool classification (mirror of references/tool-catalog.md) --------------
 # Tools a SUBAGENT can never use even if listed -> dead entries in `tools`.
@@ -54,10 +63,11 @@ MUTATING_TOOLS = WRITE_FILE_TOOLS | {"Bash"}
 # given model accepts varies, so this is only the outer set.
 EFFORT_LEVELS = {"low", "medium", "high", "xhigh", "max"}
 TOP_EFFORT_LEVELS = {"xhigh", "max"}
-# Model aliases Claude Code's effort table leaves out ("Models not listed here do
-# not support effort", code.claude.com/docs/en/model-config). Full model IDs and
-# `inherit` are not resolved here, so they keep the ordinary effort checks.
-EFFORT_UNSUPPORTED_MODELS = {"haiku"}
+# Claude Code's effort table leaves Haiku out ("Models not listed here do not
+# support effort", code.claude.com/docs/en/model-config), so any model value
+# containing this (the `haiku` alias or a full Haiku ID) gets no effort advice.
+# `inherit` and other IDs are not resolved here and keep the ordinary checks.
+EFFORT_UNSUPPORTED_MODEL_MARK = "haiku"
 # An explicit "I don't write/edit/change code" statement in the BODY is a
 # high-signal read-only mandate. Matching role words in the NAME instead caused
 # false positives (e.g. "plan-driven-coder" matched "plan" yet genuinely codes),
@@ -70,6 +80,42 @@ NO_WRITE_DECL = re.compile(
     r"|disk|repo(?:sitory)?|fixes)\b", re.I)
 EMPHASIS = re.compile(r"\b(MUST|MUST NOT|NEVER|ALWAYS|DO NOT|CRITICAL|"
                       r"IMPORTANT|MANDATORY|REQUIRED)\b")
+
+# --- Codex custom agents: keys, models and efforts, as of 2026-09-24 ----------
+# Refresh from https://learn.chatgpt.com/docs/agent-configuration/subagents,
+# https://learn.chatgpt.com/docs/models,
+# https://learn.chatgpt.com/docs/config-file/config-reference and the bundled
+# model catalog in github.com/openai/codex (release rust-v0.156.1). The live
+# catalog is per account, so an unknown model is never flagged.
+CODEX_AS_OF = "2026-09-24"
+CODEX_REQUIRED_KEYS = ("name", "description", "developer_instructions")
+# Claude Code frontmatter keys. Codex rejects unknown top-level keys, so one of
+# these makes it skip the whole agent. `skills` only counts as a list (Claude's
+# form); Codex's own `[[skills.config]]` parses to a table.
+CODEX_CLAUDE_KEYS = {
+    "tools": None, "disallowedTools": None, "permissionMode": None,
+    "effort": "model_reasoning_effort", "color": None, "memory": None,
+    "hooks": None, "maxTurns": None, "skills": None, "mcpServers": None,
+    "background": None, "isolation": None, "initialPrompt": None,
+}
+# Parsed but not applied to a custom agent by Codex 0.149 and later; the child
+# runs with the parent's live settings (the docs still show some of these).
+CODEX_IGNORED_KEYS = ("sandbox_mode", "approval_policy", "mcp_servers", "model_provider",
+                      "notify", "apps", "service_tier", "openai_base_url", "chatgpt_base_url")
+CODEX_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max", "ultra")
+CODEX_EFFORT_NOT_OFFERED = {"minimal", "none"}  # in the enum, offered by no current model
+_ALL = set(CODEX_EFFORT_LEVELS)
+_UP_TO_MAX = _ALL - {"ultra"}
+CODEX_MODEL_EFFORTS = {
+    "gpt-6-astra": _ALL, "gpt-6-sol": _ALL, "gpt-6-luna": _UP_TO_MAX,
+    "gpt-5.6-sol": _ALL, "gpt-5.6-terra": _ALL, "gpt-5.6-luna": _UP_TO_MAX,
+    "gpt-5.5": {"low", "medium", "high", "xhigh"},
+}
+CODEX_RETIRED_MODELS = {
+    "gpt-5.5": "retires 2026-10-14", "gpt-5.4": "retired 2026-08-31",
+    "gpt-5.4-mini": "retired 2026-08-31", "gpt-5.2": "deprecated",
+    "gpt-5.3-codex": "deprecated",
+}
 
 DEFAULT_BODY_LINES = 150   # official single-purpose examples run ~25-45 lines
 DEFAULT_DESC_CHARS = 1200  # description loads session-wide for routing
@@ -143,8 +189,62 @@ def _memory_value(raw: str) -> str:
     return "" if v.lower() in {"", "false", "no", "off", "0", "none"} else v
 
 
+class NotScanned(Exception):
+    """A file that looks like an agent but could not be read as one."""
+
+
+def _text(v) -> str:
+    """A TOML value as display text: strings as-is, other types via str()."""
+    return v if isinstance(v, str) else ("" if v is None else str(v))
+
+
+def parse_codex_agent(path: Path):
+    """Parse a Codex custom agent (.toml) into the shared agent dict.
+
+    Returns None for a .toml that is not an agent (no top-level name,
+    description or developer_instructions, e.g. pyproject.toml). Raises
+    NotScanned when the file cannot be read as TOML here."""
+    if tomllib is None:
+        raise NotScanned("not scanned: needs Python 3.11+")
+    raw = path.read_text(encoding="utf-8-sig", errors="replace")
+    try:
+        data = tomllib.loads(raw)
+    except tomllib.TOMLDecodeError as exc:
+        raise NotScanned(f"not scanned: TOML parse error ({exc})") from exc
+    if not any(k in data for k in CODEX_REQUIRED_KEYS):
+        return None
+    body = _text(data.get("developer_instructions")).strip("\n")
+    desc = _text(data.get("description"))
+    body_tokens = est_tokens(body)
+    return {
+        "path": str(path),
+        "format": "codex",
+        "name": _text(data.get("name")),
+        "model": _text(data.get("model")),  # "" => parent's model (or [agents] default)
+        "effort": _text(data.get("model_reasoning_effort")),
+        "permission_mode": "",
+        "omit_claude_md": False,
+        "memory": "",
+        "has_tools": False,  # Codex has no per-agent tool allowlist
+        "tools": [],
+        "description": desc,
+        "desc_chars": len(desc),
+        "desc_tokens": est_tokens(desc),
+        "body": body,
+        "body_lines": body.count("\n") + 1 if body else 0,
+        "body_chars": len(body),
+        "body_tokens": body_tokens,
+        "frontmatter_tokens": max(est_tokens(raw) - body_tokens, 0),
+        "_keys": data,
+        "_paragraphs": [q.strip() for q in re.split(r"\n\s*\n", body)
+                        if len(q.strip()) >= 120],
+    }
+
+
 def parse_agent(path: Path):
     """Return a dict of parsed fields, or None if the file isn't an agent."""
+    if path.suffix == ".toml":
+        return parse_codex_agent(path)
     raw = path.read_text(encoding="utf-8-sig", errors="replace")
     if not raw.lstrip().startswith("---"):
         return None
@@ -188,6 +288,7 @@ def parse_agent(path: Path):
     desc = _scalar(desc_raw) if "\n" not in desc_raw else desc_raw
     return {
         "path": str(path),
+        "format": "claude",
         "name": _scalar(fields.get("name", "")),
         "model": _scalar(fields.get("model", "")),  # "" => inherit (default)
         "effort": _scalar(fields.get("effort", "")),  # "" => inherits from session
@@ -209,7 +310,91 @@ def parse_agent(path: Path):
     }
 
 
+def _long_description(a, add, desc_limit):
+    if a["desc_chars"] > desc_limit:
+        add("low", "LONG_DESCRIPTION",
+            f"description is {a['desc_chars']} chars (~{a['desc_tokens']} tok); "
+            "it loads session-wide for routing. Keep triggers + 1-2 tight examples.")
+
+
+def _long_body(a, add, body_limit):
+    if a["body_lines"] > body_limit:
+        add("med", "LONG_BODY",
+            f"body is {a['body_lines']} lines; single-purpose agents run "
+            "~25-45. Check for redundancy / over-explaining.")
+
+
+def _style_flags(a, add):
+    emph = len(EMPHASIS.findall(a["body"]))
+    if emph >= 12:
+        add("low", "EMPHASIS_DENSITY",
+            f"{emph} ALL-CAPS imperatives (MUST/NEVER/ALWAYS...). High density "
+            "reads as nagging; explain the why instead.")
+    if not re.search(r"(output format|return|report|summary|deliverable)",
+                     a["body"], re.I):
+        add("low", "NO_OUTPUT_FORMAT",
+            "No explicit output-format / 'return a concise summary' section; "
+            "agent may dump verbose output into the parent's context.")
+
+
+def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
+    """Codex custom agents: key, model and effort checks plus the shared
+    description/body checks. No tool flags (Codex has no per-agent tool list)."""
+    flags = []
+
+    def add(sev, code, msg):
+        flags.append({"severity": sev, "code": code, "message": msg})
+
+    keys = a["_keys"]
+    missing = [k for k in CODEX_REQUIRED_KEYS if not _text(keys.get(k)).strip()]
+    if missing:
+        add("high", "CODEX_MISSING_REQUIRED",
+            f"Missing or blank: {', '.join(missing)}. Codex refuses an agent "
+            "without name, description and developer_instructions.")
+    claude = [k for k in CODEX_CLAUDE_KEYS if k in keys
+              and not (k == "skills" and not isinstance(keys[k], list))]
+    if claude:
+        add("high", "CODEX_CLAUDE_KEY",
+            "Claude Code keys in a Codex agent: " + "; ".join(
+                k + (f" (Codex uses {CODEX_CLAUDE_KEYS[k]})" if CODEX_CLAUDE_KEYS[k] else "")
+                for k in claude)
+            + ". Codex rejects unknown keys and skips the whole agent. Remove them.")
+    ignored = [k for k in CODEX_IGNORED_KEYS if k in keys]
+    if ignored:
+        add("med", "CODEX_IGNORED_KEY",
+            f"{', '.join(ignored)}: parsed but not applied to a custom agent by Codex "
+            "0.149 and later; the agent uses the parent's settings. Don't rely on it.")
+
+    model, effort = a["model"], a["effort"]
+    if effort and effort not in CODEX_EFFORT_LEVELS:
+        why = (" is not offered by current models" if effort in CODEX_EFFORT_NOT_OFFERED
+               else " is not a documented level")
+        add("med", "CODEX_EFFORT_INVALID",
+            f"model_reasoning_effort '{effort}'{why}; use one of "
+            f"{', '.join(CODEX_EFFORT_LEVELS)} that the model offers.")
+    elif effort and model in CODEX_MODEL_EFFORTS and effort not in CODEX_MODEL_EFFORTS[model]:
+        offered = [e for e in CODEX_EFFORT_LEVELS if e in CODEX_MODEL_EFFORTS[model]]
+        add("med", "CODEX_EFFORT_UNSUPPORTED",
+            f"{model} does not offer effort '{effort}' (offers {', '.join(offered)}, "
+            f"as of {CODEX_AS_OF}); Codex rejects the combination.")
+    if model in CODEX_RETIRED_MODELS:
+        add("med", "CODEX_MODEL_RETIRED",
+            f"{model} {CODEX_RETIRED_MODELS[model]} for ChatGPT sign-in, as of "
+            f"{CODEX_AS_OF}. Pick an available model (and a level it offers).")
+    if model and not effort:
+        add("low", "CODEX_MODEL_WITHOUT_EFFORT",
+            "`model` is set without `model_reasoning_effort`: the agent keeps the "
+            "previously resolved effort, which this model may not offer. Set both.")
+
+    _long_description(a, add, desc_limit)
+    _long_body(a, add, body_limit)
+    _style_flags(a, add)
+    return flags
+
+
 def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
+    if a.get("format") == "codex":
+        return flag_codex_agent(a, body_limit, desc_limit)
     flags = []
 
     def add(sev, code, msg):
@@ -272,7 +457,7 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             "No `model`: defaults to `inherit` (uses parent's model). Pin "
             "haiku for mechanical/read-only, or sonnet/opus if competence is fixed.")
 
-    if a["model"].lower() in EFFORT_UNSUPPORTED_MODELS:
+    if EFFORT_UNSUPPORTED_MODEL_MARK in a["model"].lower():
         if a["effort"]:
             add("low", "EFFORT_UNSUPPORTED",
                 f"effort {a['effort']} on `{a['model']}`: this model ignores effort. "
@@ -295,10 +480,7 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             "No `description` (a required field): the agent won't auto-delegate "
             "and may be ignored. Add trigger conditions + what it does.")
     else:
-        if a["desc_chars"] > desc_limit:
-            add("low", "LONG_DESCRIPTION",
-                f"description is {a['desc_chars']} chars (~{a['desc_tokens']} tok); "
-                "it loads session-wide for routing. Keep triggers + 1-2 tight examples.")
+        _long_description(a, add, desc_limit)
         if not re.search(
                 r"\b(use when|use this|after|whenever|proactive(?:ly)?|immediately)\b",
                 a["description"], re.I):
@@ -306,10 +488,7 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
                 "description lacks explicit trigger conditions ('use when...', "
                 "'after...', 'proactively'); may under-trigger.")
 
-    if a["body_lines"] > body_limit:
-        add("med", "LONG_BODY",
-            f"body is {a['body_lines']} lines; single-purpose agents run "
-            "~25-45. Check for redundancy / over-explaining.")
+    _long_body(a, add, body_limit)
     if re.search(r"(persistent agent memory|## MEMORY\.md|your MEMORY\.md)",
                  a["body"], re.I):
         sev = "med" if a["memory"] else "low"
@@ -318,16 +497,7 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             "the harness already injects memory instructions + MEMORY.md; trim "
             "to a one-line 'update your memory as you learn'.")
 
-    emph = len(EMPHASIS.findall(a["body"]))
-    if emph >= 12:
-        add("low", "EMPHASIS_DENSITY",
-            f"{emph} ALL-CAPS imperatives (MUST/NEVER/ALWAYS...). High density "
-            "reads as nagging; explain the why instead.")
-    if not re.search(r"(output format|return|report|summary|deliverable)",
-                     a["body"], re.I):
-        add("low", "NO_OUTPUT_FORMAT",
-            "No explicit output-format / 'return a concise summary' section; "
-            "agent may dump verbose output into the parent's context.")
+    _style_flags(a, add)
 
     if a["name"] and not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", a["name"]):
         add("med", "NAME_FORMAT",
@@ -352,11 +522,14 @@ def find_duplicate_blocks(agents: list[dict]) -> list[dict]:
     return dups[:15]
 
 
-def gather(paths: list[str]) -> list[Path]:
+def gather(paths: list[str], notes: list | None = None) -> list[Path]:
+    """Agent candidates under `paths`. A symlinked .toml found in a directory
+    walk is skipped (Codex rejects symlinked agent files too) and, when `notes`
+    is given, recorded there."""
     out: list[Path] = []
     for p in paths:
         pth = Path(p).expanduser()
-        if pth.is_file() and pth.suffix == ".md":
+        if pth.is_file() and pth.suffix in (".md", ".toml"):
             out.append(pth)
         elif pth.is_dir():
             # SKILL.md also carries `name` + `description` frontmatter but is a
@@ -365,6 +538,12 @@ def gather(paths: list[str]) -> list[Path]:
             # into the report; only plain files are agents.
             out.extend(f for f in sorted(pth.rglob("*.md"))
                        if f.name != "SKILL.md" and not f.is_symlink())
+            for f in sorted(pth.rglob("*.toml")):
+                if not f.is_symlink():
+                    out.append(f)
+                elif notes is not None:
+                    notes.append({"path": str(f),
+                                  "reason": "not scanned: symlink (Codex rejects symlinked agent files)"})
     # de-dup, preserve order
     seen, uniq = set(), []
     for f in out:
@@ -372,6 +551,29 @@ def gather(paths: list[str]) -> list[Path]:
             seen.add(f)
             uniq.append(f)
     return uniq
+
+
+def default_targets() -> list[str]:
+    home, cwd = Path.home(), Path.cwd()
+    return [str(home / ".claude/agents"), str(cwd / ".claude/agents"),
+            str(home / ".codex/agents"), str(cwd / ".codex/agents")]
+
+
+def scan_paths(paths: list[str], body_limit: int = DEFAULT_BODY_LINES,
+               desc_limit: int = DEFAULT_DESC_CHARS) -> tuple[list[dict], list[dict]]:
+    """Parse and flag every agent under `paths`; return (agents, skipped)."""
+    skipped: list[dict] = []
+    agents = []
+    for f in gather(paths, skipped):
+        try:
+            parsed = parse_agent(f)
+        except NotScanned as exc:
+            skipped.append({"path": str(f), "reason": str(exc)})
+            continue
+        if parsed:
+            parsed["flags"] = flag_agent(parsed, body_limit, desc_limit)
+            agents.append(parsed)
+    return agents, skipped
 
 
 def main():
@@ -382,16 +584,8 @@ def main():
     ap.add_argument("--desc-chars", type=int, default=DEFAULT_DESC_CHARS)
     args = ap.parse_args()
 
-    paths = args.paths or [
-        str(Path.home() / ".claude/agents"),
-        str(Path.cwd() / ".claude/agents"),
-    ]
-    agents = []
-    for f in gather(paths):
-        parsed = parse_agent(f)
-        if parsed:
-            parsed["flags"] = flag_agent(parsed, args.body_lines, args.desc_chars)
-            agents.append(parsed)
+    paths = args.paths or default_targets()
+    agents, skipped = scan_paths(paths, args.body_lines, args.desc_chars)
 
     dups = find_duplicate_blocks(agents)
 
@@ -399,23 +593,30 @@ def main():
         for a in agents:
             a.pop("body", None)
             a.pop("_paragraphs", None)
+            a.pop("_keys", None)
         print(json.dumps({"agents": agents, "duplicate_blocks": dups,
-                          "count": len(agents),
+                          "count": len(agents), "skipped": skipped,
                           "metric": "definition text, chars/4; tool schemas and "
                                     "inherited context are not measured"}, indent=2))
         return
 
     if not agents:
         print("No agent files found in:", ", ".join(paths))
+        _print_skipped(skipped)
         return
 
     sev_order = {"high": 0, "med": 1, "low": 2, "info": 3}
     print(f"Scanned {len(agents)} agent(s); token figures are definition text only\n" + "=" * 60)
     for a in agents:
-        tools = (f"{len(a['tools'])} tools" if a["has_tools"]
-                 else "NO tools field (inherits all)")
-        model = a["model"] or "inherit (default)"
-        effort = a["effort"] or "inherit (session)"
+        if a["format"] == "codex":
+            tools = "Codex agent (no per-agent tool list)"
+            model = a["model"] or "inherit (parent)"
+            effort = a["effort"] or "inherit (parent)"
+        else:
+            tools = (f"{len(a['tools'])} tools" if a["has_tools"]
+                     else "NO tools field (inherits all)")
+            model = a["model"] or "inherit (default)"
+            effort = a["effort"] or "inherit (session)"
         total = a["frontmatter_tokens"] + a["body_tokens"]
         print(f"\n● {a['name']}  [{model}, effort {effort}]  {tools}")
         print(f"  {a['path']}")
@@ -434,6 +635,14 @@ def main():
                   f"[{', '.join(d['agents'])}]: {d['preview']}")
         waste = sum(d["tokens"] * (len(d["agents"]) - 1) for d in dups)
         print(f"  → ~{waste} tokens of repeated boilerplate across the set.")
+    _print_skipped(skipped)
+
+
+def _print_skipped(skipped: list[dict]) -> None:
+    if skipped:
+        print("\n" + "=" * 60 + "\nNOT SCANNED")
+        for n in skipped:
+            print(f"  {n['path']}: {n['reason']}")
 
 
 if __name__ == "__main__":

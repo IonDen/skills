@@ -2,6 +2,9 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
+
+import pytest
 
 
 def flags_of(scan, path):
@@ -363,3 +366,211 @@ def test_effort_set_on_haiku_is_unsupported(scan, agent_file):
     assert "HIGH_EFFORT_READONLY" not in flags
     sonnet = flags_of(scan, agent_file("b", "description: Use when x\ntools: Read, Grep\nmodel: sonnet\neffort: max\n"))
     assert "EFFORT_UNSUPPORTED" not in sonnet and "HIGH_EFFORT_READONLY" in sonnet
+
+
+def test_haiku_full_model_id_is_treated_like_the_alias(scan, agent_file):
+    # Bug caught: matching only the exact alias `haiku` misses `claude-haiku-4-5`, which has no effort either.
+    unset = flags_of(scan, agent_file("a", "description: Use when x\ntools: Read\nmodel: claude-haiku-4-5\n"))
+    assert "EFFORT_INHERIT" not in unset
+    pinned = flags_of(scan, agent_file("b", "description: Use when x\ntools: Read\nmodel: claude-haiku-4-5\neffort: low\n"))
+    assert pinned["EFFORT_UNSUPPORTED"]["severity"] == "low"
+
+
+# --- Codex custom agents (.codex/agents/*.toml) ----------------------------
+
+needs_toml = pytest.mark.skipif(sys.version_info < (3, 11),
+                                reason="tomllib is in the standard library from Python 3.11")
+
+CODEX_OK = '''name = "log_reader"
+description = "Finds error lines in logs."
+model = "gpt-6-luna"
+model_reasoning_effort = "high"
+developer_instructions = """
+Find the error lines and report them as path:line with a quote.
+"""
+'''
+
+
+def cflags(scan, path):
+    return flags_of(scan, path)
+
+
+@needs_toml
+def test_codex_agent_is_normalised_into_the_shared_dict(scan, codex_file):
+    # Bug caught: reading effort from `effort` instead of `model_reasoning_effort` loses the Codex setting.
+    a = scan.parse_agent(codex_file("log_reader", CODEX_OK))
+    assert a["format"] == "codex" and a["name"] == "log_reader"
+    assert a["model"] == "gpt-6-luna" and a["effort"] == "high"
+    assert "path:line" in a["body"] and a["description"] == "Finds error lines in logs."
+    assert a["tools"] == [] and a["has_tools"] is False
+
+
+def test_claude_agents_are_labelled_claude(scan, agent_file):
+    # Bug caught: leaving `format` off Claude agents makes the shared report unable to tell them apart.
+    assert scan.parse_agent(agent_file("a", "description: Use when x\ntools: Read\n"))["format"] == "claude"
+
+
+@needs_toml
+def test_codex_agent_gets_no_claude_only_flags(scan, codex_file):
+    # Bug caught: running the Claude checks on a Codex agent reports a missing `tools` field Codex has no use for.
+    text = CODEX_OK.replace('model = "gpt-6-luna"\nmodel_reasoning_effort = "high"\n', "")
+    flags = cflags(scan, codex_file("log_reader", text))
+    for code in ("NO_TOOLS_FIELD", "MODEL_INHERIT", "EFFORT_INHERIT", "NAME_FORMAT", "WEAK_TRIGGER"):
+        assert code not in flags, code
+
+
+@needs_toml
+def test_codex_missing_or_blank_required_keys(scan, codex_file):
+    # Bug caught: testing only `key in data` lets a blank developer_instructions through, which Codex refuses.
+    p = codex_file("x", 'name = "x"\ndeveloper_instructions = "   "\n')
+    f = cflags(scan, p)["CODEX_MISSING_REQUIRED"]
+    assert f["severity"] == "high"
+    assert f["message"].startswith("Missing or blank: description, developer_instructions.")
+    assert "CODEX_MISSING_REQUIRED" not in cflags(scan, codex_file("ok", CODEX_OK))
+
+
+@needs_toml
+def test_codex_claude_style_keys_are_high(scan, codex_file):
+    # Bug caught: flagging `skills` whatever its type flags Codex's own `[[skills.config]]` table.
+    text = CODEX_OK + 'tools = ["Read", "Grep"]\neffort = "high"\npermissionMode = "plan"\nskills = ["a"]\n'
+    f = cflags(scan, codex_file("claude_keys", text))["CODEX_CLAUDE_KEY"]
+    assert f["severity"] == "high"
+    for key in ("tools", "effort", "permissionMode", "skills"):
+        assert key in f["message"], key
+    assert "model_reasoning_effort" in f["message"]
+    codex_skills = CODEX_OK + '\n[[skills.config]]\npath = "/x/SKILL.md"\nenabled = false\n'
+    assert "CODEX_CLAUDE_KEY" not in cflags(scan, codex_file("codex_skills", codex_skills))
+
+
+@needs_toml
+def test_codex_ignored_keys_are_medium(scan, codex_file):
+    # Bug caught: leaving the `mcp_servers` table out of the ignored set lets it look effective.
+    text = 'sandbox_mode = "read-only"\n' + CODEX_OK + '\n[mcp_servers.docs]\nurl = "https://example.com/mcp"\n'
+    f = cflags(scan, codex_file("ignored", text))["CODEX_IGNORED_KEY"]
+    assert f["severity"] == "med" and "sandbox_mode" in f["message"] and "mcp_servers" in f["message"]
+    assert "CODEX_IGNORED_KEY" not in cflags(scan, codex_file("ok", CODEX_OK))
+
+
+@needs_toml
+def test_codex_effort_values_outside_the_documented_six_are_invalid(scan, codex_file):
+    # Bug caught: a valid set without `ultra` (Claude's five) flags a legal Codex level.
+    def with_effort(name, effort):
+        return codex_file(name, CODEX_OK.replace('"gpt-6-luna"', '"my-model"')
+                          .replace('effort = "high"', f'effort = "{effort}"'))
+    for level in ("low", "medium", "high", "xhigh", "max", "ultra"):
+        assert "CODEX_EFFORT_INVALID" not in cflags(scan, with_effort(f"ok_{level}", level)), level
+    bad = cflags(scan, with_effort("bad", "extreme"))["CODEX_EFFORT_INVALID"]
+    assert bad["severity"] == "med" and "extreme" in bad["message"]
+    minimal = cflags(scan, with_effort("minimal", "minimal"))["CODEX_EFFORT_INVALID"]
+    assert "not offered" in minimal["message"]
+
+
+@needs_toml
+def test_codex_effort_must_be_one_the_model_offers(scan, codex_file):
+    # Bug caught: checking effort against the global set instead of the model's table misses ultra on Luna.
+    def agent(name, model, effort):
+        return codex_file(name, CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
+                          .replace('effort = "high"', f'effort = "{effort}"'))
+    luna_ultra = cflags(scan, agent("a", "gpt-6-luna", "ultra"))["CODEX_EFFORT_UNSUPPORTED"]
+    assert luna_ultra["severity"] == "med" and "gpt-6-luna" in luna_ultra["message"]
+    assert "CODEX_EFFORT_UNSUPPORTED" in cflags(scan, agent("b", "gpt-5.5", "max"))
+    assert "CODEX_EFFORT_UNSUPPORTED" in cflags(scan, agent("c", "gpt-5.6-luna", "ultra"))
+    assert "CODEX_EFFORT_UNSUPPORTED" not in cflags(scan, agent("d", "gpt-6-luna", "max"))
+    assert "CODEX_EFFORT_UNSUPPORTED" not in cflags(scan, agent("e", "gpt-6-sol", "ultra"))
+    assert "CODEX_EFFORT_UNSUPPORTED" not in cflags(scan, agent("f", "someone-elses-model", "ultra"))
+
+
+@needs_toml
+def test_codex_retired_models_are_flagged_with_the_date(scan, codex_file):
+    # Bug caught: dropping gpt-5.4-mini from the retired table lets a dead slug through.
+    for model in ("gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2", "gpt-5.3-codex"):
+        p = codex_file(f"m{model}", CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
+                       .replace('effort = "high"', 'effort = "low"'))
+        f = cflags(scan, p)["CODEX_MODEL_RETIRED"]
+        assert f["severity"] == "med" and "ChatGPT sign-in, as of 2026-09-24" in f["message"], model
+    assert "CODEX_MODEL_RETIRED" not in cflags(scan, codex_file("sol", CODEX_OK.replace("gpt-6-luna", "gpt-6-sol")))
+
+
+@needs_toml
+def test_codex_model_pinned_without_effort(scan, codex_file):
+    # Bug caught: inverting the check flags agents that pin both and misses the ones that pin only the model.
+    only_model = CODEX_OK.replace('model_reasoning_effort = "high"\n', "")
+    assert cflags(scan, codex_file("a", only_model))["CODEX_MODEL_WITHOUT_EFFORT"]["severity"] == "low"
+    assert "CODEX_MODEL_WITHOUT_EFFORT" not in cflags(scan, codex_file("b", CODEX_OK))
+    neither = only_model.replace('model = "gpt-6-luna"\n', "")
+    assert "CODEX_MODEL_WITHOUT_EFFORT" not in cflags(scan, codex_file("c", neither))
+
+
+@needs_toml
+def test_codex_agents_reuse_the_length_checks_and_duplicate_blocks(scan, codex_file, agent_file):
+    # Bug caught: a Codex dict without body_lines/_paragraphs skips LONG_BODY and duplicate detection.
+    long_body = "\n".join(f"line {i}" for i in range(scan.DEFAULT_BODY_LINES + 1))
+    p = codex_file("long", f'name = "long"\ndescription = "d"\ndeveloper_instructions = """\n{long_body}\n"""\n')
+    assert "LONG_BODY" in cflags(scan, p)
+    para = "Shared rule: " + "x" * 130
+    c = scan.parse_agent(codex_file("c", f'name = "c"\ndescription = "d"\ndeveloper_instructions = """\n{para}\n"""\n'))
+    m = scan.parse_agent(agent_file("m", "description: Use when x\ntools: Read\n", para + "\n"))
+    assert scan.find_duplicate_blocks([c, m])[0]["agents"] == ["c", "m"]
+
+
+@needs_toml
+def test_toml_without_agent_keys_is_not_an_agent(scan, tmp_path):
+    # Bug caught: treating every .toml as an agent puts pyproject.toml in the report.
+    p = tmp_path / "pyproject.toml"
+    p.write_text('[project]\nname = "pkg"\nversion = "1"\n')
+    assert scan.parse_agent(p) is None
+
+
+@needs_toml
+def test_malformed_toml_is_reported_not_fatal(scan, tmp_path, agent_file):
+    # Bug caught: letting TOMLDecodeError escape aborts the whole scan on one broken file.
+    bad = tmp_path / "bad.toml"
+    bad.write_text('name = "bad\n')
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["good"]
+    assert skipped[0]["path"].endswith("bad.toml") and "TOML" in skipped[0]["reason"]
+
+
+def test_directory_walk_finds_toml_and_notes_symlinked_toml(scan, tmp_path):
+    # Bug caught: a walk over `*.md` only never sees Codex agents; a silent symlink skip hides why one is missing.
+    (tmp_path / "a.md").write_text("---\nname: a\ndescription: Use when x\n---\nbody\n")
+    (tmp_path / "b.toml").write_text(CODEX_OK)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.toml"
+    outside.write_text(CODEX_OK)
+    (tmp_path / "link.toml").symlink_to(outside)
+    notes = []
+    files = scan.gather([str(tmp_path)], notes)
+    assert sorted(f.name for f in files) == ["a.md", "b.toml"]
+    assert notes[0]["path"].endswith("link.toml") and "symlink" in notes[0]["reason"]
+
+
+def test_without_tomllib_codex_files_are_not_scanned_but_claude_files_are(scan, tmp_path, monkeypatch):
+    # Bug caught: calling tomllib unguarded crashes the whole scan on Python 3.10.
+    monkeypatch.setattr(scan, "tomllib", None)
+    (tmp_path / "a.md").write_text("---\nname: a\ndescription: Use when x\n---\nbody\n")
+    (tmp_path / "b.toml").write_text(CODEX_OK)
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["a"]
+    assert skipped == [{"path": str(tmp_path / "b.toml"), "reason": "not scanned: needs Python 3.11+"}]
+
+
+def test_default_targets_include_codex_agent_folders(scan):
+    # Bug caught: scanning only .claude/agents by default never finds personal Codex agents.
+    targets = scan.default_targets()
+    assert str(Path.home() / ".claude/agents") in targets
+    assert str(Path.home() / ".codex/agents") in targets
+
+
+@needs_toml
+def test_codex_reports_show_format_model_and_effort(scan, codex_file):
+    # Bug caught: printing the Claude tools summary for a Codex agent claims a tools field it cannot have.
+    p = codex_file("log_reader", CODEX_OK)
+    text = subprocess.run([sys.executable, str(scan.__file__), str(p)],
+                          capture_output=True, text=True, check=True).stdout
+    assert "[gpt-6-luna, effort high]  Codex agent (no per-agent tool list)" in text
+    data = json.loads(subprocess.run([sys.executable, str(scan.__file__), str(p), "--json"],
+                                     capture_output=True, text=True, check=True).stdout)
+    a = data["agents"][0]
+    assert a["format"] == "codex" and "body" not in a and "_keys" not in a
+    assert data["skipped"] == []

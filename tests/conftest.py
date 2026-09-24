@@ -34,3 +34,13 @@ def agent_file(tmp_path):
         p.write_text(f"---\nname: {name}\n{frontmatter}---\n{body}", encoding="utf-8")
         return p
     return _write
+
+
+@pytest.fixture
+def codex_file(tmp_path):
+    """Write a Codex custom agent (.toml) and return its path."""
+    def _write(name: str, text: str):
+        p = tmp_path / f"{name}.toml"
+        p.write_text(text, encoding="utf-8")
+        return p
+    return _write

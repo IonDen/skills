@@ -506,19 +506,23 @@ def flag_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
 
 
 def find_duplicate_blocks(agents: list[dict]) -> list[dict]:
-    """Paragraphs (>=120 chars) appearing verbatim in >=2 agents."""
-    seen: dict[str, list[str]] = {}
+    """Paragraphs (>=120 chars) appearing verbatim in >=2 agent files.
+
+    Agents are keyed by file path, so two files that share a `name` (a Claude
+    agent and its Codex port, or user and project copies) stay apart."""
+    seen: dict[str, dict[str, str]] = {}
     for a in agents:
         for p in set(a["_paragraphs"]):
             norm = re.sub(r"\s+", " ", p).strip()
-            seen.setdefault(norm, []).append(a["name"])
+            seen.setdefault(norm, {})[a["path"]] = a["name"]
     dups = []
-    for text, names in seen.items():
-        if len(names) >= 2:
+    for text, by_path in seen.items():
+        if len(by_path) >= 2:
+            files = sorted(by_path)
             dups.append({"chars": len(text), "tokens": est_tokens(text),
-                         "agents": sorted(set(names)),
+                         "agents": [by_path[f] for f in files], "files": files,
                          "preview": text[:90] + ("..." if len(text) > 90 else "")})
-    dups.sort(key=lambda d: d["chars"] * len(d["agents"]), reverse=True)
+    dups.sort(key=lambda d: d["chars"] * len(d["files"]), reverse=True)
     return dups[:15]
 
 
@@ -631,9 +635,9 @@ def main():
     if dups:
         print("\n" + "=" * 60 + "\nDUPLICATED BLOCKS (shared verbatim across agents)")
         for d in dups:
-            print(f"  ~{d['tokens']} tok x{len(d['agents'])} "
-                  f"[{', '.join(d['agents'])}]: {d['preview']}")
-        waste = sum(d["tokens"] * (len(d["agents"]) - 1) for d in dups)
+            where = ", ".join(f"{n} ({f})" for n, f in zip(d["agents"], d["files"]))
+            print(f"  ~{d['tokens']} tok x{len(d['files'])} [{where}]: {d['preview']}")
+        waste = sum(d["tokens"] * (len(d["files"]) - 1) for d in dups)
         print(f"  → ~{waste} tokens of repeated boilerplate across the set.")
     _print_skipped(skipped)
 

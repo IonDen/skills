@@ -574,3 +574,25 @@ def test_codex_reports_show_format_model_and_effort(scan, codex_file):
     a = data["agents"][0]
     assert a["format"] == "codex" and "body" not in a and "_keys" not in a
     assert data["skipped"] == []
+
+
+# --- PR 11 fixes: declared roles, new Codex flags, robustness ---------------
+
+def test_duplicate_blocks_keep_same_named_files_apart(scan, tmp_path):
+    # Bug caught: keying duplicate detection by `name` collapses a Claude agent and its
+    # same-named port (or user and project scope copies) into one, hiding the duplication.
+    para = "Shared rule: " + "x" * 130
+    user = tmp_path / "user"
+    proj = tmp_path / "proj"
+    user.mkdir()
+    proj.mkdir()
+    (user / "reviewer.md").write_text(f"---\nname: reviewer\ndescription: Use when x\ntools: Read\n---\n{para}\n")
+    (proj / "reviewer.md").write_text(f"---\nname: reviewer\ndescription: Use when x\ntools: Read\n---\n{para}\n")
+    agents, _ = scan.scan_paths([str(user), str(proj)])
+    dups = scan.find_duplicate_blocks(agents)
+    assert len(dups) == 1
+    assert dups[0]["files"] == [str(proj / "reviewer.md"), str(user / "reviewer.md")]
+    text = subprocess.run([sys.executable, str(scan.__file__), str(user), str(proj)],
+                          capture_output=True, text=True, check=True).stdout
+    assert "DUPLICATED BLOCKS" in text
+    assert f"reviewer ({user / 'reviewer.md'})" in text and f"reviewer ({proj / 'reviewer.md'})" in text

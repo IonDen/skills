@@ -87,15 +87,28 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return (text[:m.end()], text[m.end():]) if m else ("", text)
 
 
+CODE_SPAN_RE = re.compile(r"(`[^`]*`)")
+
+
+def _outside_code(s: str, fn) -> str:
+    """Apply fn to the parts of s that fall outside a backtick code span, so a
+    literal like `__init__.py` never gets its emphasis markers read as emphasis."""
+    parts = CODE_SPAN_RE.split(s)
+    for i in range(0, len(parts), 2):
+        parts[i] = fn(parts[i])
+    return "".join(parts)
+
+
 def _unemphasise(s: str) -> str:
-    return s.replace("**", "").replace("__", "")
+    s = _outside_code(s, lambda p: p.replace("**", "").replace("__", ""))
+    s = _outside_code(s, lambda p: re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", p))
+    s = _outside_code(s, lambda p: re.sub(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])", r"\1", p))
+    return s
 
 
 def normalise(s: str) -> str:
     s = MARKER_RE.sub("", s, count=1)
     s = _unemphasise(s)
-    s = re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", s)
-    s = re.sub(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])", r"\1", s)
     return " ".join(s.split()).rstrip(".;:,!?").strip()
 
 

@@ -33,14 +33,24 @@ def test_emphasis_and_final_punctuation_do_not_change_the_key(skillmd):
     assert skillmd.normalise("**NEVER** push to *main*.") == skillmd.normalise("NEVER push to main")
 
 
+def test_inline_code_survives_emphasis_stripping(skillmd):
+    # Bug caught: stripping ** and __ everywhere, so backticked `__init__.py` loses
+    # its underscores and the gate ends up quoting text the user's SKILL.md never had.
+    assert "__init__.py" in skillmd.normalise("Edit `__init__.py` carefully.")
+    s = skillmd.sentences("Edit `__init__.py` carefully.\n")[0]
+    assert "__init__.py" in s["key"] and "__init__.py" in s["text"]
+
+
 def test_emphasis_does_not_change_sentence_boundaries(skillmd):
     # Bug caught: splitting sentences before removing emphasis, so "**Label.** Rest"
     # is one sentence but "Label. Rest" is two, and un-bolding a label reads as a lost rule.
+    # Single-marker emphasis (*Label.* / _Label._) has the same boundary bug as bold.
     bold = "- **Kept exactly.** Never edit it.\n"
+    italic = "- *Kept exactly.* Never edit it.\n"
     plain = "- Kept exactly. Never edit it.\n"
-    assert [s["key"] for s in skillmd.sentences(bold)] == [s["key"] for s in skillmd.sentences(plain)] \
-        == ["Kept exactly", "Never edit it"]
-    assert skillmd.order(bold) == skillmd.order(plain)
+    assert [s["key"] for s in skillmd.sentences(bold)] == [s["key"] for s in skillmd.sentences(italic)] \
+        == [s["key"] for s in skillmd.sentences(plain)] == ["Kept exactly", "Never edit it"]
+    assert skillmd.order(bold) == skillmd.order(italic) == skillmd.order(plain)
 
 
 def test_rule_words_match_in_any_case(skillmd):

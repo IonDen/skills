@@ -10,7 +10,7 @@ description: >-
   "fix the tools list", "review .claude/agents", "make my agents cheaper".
 license: MIT
 metadata:
-  version: "1.3.0"
+  version: "1.3.1"
   author: IonDen
 ---
 
@@ -21,10 +21,9 @@ apply the approved ones and bump each changed agent's version.
 
 **The biggest win** is the `tools` field: an agent with no `tools` inherits *every*
 tool available to subagents, loading all schemas on every launch, and every extra
-schema costs tokens and selection accuracy. A tight allowlist is cheaper *and* more
-correct. Read `references/best-practices.md` for the rationale behind each flag and
-`references/tool-catalog.md` for the tool list and archetype → tools map — consult
-both before proposing tool changes.
+schema costs tokens and selection accuracy. Read `references/best-practices.md` for
+the rationale behind each flag and `references/tool-catalog.md` for the tool list
+and archetype → tools map — consult both before proposing tool changes.
 
 All paths below are relative to this skill's directory: in Claude Code that is
 `${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from
@@ -63,7 +62,7 @@ files when walking a directory, so pointing it at a whole `.claude/` tree is saf
 
 ### 3. Analyse each agent (judgement on top of the scan)
 
-Read the full agent file. The scan tells you *what* is off; you decide the *fix*.
+Read the full agent file.
 
 **Tool allowlist (conservative + flag).** This is the priority. Read the body and
 list every tool its instructions actually require. Cross-check against the archetype

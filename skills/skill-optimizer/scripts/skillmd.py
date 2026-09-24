@@ -311,16 +311,29 @@ def _looks_like_path(p: str) -> bool:
 def literals(body: str) -> list[str]:
     """Exact text that must survive: inline code, lines of runnable code fences,
     URLs, long flags, version pins, versions, dates, paths, and numbers that
-    carry a unit or a bound. Text inside example fences is not scanned."""
-    found = set()
-    kept = []
+    carry a unit or a bound. Text inside example fences is not scanned.
+
+    Two passes. Each unit (a paragraph, a list item, a table cell, a heading) is
+    scanned on its own, so every literal holds at least what one unit says. The
+    joined text is scanned too, which keeps a bound whose unit starts the next
+    paragraph (`under 20` / `GiB`); a match from that pass is kept only when the
+    file holds it as written, so `≤ 0.20` at the end of a table row never joins
+    the first word of the next row."""
+    out, kept = set(), []
     for u in units(body):
         if u["kind"] == "code":
             if u["lang"] in EXAMPLE_LANGS:
                 continue
-            found.add(" ".join(u["text"].split()))
+            out.add(" ".join(u["text"].split()))
         kept.append(u["text"])
-    text = "\n".join(kept)
+        out.update(_scan(u["text"]))
+    out.update(v for v in _scan("\n".join(kept)) if contains_literal(body, v))
+    return sorted(out)
+
+
+def _scan(text: str) -> set[str]:
+    """Literal patterns over one piece of text, each match on token boundaries."""
+    found = set()
     for pat in LITERAL_RES:
         for m in pat.finditer(text):
             v = " ".join(m.group(1).split())
@@ -332,7 +345,7 @@ def literals(body: str) -> list[str]:
         v = m.group(1).rstrip(".,;:")
         if _looks_like_path(v):
             found.add(v)
-    return sorted({w for v in found for w in _on_boundaries(text, v)})
+    return {w for v in found for w in _on_boundaries(text, v)}
 
 
 def _on_boundaries(text: str, literal: str) -> list[str]:

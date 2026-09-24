@@ -168,7 +168,7 @@ python3 scripts/verify_rewrite.py --frozen "<work>/frozen.json" --original "<ski
 | 0 | `pass` | Go to step 6. |
 | 0 | `unchanged` | Nothing could be cut without loss. Report that and stop. |
 | 1 | `rejected` | Fix each finding and gate again. A rejected candidate is never shown as a proposal or applied. |
-| 2 | input error | Fix the paths. |
+| 2 | input error | Fix the paths. If the message says to freeze again, freeze the original into a new file and gate against that. |
 | 3 | `needs_confirmation` | A rule or anchored sentence moved into a reference or under another heading, or lost its bold or italic. Put each listed item back as it was, gate again, and list the change as an optional cut. A change stays only if the user's request already approved that specific item. |
 
 Use `--approved` only after the user answers the optional-cuts list. Write the

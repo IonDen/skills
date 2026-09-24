@@ -37,6 +37,15 @@
       "files": [
         "evals/fixtures-effort/log-searcher.md"
       ]
+    },
+    {
+      "id": 5,
+      "name": "codex-agent",
+      "prompt": "I ported one of my Claude Code subagents to a Codex custom agent at <AGENT_FILE>. Audit it and write your report to <OUTPUTS_DIR>/report.md. Report only; do not change the file.",
+      "expected_output": "The file is unchanged and no version field is proposed for it. The report treats it as a Codex custom agent, not a Claude Code subagent, and flags CODEX_CLAUDE_KEY (the `tools` key makes Codex skip the whole agent; Codex has no per-agent tool list), CODEX_IGNORED_KEY (`sandbox_mode` is not applied to a custom agent in current Codex) and CODEX_EFFORT_UNSUPPORTED (`gpt-6-luna` does not offer `ultra`). It recommends removing the Claude keys and a `model_reasoning_effort` that gpt-6-luna offers (for example `high`, the docs' starting point for Luna) as a candidate to verify on the agent's real task. It does not map the effort to Claude's scale.",
+      "files": [
+        "evals/fixtures-codex/repo-mapper.toml"
+      ]
     }
   ]
 }

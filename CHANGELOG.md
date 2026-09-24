@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-24 (subagent-optimizer 1.3.1)
+
+- Two sentences in `subagent-optimizer`'s SKILL.md only restated the sentence before them ("A tight allowlist is cheaper and more correct." and "The scan tells you what is off; you decide the fix.") and are gone. `skill-optimizer` found them and checked that nothing else changed; the skill's own evals 1 and 3 gave the same results before and after. The version goes to 1.3.1.
+
 ## 2026-09-20 (rename)
 
 - The skill is now `subagent-optimizer`, was `agent-optimiser`, and the version goes to 1.3.0. Searching the skills directory showed the old name was findable only by people who already knew it: it surfaced for "optimiser" and for nothing else, while "subagent", "optimizer", "claude code subagents" and "audit agents" all returned other authors' skills. Names weigh far more than descriptions in that ranking, and the American spelling is what most people type. Install it as `npx skills add IonDen/skills --skill subagent-optimizer`; the old name is gone rather than aliased, because two installs were not worth a permanent second identity.

@@ -21,9 +21,9 @@ apply the approved ones and bump each changed agent's version.
 
 **The biggest win** is the `tools` field: an agent with no `tools` inherits *every*
 tool available to subagents, loading all schemas on every launch, and every extra
-schema costs tokens and selection accuracy. Read `references/best-practices.md` for the rationale behind each flag and
-`references/tool-catalog.md` for the tool list and archetype → tools map — consult
-both before proposing tool changes.
+schema costs tokens and selection accuracy. Read `references/best-practices.md` for
+the rationale behind each flag and `references/tool-catalog.md` for the tool list
+and archetype → tools map — consult both before proposing tool changes.
 
 All paths below are relative to this skill's directory: in Claude Code that is
 `${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from

@@ -1,4 +1,4 @@
-# Claude Code subagent best practices
+# Claude Code subagent and Codex custom agent best practices
 
 Distilled from the official docs (https://code.claude.com/docs/en/sub-agents,
 .../tools-reference, .../costs) and the API tool-search docs
@@ -88,14 +88,14 @@ page (https://platform.claude.com/docs/en/build-with-claude/effort).
 
 - `[low] EFFORT_INHERIT` — no `effort`, so the agent runs at whatever level the
   session uses. Fine if intentional; pin it when the job's depth is fixed. Not raised
-  on `model: haiku`, which has no effort levels.
-- `[low] EFFORT_UNSUPPORTED` — `effort` set on `model: haiku`. The model
+  on a Haiku model, which has no effort levels.
+- `[low] EFFORT_UNSUPPORTED` — `effort` set on a Haiku model. The model
   configuration page lists the models that take effort and says "Models not listed
   here do not support effort"
   (https://code.claude.com/docs/en/model-config#adjust-effort-level); Haiku is not
   listed, so the field does nothing. Drop it, or move to a listed model if the job
-  needs the control. The scanner checks the `haiku` alias only: a full model ID or
-  `inherit` gets the ordinary effort checks.
+  needs the control. The scanner treats any model value containing "haiku" (the
+  alias or a full ID) this way; `inherit` and other IDs get the ordinary checks.
 - `[med] EFFORT_INVALID` — a value outside `low`, `medium`, `high`, `xhigh`, `max`.
 - `[low] HIGH_EFFORT_READONLY` — `xhigh` or `max` on an agent whose tools are
   read-only (no `Edit`, `Write`, `NotebookEdit` or `Bash`). Ask whether the job needs
@@ -114,13 +114,12 @@ page (https://platform.claude.com/docs/en/build-with-claude/effort).
   (over 30 minutes) with token budgets in the millions"; `max` for "Tasks requiring
   the deepest possible reasoning and most thorough analysis".
 - Mapped to archetypes: read-only search or filter workers, `haiku` with no `effort`
-  field or a larger model at low or medium; implementation workers, medium; planners, architects and security
-  reviewers, a strong model at high; `xhigh`/`max` only for long-running or hardest
+  field or a larger model at low or medium; implementation workers, medium;
+  planners, architects and security reviewers, a strong model at high; `xhigh`/`max` only for long-running or hardest
   work the user confirms. The API page says to "Evaluate performance on your specific
   use cases before deploying", so any change is a candidate to verify on the agent's
   real task.
-- Codex: per-agent model and effort are reportedly honoured for workspace agents but
-  not for disposable workers (openai/codex#11795, closed as a duplicate of #11701).
+- Codex custom agents use different keys and levels; see the Codex section below.
 
 **name / hygiene**
 - `[med] NAME_FORMAT` — must be lowercase-hyphenated, unique in its scope (a
@@ -151,6 +150,100 @@ page (https://platform.claude.com/docs/en/build-with-claude/effort).
 - `[low] EMPHASIS_DENSITY` — heavy ALL-CAPS MUST/NEVER reads as nagging and rarely
   helps. Explain the *why*; reserve emphasis for the one or two real footguns.
 - `[low]` References to local-only working files the agent won't have at runtime → fix.
+
+## Codex custom agents (`.codex/agents/*.toml`)
+
+Checked 2026-09-24 against https://learn.chatgpt.com/docs/agent-configuration/subagents,
+https://learn.chatgpt.com/docs/models and
+https://learn.chatgpt.com/docs/config-file/config-reference. Quotes below are from
+those pages. What Codex's own code applies or rejects is reported from a reading of
+openai/codex at release rust-v0.156.1 and is marked "reported"; where it differs
+from the docs, the code is what runs.
+
+**Format**
+- "add standalone TOML files under `~/.codex/agents/` for personal agents or
+  `.codex/agents/` for project-scoped agents." "Each file defines one custom agent."
+  Custom agents are a local-client feature ("In local Codex clients, you can also
+  define custom agents"); don't claim they run in Codex cloud.
+- Every standalone custom agent file "must define" `name`, `description` and
+  `developer_instructions`, and "the `name` field is the source of truth", not the
+  filename. The docs' own names use underscores (`pr_explorer`), so `NAME_FORMAT`
+  does not apply.
+- Codex has no per-agent tool allowlist; the scanner raises no tool flags for Codex
+  agents (see tool-catalog.md).
+
+**Flags**
+- `[high] CODEX_MISSING_REQUIRED` — one of the three required keys is missing or
+  blank; Codex refuses the agent.
+- `[high] CODEX_CLAUDE_KEY` — a Claude Code key (`tools`, `disallowedTools`,
+  `permissionMode`, `effort`, `color`, `memory`, `hooks`, `maxTurns`, `skills` as a
+  list, `mcpServers`, `background`, `isolation`, `initialPrompt`). Codex rejects
+  unknown top-level keys and skips the whole agent (reported). Remove them; Claude's
+  `effort` is `model_reasoning_effort` here.
+- `[med] CODEX_IGNORED_KEY` — `sandbox_mode`, `approval_policy`, `mcp_servers`,
+  `model_provider`, `notify`, `apps`, `service_tier`, `openai_base_url`,
+  `chatgpt_base_url`. The docs still say a file may include "other supported
+  `config.toml` keys ... such as `model`, `model_reasoning_effort`, `sandbox_mode`,
+  `mcp_servers`, and `skills.config`", but since Codex 0.149 the code applies only
+  `developer_instructions`, `model`, `model_reasoning_effort`,
+  `model_reasoning_summary`, `model_verbosity`, `personality`, and disable-only
+  `[features]` and `skills` entries (reported). The docs agree on sandboxing:
+  "Subagents inherit your current sandbox policy." Don't claim these keys take effect.
+- `[med] CODEX_EFFORT_INVALID` — outside `low`, `medium`, `high`, `xhigh`, `max`,
+  `ultra` ("Reasoning effort advertised by the selected model, such as `low`,
+  `medium`, `high`, `xhigh`, `max`, or `ultra`. Available levels depend on the model
+  and client."). `minimal` and `none` exist in the code but no current model offers
+  them (reported).
+- `[med] CODEX_EFFORT_UNSUPPORTED` — the level is outside what the model offers,
+  per the scanner's dated table. The docs say "GPT-6 Luna supports reasoning efforts
+  up to **Max**, but not **Ultra**"; `gpt-5.6-luna` (up to `max`) and `gpt-5.5` (up
+  to `xhigh`) come from the bundled model catalog (reported). Unknown models are not
+  checked, because the live catalog is per account.
+- `[med] CODEX_MODEL_RETIRED` — for ChatGPT sign-in: "On October 14, 2026, GPT-5.5
+  will retire from ChatGPT, ChatGPT Work, and Codex on all plans"; "The `gpt-5.4`
+  and `gpt-5.4-mini` models retired from Codex with ChatGPT sign-in on August 31,
+  2026"; "The `gpt-5.2` and `gpt-5.3-codex` models are already deprecated in Codex
+  when you sign in with ChatGPT." API-key use is not affected.
+- `[low] CODEX_MODEL_WITHOUT_EFFORT` — "A custom agent file that sets only `model`
+  preserves this previously resolved effort. Set `model_reasoning_effort` in the
+  file too if the selected model doesn't support that effort or you want a
+  different one."
+- Shared with Claude agents: `LONG_DESCRIPTION`, `LONG_BODY` (on
+  `developer_instructions`), `EMPHASIS_DENSITY`, `NO_OUTPUT_FORMAT` and duplicate
+  blocks. `WEAK_TRIGGER` is not raised: Codex spawns agents "after a direct request
+  or applicable project or skill instruction", not by matching the description.
+
+**Model and effort**
+- Resolution: "If you don't configure a subagent model or `model_reasoning_effort`,
+  the subagent inherits the parent agent's model and reasoning effort." Values in
+  the agent file take precedence. The default model depends on the account; don't
+  name a fixed one.
+- Models: `gpt-6-sol` — "Start here for demanding agents. It's strongest for
+  ambiguous, multi-step work that needs planning, tool use, validation, and
+  follow-through across a larger context." `gpt-6-luna` — "Use for fast, narrowly
+  scoped agents handling clear, repeatable, or high-volume work."
+- Effort: "start with `medium` for GPT-6 Sol, `high` for GPT-6 Luna, or `low` for
+  GPT-6 Astra. Adjust for the task using a level the selected model supports."
+  `high`: "Use when an agent needs to trace complex logic, check assumptions, or work
+  through edge cases (for example, reviewer or security-focused agents)." `low`:
+  "Use when the task is straightforward and speed matters most." "Most tasks do not
+  need Max or Ultra." "Reasoning efforts don't map exactly between model
+  generations", and they do not map to Claude's levels either.
+- Fleet defaults: `[agents] default_subagent_model` ("Default model for spawned
+  agents. An explicit spawn model takes precedence.") and
+  `default_subagent_reasoning_effort` in `config.toml`, instead of pinning every file.
+- As for Claude, any model or effort change is a candidate to verify on the agent's
+  real task.
+
+**Editing a Codex agent file**
+- Change only the key lines you mean to change; never re-serialise the file (it
+  loses comments and ordering). Keep top-level keys above the first `[table]`
+  header, or TOML reads them as part of that table.
+- `developer_instructions` stays a TOML string (a `"""` block is fine).
+- Never add a key Codex does not know: that disables the agent. So no `version`
+  field and no version bump; `bump_version.py` refuses `.toml` files.
+- Symlinked agent files are skipped by the scanner, and Codex rejects them too
+  (reported).
 
 ## Cross-cutting
 

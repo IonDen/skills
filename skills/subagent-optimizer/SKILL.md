@@ -1,15 +1,17 @@
 ---
 name: subagent-optimizer
 description: >-
-  Optimizes Claude Code subagent definitions (.claude/agents/*.md); agent skills
-  (SKILL.md folders) are handled by skill-optimizer. Use when asked to audit,
-  optimise, slim down, or fix subagents: set a proper `tools` allowlist (an
-  agent with no `tools` field inherits every tool on each launch), cut bloated
-  or duplicated system prompts, tighten descriptions so they trigger reliably,
-  and right-size the model and reasoning effort. Triggers: "optimize my
-  subagents", "optimise my agents", "audit my subagents", "subagent optimizer",
-  "my agent uses too many tokens", "fix my agent's tools list", "review
-  .claude/agents", "make my agents cheaper".
+  Optimizes Claude Code subagents (.claude/agents/*.md) and Codex custom agents
+  (.codex/agents/*.toml); agent skills (SKILL.md folders) are handled by
+  skill-optimizer. Use when asked to audit, optimise, slim down, or fix those
+  agents: set a proper `tools` allowlist on a Claude subagent (one with no
+  `tools` field inherits every tool on each launch), remove Claude keys that make
+  Codex skip an agent, cut bloated or duplicated system prompts, tighten
+  descriptions so they trigger reliably, and right-size the model and reasoning
+  effort. Triggers: "optimize my subagents", "optimise my agents", "audit my
+  subagents", "subagent optimizer", "audit my codex agents", "my agent uses too
+  many tokens", "fix my agent's tools list", "review .claude/agents", "review
+  .codex/agents", "make my agents cheaper".
 license: MIT
 metadata:
   version: "1.4.0"
@@ -18,8 +20,9 @@ metadata:
 
 # Subagent optimizer
 
-Audit Claude Code subagent files and propose token-economy + quality fixes, then
-apply the approved ones and bump each changed agent's version.
+Audit Claude Code subagent files and Codex custom agent files, propose
+token-economy + quality fixes, then apply the approved ones and bump each changed
+Claude agent's version (Codex agent files have no version field).
 
 **The biggest win** is the `tools` field: an agent with no `tools` inherits *every*
 tool available to subagents, loading all schemas on every launch, and every extra
@@ -40,11 +43,13 @@ the user approves the report.
 
 ### 1. Resolve scope from the invocation
 
-- **No argument** → audit all user agents: `~/.claude/agents/*.md`.
+- **No argument** → audit all user agents: `~/.claude/agents/*.md` and
+  `~/.codex/agents/**/*.toml`.
 - **An agent name** (e.g. `solution-architect`) → `~/.claude/agents/<name>.md`; if
-  absent, search `./.claude/agents/` and report what you found.
+  absent, search `./.claude/agents/` and the `.codex/agents/` folders (a Codex agent
+  is identified by its `name` key, not the filename) and report what you found.
 - **A path** (file or directory) → use it directly.
-- **"project" / a project dir** → that project's `.claude/agents/`.
+- **"project" / a project dir** → that project's `.claude/agents/` and `.codex/agents/`.
 
 State the resolved target list in one line before scanning.
 
@@ -61,12 +66,16 @@ Use `--json` for structured data to reason over; run without `--json` for a read
 view. The flag codes (e.g. `NO_TOOLS_FIELD`, `WRITE_ON_READONLY`, `MEMORY_BOILERPLATE`)
 map to explanations in `references/best-practices.md`. The scanner skips `SKILL.md`
 files when walking a directory, so pointing it at a whole `.claude/` tree is safe.
+It reads Codex `.toml` agents with Python 3.11+ (`tomllib`); on 3.10, and for
+symlinked or malformed files, it lists them under "not scanned" (`skipped` in JSON)
+instead: say so in the report rather than auditing them by eye.
 
 ### 3. Analyse each agent (judgement on top of the scan)
 
 Read the full agent file.
 
-**Tool allowlist (conservative + flag).** This is the priority. Read the body and
+**Tool allowlist (conservative + flag).** Claude Code only: Codex has no per-agent
+tool list, so never propose one for a Codex agent. This is the priority. Read the body and
 list every tool its instructions actually require. Cross-check against the archetype
 floor in `tool-catalog.md`. Then:
 - Propose the minimal allowlist that covers everything the body does.
@@ -112,17 +121,36 @@ a reason to downgrade — a security review or an architecture analysis reads on
 still needs a strong model. `effort` (`low` to `max`) sets how hard the model
 reasons; without it the agent runs at the session's level. Starting points:
 read-only search or filter workers get `haiku` (no effort field) or a larger model
-at low or medium; implementation workers medium; planners, architects and security reviewers a strong
-model at high; `xhigh` or `max` only for long-running or the hardest work, and only
-if the user confirms the job needs it. Levels depend on the model (see
-`best-practices.md`); never recommend a level for a model that does not support
-effort, such as Haiku. Flag complex agents left on default `inherit`
-that could silently run on a weak session model. Present any model or effort change
-as a candidate to verify on the agent's real task, not as a saving; without a
+at low or medium; implementation workers medium; planners, architects and security
+reviewers a strong model at high; `xhigh` or `max` only for long-running or the
+hardest work, and only if the user confirms the job needs it. Levels depend on the
+model (see `best-practices.md`); never recommend a level for a model that does not
+support effort, such as Haiku. Flag complex agents left on default `inherit` that
+could silently run on a weak session model. Present any model or effort change as a
+candidate to verify on the agent's real task, not as a saving; without a
 before/after comparison on that task it is a guess.
 
-**Frontmatter hygiene.** Name lowercase-hyphenated; required fields present; tool
-names valid (treat unknown names as possibly MCP/plugin — verify, don't assume typo).
+For a Codex agent the keys are `model` and `model_reasoning_effort`; set both, and
+only to a level the model offers (the scanner's table is dated; the live catalog is
+per account). Starting points from the Codex docs: `gpt-6-sol` at medium for
+demanding or review work, `gpt-6-luna` at high for narrow, repeatable, read-heavy
+work, high for reviewer or security agents, low when speed matters most; avoid
+`max` and `ultra` unless the user confirms the job needs them. Effort names do not
+map across model generations or to Claude's scale. For fleet-wide defaults, suggest
+`[agents] default_subagent_model` / `default_subagent_reasoning_effort` in
+`config.toml` instead of pinning every file. Same rule: candidates to verify.
+
+**Codex agents: what not to claim.** No per-agent tool allowlist exists (only
+disable-only `[features]` switches); `sandbox_mode`, `approval_policy` and
+`mcp_servers` in an agent file do not take effect in Codex 0.149 and later; the
+default model depends on the account; custom agents run in local Codex clients,
+not Codex cloud. Required keys are `name`, `description` and
+`developer_instructions`, and any Claude key (`tools`, `effort`, `permissionMode`
+and the rest) makes Codex skip the whole agent.
+
+**Frontmatter hygiene.** Claude: name lowercase-hyphenated; required fields
+present; tool names valid (treat unknown names as possibly MCP/plugin — verify,
+don't assume typo). Codex names may use underscores (the docs do).
 
 ### 4. Report and STOP
 
@@ -135,7 +163,11 @@ per-finding control, let them accept/reject individually.
 ### 5. Apply approved changes, then bump versions
 
 - Edit only the approved changes. Keep edits surgical; don't reflow untouched prose.
-- After a file's content edits are applied, bump its version:
+- Codex `.toml` files: change only the specific key lines, never re-serialise the
+  file, keep top-level keys above the first `[table]` header, keep
+  `developer_instructions` a TOML string, and never add a key Codex does not know,
+  which is why they get no version bump (`bump_version.py` refuses them).
+- After a Claude agent's content edits are applied, bump its version:
   ```bash
   python3 scripts/bump_version.py <agent.md>
   ```
@@ -151,14 +183,14 @@ Use this exact structure per agent:
 ```
 ## <agent-name>  (<path>)
 Current: model <model> · effort <effort> · <tools state> · body <N> lines · definition text ~<T> tok
-Version: <current> → <proposed>
+Version: <current> → <proposed>   (Codex: n/a, no version field)
 
 Findings
 - [high] <code>: <issue> → <proposed fix>
 - [med]  <code>: <issue> → <proposed fix>
   ...
 
-Tool policy: <old: "inherit-all" or N tools> → <proposed comma list>
+Tool policy: <old: "inherit-all" or N tools> → <proposed comma list>   (Claude only)
   ? <uncertain tool>: keep or drop? — <reason it's uncertain>
   (schema cost of the removed tools is not measured by the scanner)
 
@@ -166,6 +198,7 @@ Proposed trims: <bullet list of sections/lines to cut, with ~definition-text tok
 
 Definition text: ~<old> → ~<new> tok (chars/4 of the file; not a launch-cost measurement)
 Model and effort: <unchanged | candidate: <model>, effort <level>, verify on the agent's task before adopting>
+  (Codex: `model` + `model_reasoning_effort`, a level the model offers)
 ```
 
 End with:

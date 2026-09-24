@@ -48,7 +48,7 @@ Otherwise, in Claude Code, get the `/skill-doctor` report: run
 - No report (Codex, an older Claude Code): say that no usage data was available and continue.
 
 Spec compliance, broken links and frontmatter faults belong to other tools:
-`/doctor`, `agentskills validate` from the `skills-ref` package, or a skill
+`agentskills validate` from the `skills-ref` package, or a skill
 linter. Mention one if you notice such a fault, and move on.
 
 ## 2. Measure and snapshot

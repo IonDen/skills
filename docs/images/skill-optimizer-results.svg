@@ -10,7 +10,7 @@
   </style>
   <text class="t" x="24" y="30">SKILL.md body before and after skill-optimizer</text>
   <text class="s" x="24" y="50">Characters of the body an agent loads when the skill runs; one run per skill, gate passed on every one</text>
-  <text class="s" x="24" y="66">Uncertain cuts are listed for the user instead of made, so the numbers stay small on purpose</text>
+  <text class="s" x="24" y="66">Cuts the run was unsure of are listed for the user, not made</text>
   <rect x="230" y="80" width="12" height="10" fill="#dc2626" rx="2"/><text class="n" x="247" y="89">before</text>
   <rect x="300" y="80" width="12" height="10" fill="#0d9488" rx="2"/><text class="n" x="317" y="89">after</text>
   <text class="l" x="220" y="113" text-anchor="end">python-ml-testing</text>

@@ -2,7 +2,7 @@
 
 ## 2026-09-24 (skill-optimizer evidence)
 
-- `skill-optimizer` was run on five real skills, four of them from the author's own setup. Each passed the gate and kept every requirement; the bodies shrank by 1.2% to 3.5%, 2.3% overall, and the cuts the runs were unsure of were listed rather than made. The README carries a chart and a table, and `evals/recorded/2026-09-24-real-skills/` holds the numbers, gate lines and reader checks without the personal skills' text. The root README's one-skill figure is replaced by this range.
+- `skill-optimizer` was run on five real skills, four of them from the author's own setup. Each passed the gate and kept every requirement it extracted; the bodies shrank by 1.2% to 3.5%, 2.3% overall, and the cuts the runs were unsure of were listed rather than made. The README carries a chart and a table, and `skills/skill-optimizer/evals/recorded/2026-09-24-real-skills/` holds the numbers, gate lines and reader checks without the personal skills' text. The root README's one-skill figure is replaced by this range.
 
 ## 2026-09-24 (subagent-optimizer 1.4.0)
 

@@ -13,7 +13,7 @@ skill-optimizer run on four skills from the author's own setup, each once, by a 
 
 Characters of the `SKILL.md` body. The frontmatter (name and description, the part an agent sees every turn) was not touched, and nothing was moved into reference files.
 
-Gate lines, as printed by `verify_rewrite.py`:
+Gate lines from `verify_rewrite.py`, without the freeze hash that ends each line:
 
 ```text
 python-ml-testing   PASS  body 28,081 -> 27,558 chars (-1.9%), 0 chars moved to new references; 30 requirements, 152 unprotected sentences
@@ -28,7 +28,7 @@ Framing and signposting only: sentences that restate the heading or the next sen
 
 ## What was left for the user
 
-Each run also listed cuts it was not sure were safe, and made none of them. Among them: a subsection of `paper-writing` that appears twice, a rule `content-translator` states three times, a 2,788-character section of `python-ml-testing` that applies to one kind of project and could move to a reference file, and two bold labels in `user-mlx-developer` that repeat their own first sentence. Approving those would cut more; the published numbers count only what was applied without asking.
+Each run also listed cuts it was not sure were safe, and made none of them. Among them: a subsection of `paper-writing` that repeats what its structure template already shows, a rule `content-translator` states three times, a 2,788-character section of `python-ml-testing` that applies to one kind of project and could move to a reference file, and two bold labels in `user-mlx-developer` that repeat their own first sentence. Approving those would cut more; the published numbers count only what was applied without asking.
 
 ## Checks beyond the gate
 
@@ -36,7 +36,7 @@ For every skill a second fresh agent read only the shortened `SKILL.md` and list
 
 - paper-writing and content-translator: every requirement found (78 of 78, 62 of 62).
 - user-mlx-developer: 87 of 88. The one it missed, a sentence about unified memory, is still there word for word, and a reader given the unchanged original missed the same sentence.
-- python-ml-testing: 26 of 30 on the first read, 27 of 30 on a second. The three that both reads missed were also missed by a reader of the unchanged original. The requirement list for this skill covers 30 entries of a 28,000-character file, so the comparison also went through the diff line by line: of 23 removed or changed lines, 22 were dividers or labels that repeat what follows, and one named where a technique is used; none held an instruction.
+- python-ml-testing: 26 of 30 on the first read, 27 of 30 on each of two more. The three that both reads missed were also missed by a reader of the unchanged original. The requirement list for this skill covers 30 entries of a 28,000-character file, so the comparison also went through the diff line by line: of 23 removed or changed lines, 22 were dividers or labels that repeat what follows, and one named where a technique is used; none held an instruction.
 
 None of these skills ships evals, so no behaviour run was possible for them.
 

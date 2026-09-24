@@ -314,6 +314,7 @@ def parse_codex_agent(path: Path, declared: dict | None = None):
         extra["declared"] = {"role": declared["role"], "config": declared["config"]}
         extra["_config_provider"] = declared.get("provider", False)
     body_tokens = est_tokens(body)
+    fm_tokens = max(est_tokens(raw) - body_tokens, 0)
     return {
         **extra,
         "path": str(path),
@@ -333,7 +334,8 @@ def parse_codex_agent(path: Path, declared: dict | None = None):
         "body_lines": body.count("\n") + 1 if body else 0,
         "body_chars": len(body),
         "body_tokens": body_tokens,
-        "frontmatter_tokens": max(est_tokens(raw) - body_tokens, 0),
+        "frontmatter_tokens": fm_tokens,   # includes the description
+        "total_tokens": fm_tokens + body_tokens,
         "_keys": data,
         "_paragraphs": [q.strip() for q in re.split(r"\n\s*\n", body)
                         if len(q.strip()) >= 120],
@@ -403,7 +405,8 @@ def parse_agent(path: Path, declared: dict | None = None):
         "body_lines": body.count("\n") + 1 if body else 0,
         "body_chars": len(body),
         "body_tokens": est_tokens(body),
-        "frontmatter_tokens": est_tokens("\n".join(fm_lines)),
+        "frontmatter_tokens": est_tokens("\n".join(fm_lines)),   # includes the description
+        "total_tokens": est_tokens("\n".join(fm_lines)) + est_tokens(body),
         "_paragraphs": [p.strip() for p in re.split(r"\n\s*\n", body)
                         if len(p.strip()) >= 120],
     }
@@ -866,13 +869,12 @@ def main():
                      else "NO tools field (inherits all)")
             model = a["model"] or "inherit (default)"
             effort = a["effort"] or "inherit (session)"
-        total = a["frontmatter_tokens"] + a["body_tokens"]
         print(f"\n● {a['name']}  [{model}, effort {effort}]  {tools}")
         print(f"  {a['path']}")
         if a.get("declared"):
             print(f"  declared as [agents.{a['declared']['role']}] in {a['declared']['config']}")
         print(f"  definition text: desc ~{a['desc_tokens']} tok | body {a['body_lines']} lines "
-              f"~{a['body_tokens']} tok | total ~{total} tok "
+              f"~{a['body_tokens']} tok | total ~{a['total_tokens']} tok "
               "(chars/4 of the file; tool schemas and inherited context not counted)")
         for fl in sorted(a["flags"], key=lambda f: sev_order[f["severity"]]):
             print(f"    [{fl['severity']:>4}] {fl['code']}: {fl['message']}")

@@ -14,7 +14,7 @@ description: >-
   .codex/agents", "make my agents cheaper".
 license: MIT
 metadata:
-  version: "1.4.0"
+  version: "1.4.1"
   author: IonDen
 ---
 
@@ -65,7 +65,8 @@ python3 scripts/scan_agents.py <targets> --json
 ```
 
 Use `--json` for structured data to reason over; run without `--json` for a readable
-view. The flag codes (e.g. `NO_TOOLS_FIELD`, `WRITE_ON_READONLY`, `MEMORY_BOILERPLATE`)
+view. In the JSON, `frontmatter_tokens` already includes `desc_tokens`; an agent's
+definition text is `total_tokens` (frontmatter plus body), so never add all three. The flag codes (e.g. `NO_TOOLS_FIELD`, `WRITE_ON_READONLY`, `MEMORY_BOILERPLATE`)
 map to explanations in `references/best-practices.md`. The scanner skips `SKILL.md`
 files when walking a directory, so pointing it at a whole `.claude/` tree is safe.
 It reads Codex `.toml` agents with Python 3.11+ (`tomllib`); on 3.10, run it with
@@ -210,7 +211,7 @@ Use this exact structure per agent:
 
 ```
 ## <agent-name>  (<path>)
-Current: model <model> · effort <effort> · <tools state> · body <N> lines · definition text ~<T> tok
+Current: model <model> · effort <effort> · <tools state> · body <N> lines · definition text ~<total_tokens> tok
 Version: <current> → <proposed>   (Codex: n/a, no version field)
 
 Findings

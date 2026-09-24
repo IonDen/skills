@@ -1013,3 +1013,23 @@ def test_declared_paths_are_shown_normalised(scan, tmp_path):
     (home / "sub").mkdir()
     [a] = scan.scan_paths([], config_files=[f"{home}/sub/../config.toml"], include_declared=True)[0]
     assert a["path"] == str(home / "r.toml") and a["declared"]["config"] == str(cfg)
+
+
+def _json_and_readable(scan, path):
+    run = lambda *extra: subprocess.run([sys.executable, str(scan.__file__), str(path), *extra],
+                                        capture_output=True, text=True, check=True).stdout
+    return json.loads(run("--json"))["agents"][0], run()
+
+
+@pytest.mark.parametrize("kind", ["claude", pytest.param("codex", marks=needs_toml)])
+def test_json_total_tokens_matches_the_readable_total(scan, agent_file, codex_file, kind):
+    # Bug caught: no total in the JSON, or one built as desc + frontmatter + body,
+    # so a reader summing the fields counts the description twice (it is already
+    # part of frontmatter_tokens) and overstates every agent's definition text.
+    desc = "Use when the logs need a careful read for error lines. " * 4
+    path = (agent_file("a", f"description: {desc}\ntools: Read\n", "Read the logs.\n" * 20) if kind == "claude"
+            else codex_file("log_reader", CODEX_OK))
+    a, readable = _json_and_readable(scan, path)
+    assert a["desc_tokens"] > 0
+    assert a["total_tokens"] == a["frontmatter_tokens"] + a["body_tokens"]
+    assert f"| total ~{a['total_tokens']} tok" in readable

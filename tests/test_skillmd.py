@@ -273,3 +273,45 @@ def test_a_double_backtick_code_span_keeps_its_pipe(skillmd):
     # the pipe inside it splits the table cell and the command is cut in half.
     body = "| Step | How |\n|---|---|\n| Filter | Run ``ps aux | grep `mlx` `` to list them. |\n"
     assert keys(skillmd, body) == ["Step", "How", "Filter", "Run ``ps aux | grep `mlx` `` to list them"]
+
+
+# The heavy-runs shape: a wrap inside a list item puts a bound's comparator at the
+# start of a line. CommonMark reads "   > 27 never)." as a blockquote inside the
+# item, so the split is right, but the `>` is still the bound's comparator.
+FIT = ("1. **Does it fit?** Use the fit rule (GiB; peak + cache + ~1 GiB; ≤ 23 fits,\n"
+       "   > 27 never). Take the peak from the profile.\n")
+
+
+def test_a_quote_marker_that_is_a_bound_keeps_its_comparator(skillmd):
+    # Bug caught: stripping the `>` of a blockquote that interrupts a list item or
+    # paragraph as a marker only, so the `> 27` bound is never frozen and an edit
+    # to `> 25` passes the gate.
+    lits = skillmd.literals(FIT)
+    assert any(lit.startswith("> 27") for lit in lits), lits
+    assert all(skillmd.contains_literal(FIT, lit) for lit in lits)
+    edited = FIT.replace("> 27", "> 25")
+    assert not all(skillmd.contains_literal(edited, lit) for lit in lits)
+
+
+def test_a_multi_line_blockquote_is_one_unit(skillmd):
+    # Bug caught: starting a new unit at every `>` line, so a wrapped quote splits
+    # per line and `under 20` loses its unit word `GiB`.
+    body = "> under 20\n> GiB is the cap.\n"
+    assert [(u["kind"], u["text"]) for u in skillmd.units(body)] == [("text", "under 20 GiB is the cap.")]
+    lits = skillmd.literals(body)
+    assert "under 20 GiB" in lits
+    assert all(skillmd.contains_literal(body, lit) for lit in lits)
+    assert not skillmd.contains_literal(body.replace("GiB", "MiB"), "under 20 GiB")
+
+
+def test_an_empty_quote_line_ends_a_paragraph_inside_the_quote(skillmd):
+    # Bug caught: joining every `>` line into one unit, so two quoted paragraphs
+    # run together, or keeping the bare `>` as a sentence of its own.
+    assert keys(skillmd, "> First part.\n>\n> Second part.\n") == ["First part", "Second part"]
+
+
+def test_a_quote_marker_indented_past_the_paragraph_continues_it(skillmd):
+    # Bug caught: splitting at every `>` line. CommonMark reads a `>` indented four
+    # or more columns past the paragraph's text as paragraph text, not a quote.
+    body = "- Keep it small,\n      > 27 is too many. Stop there.\n"
+    assert keys(skillmd, body) == ["Keep it small, > 27 is too many", "Stop there"]

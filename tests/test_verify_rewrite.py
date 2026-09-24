@@ -726,3 +726,34 @@ def test_a_new_reference_may_not_take_a_name_the_skill_already_uses(freezer, gat
         r = gate.verify(frozen, cand, orig)
         clash = [f["detail"] for f in r["rejected"] if f["code"] == "UNEXPECTED_FILE"]
         assert clash == ([] if ok else [f"references/{name}.md exists in the skill as a link or file; choose another name"]), name
+
+
+FIT = (EXPLANATION + "1. **Does it fit?** Use the fit rule (GiB; peak + cache + ~1 GiB; ≤ 23 fits,\n"
+       "   > 27 fails). Take the peak from the profile.\n\nTag the release after the merge.\n")
+
+
+def test_a_bound_wrapped_to_a_quote_marker_is_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: reading the `>` of "   > 27 fails)." as a quote marker only, so
+    # the bound is never frozen: the sentence carries no rule word, and deleting
+    # it passes, as does changing 27 to 25 wherever the new number is not new text.
+    honest = FIT.replace(EXPLANATION, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, FIT, TAG, honest)
+    assert r["status"] == "pass", r["rejected"]
+    for edited in (honest.replace("> 27", "> 25"), honest.replace("> 27 fails). ", "> ")):
+        r = gate_on(freezer, gate, make_skill, tmp_path, FIT, TAG, edited)
+        assert "'> 27 fails' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+QUOTED = EXPLANATION + "> Keep the margin under 20\n> GiB at all times.\n\nTag the release after the merge.\n"
+
+
+def test_a_literal_wrapped_inside_a_quote_is_found_and_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: freezing `under 20 GiB` from a quote but searching the raw file,
+    # where a `>` sits between `20` and `GiB`, so the unchanged skill is rejected;
+    # or dropping it, so `GiB` can become `MiB`.
+    orig = make_skill(QUOTED)
+    assert "under 20 GiB" in freezer.freeze(orig, TAG)["literals"]
+    assert gate_on(freezer, gate, make_skill, tmp_path, QUOTED, TAG, QUOTED)["status"] == "unchanged"
+    edited = QUOTED.replace(EXPLANATION, "").replace("> GiB", "> MiB")
+    r = gate_on(freezer, gate, make_skill, tmp_path, QUOTED, TAG, edited)
+    assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]

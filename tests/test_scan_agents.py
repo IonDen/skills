@@ -551,8 +551,9 @@ def test_without_tomllib_codex_files_are_not_scanned_but_claude_files_are(scan, 
         assert hint in reason, hint
 
 
-def test_default_targets_include_codex_agent_folders(scan):
+def test_default_targets_include_codex_agent_folders(scan, monkeypatch):
     # Bug caught: scanning only .claude/agents by default never finds personal Codex agents.
+    monkeypatch.delenv("CODEX_HOME")
     targets = scan.default_targets()
     assert str(Path.home() / ".claude/agents") in targets
     assert str(Path.home() / ".codex/agents") in targets
@@ -815,3 +816,120 @@ def test_nested_table_with_agent_keys_names_the_dotted_header(scan, tmp_path):
     _, skipped = scan.scan_paths([str(p)])
     assert "[mcp_servers.docs]" in skipped[0]["reason"]
     assert "`name` and `developer_instructions` sit" in skipped[0]["reason"]
+
+
+# --- Codex roles declared in config.toml ([agents.<name>] + config_file) -----
+
+def _declare(home, body):
+    home.mkdir(parents=True, exist_ok=True)
+    cfg = home / "config.toml"
+    cfg.write_text(body)
+    return cfg
+
+
+def _declared_scan(scan, cfg, *paths):
+    return scan.scan_paths(list(paths), config_files=[cfg], include_declared=True)
+
+
+@needs_toml
+def test_declared_role_outside_agents_folder_is_scanned_under_the_table_key(scan, tmp_path):
+    # Bug caught: scanning only agents/ folders never sees a role that config.toml points
+    # elsewhere, and a missing file `name` would be reported as CODEX_MISSING_REQUIRED.
+    cfg = _declare(tmp_path / "home", '[agents]\nmax_threads = 4\ndefault_subagent_model = "gpt-6-sol"\n\n'
+                   '[agents.reviewer]\ndescription = "Reviews diffs."\nconfig_file = "roles/rev.toml"\n')
+    (tmp_path / "home" / "roles").mkdir()
+    (tmp_path / "home" / "roles" / "rev.toml").write_text('developer_instructions = "Review it."\n')
+    agents, skipped = _declared_scan(scan, cfg)
+    assert skipped == []
+    [a] = agents
+    assert a["name"] == "reviewer" and a["description"] == "Reviews diffs."
+    assert a["declared"] == {"role": "reviewer", "config": str(cfg)}
+    assert "CODEX_MISSING_REQUIRED" not in {f["code"] for f in a["flags"]}
+
+
+@needs_toml
+def test_declared_role_file_may_omit_developer_instructions_but_not_blank_them(scan, tmp_path):
+    # Bug caught: requiring developer_instructions in a declared role file, which Codex
+    # rust-v0.156.1 accepts (the child keeps the parent's instructions); a blank one it refuses.
+    cfg = _declare(tmp_path / "home", '[agents.tuner]\ndescription = "d"\nconfig_file = "tuner.toml"\n'
+                   '[agents.blank]\ndescription = "d"\nconfig_file = "blank.toml"\n')
+    (tmp_path / "home" / "tuner.toml").write_text('model = "gpt-6-sol"\nmodel_reasoning_effort = "medium"\n')
+    (tmp_path / "home" / "blank.toml").write_text('developer_instructions = "  "\n')
+    by_name = {a["name"]: {f["code"]: f for f in a["flags"]} for a in _declared_scan(scan, cfg)[0]}
+    assert "CODEX_MISSING_REQUIRED" not in by_name["tuner"]
+    assert by_name["blank"]["CODEX_MISSING_REQUIRED"]["message"].startswith("Missing or blank: developer_instructions.")
+
+
+@needs_toml
+def test_declared_role_without_any_description_is_flagged(scan, tmp_path):
+    # Bug caught: treating the table key as proof of a complete role hides the missing description.
+    cfg = _declare(tmp_path / "home", '[agents.x]\nconfig_file = "x.toml"\n')
+    (tmp_path / "home" / "x.toml").write_text('developer_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    f = {f["code"]: f for f in a["flags"]}["CODEX_MISSING_REQUIRED"]
+    assert f["message"].startswith("Missing or blank: description.")
+
+
+@needs_toml
+def test_declared_role_whose_file_name_differs_gets_a_note_not_a_rename(scan, tmp_path):
+    # Bug caught: silently reporting the file's `name`, or proposing a rename, when the table key
+    # and the file disagree (Codex registers the role under the file's `name`).
+    cfg = _declare(tmp_path / "home", '[agents.reviewer]\ndescription = "d"\nconfig_file = "r.toml"\n')
+    role = tmp_path / "home" / "r.toml"
+    role.write_text('name = "critic"\ndeveloper_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    assert a["name"] == "reviewer"
+    note = {f["code"]: f for f in a["flags"]}["CODEX_DECLARED_NAME"]
+    assert note["severity"] == "info"
+    assert "critic" in note["message"] and "[agents.reviewer]" in note["message"]
+    assert "nothing is renamed" in note["message"]
+
+
+@needs_toml
+def test_declared_role_inside_agents_folder_is_listed_once_as_declared(scan, tmp_path):
+    # Bug caught: the walk and the declaration both add the same file, so it shows twice.
+    home = tmp_path / "home"
+    cfg = _declare(home, '[agents.reviewer]\ndescription = "d"\nconfig_file = "agents/r.toml"\n')
+    (home / "agents").mkdir()
+    (home / "agents" / "r.toml").write_text('developer_instructions = "Do it."\n')
+    agents, _ = _declared_scan(scan, cfg, home / "agents")
+    assert [(a["name"], a.get("declared", {}).get("role")) for a in agents] == [("reviewer", "reviewer")]
+
+
+@needs_toml
+def test_declared_role_file_that_does_not_exist_gets_a_note(scan, tmp_path):
+    # Bug caught: a dangling config_file vanishes from the report, though Codex refuses the role.
+    cfg = _declare(tmp_path / "home", '[agents.ghost]\ndescription = "d"\nconfig_file = "gone.toml"\n')
+    agents, skipped = _declared_scan(scan, cfg)
+    assert agents == []
+    assert skipped[0]["path"].endswith("gone.toml")
+    assert "[agents.ghost]" in skipped[0]["reason"] and "does not exist" in skipped[0]["reason"]
+
+
+def test_codex_home_moves_the_default_agents_folder_and_config(scan, tmp_path, monkeypatch):
+    # Bug caught: hard-coding ~/.codex ignores CODEX_HOME, so a relocated Codex home is never scanned.
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "ch"))
+    monkeypatch.chdir(tmp_path)
+    assert str(tmp_path / "ch" / "agents") in scan.default_targets()
+    assert str(Path.home() / ".codex/agents") not in scan.default_targets()
+    assert scan.codex_config_files() == [tmp_path / "ch" / "config.toml",
+                                         tmp_path / ".codex" / "config.toml"]
+
+
+@needs_toml
+def test_cli_reads_declared_roles_from_codex_home_and_project(scan, tmp_path):
+    # Bug caught: main() never passes the config files, so declared roles are missing from a default scan.
+    home, proj = tmp_path / "h", tmp_path / "p"
+    _declare(home / ".codex", '[agents.user_role]\ndescription = "d"\nconfig_file = "u.toml"\n')
+    (home / ".codex" / "u.toml").write_text('developer_instructions = "Do it."\n')
+    _declare(proj / ".codex", '[agents.proj_role]\ndescription = "d"\nconfig_file = "../roles/p.toml"\n')
+    (proj / "roles").mkdir()
+    (proj / "roles" / "p.toml").write_text('developer_instructions = "Do it."\n')
+    env = {"HOME": str(home), "CODEX_HOME": str(home / ".codex"), "PATH": "/usr/bin:/bin"}
+    out = subprocess.run([sys.executable, str(scan.__file__), "--json"], cwd=proj, env=env,
+                         capture_output=True, text=True, check=True).stdout
+    data = json.loads(out)
+    assert sorted(a["name"] for a in data["agents"]) == ["proj_role", "user_role"]
+    text = subprocess.run([sys.executable, str(scan.__file__)], cwd=proj, env=env,
+                          capture_output=True, text=True, check=True).stdout
+    assert "declared as [agents.proj_role] in" in text

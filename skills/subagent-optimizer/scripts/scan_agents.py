@@ -11,13 +11,16 @@ Usage:
 
 PATH may be an agent .md or .toml file or a directory (searched recursively; a
 .md file with frontmatter carrying `name` is a Claude Code subagent, a .toml file
-with a top-level `name`, `description` or `developer_instructions` is a Codex
-custom agent, and a missing required field is reported as a flag rather than
-silently dropping the file).
-With no PATH, scans ~/.claude/agents, ./.claude/agents, ~/.codex/agents and
-./.codex/agents. SKILL.md files are skipped when walking a directory (they carry
-the same frontmatter but are skills). Codex files need Python 3.11+ (tomllib);
-on older Pythons they are listed as not scanned.
+with a top-level `name` or `developer_instructions` is a Codex custom agent, and
+a missing required field is reported as a flag rather than silently dropping the
+file). Symlinked files are never followed; they are listed as not scanned, as
+are files over 1 MiB and files that cannot be read or parsed.
+With no PATH, scans ~/.claude/agents, ./.claude/agents, $CODEX_HOME/agents
+(default ~/.codex/agents) and ./.codex/agents, plus every role file declared as
+an [agents.<name>] table with `config_file` in $CODEX_HOME/config.toml or
+./.codex/config.toml. SKILL.md files are skipped when walking a directory (they
+carry the same frontmatter but are skills). Codex files need Python 3.11+
+(tomllib); on older Pythons they are listed as not scanned.
 
 Exit code is always 0; this is a reporter, not a gate.
 """
@@ -261,8 +264,13 @@ def _table_with_instructions(data: dict, prefix: str = ""):
     return "", None
 
 
-def parse_codex_agent(path: Path):
+def parse_codex_agent(path: Path, declared: dict | None = None):
     """Parse a Codex custom agent (.toml) into the shared agent dict.
+
+    `declared` is the config.toml declaration ({"role", "description",
+    "config"}) when the file is a declared role's config_file: it is then always
+    an agent, named after the table key, and may take its description from the
+    table.
 
     Returns None for a .toml that is not an agent (no top-level name or
     developer_instructions, e.g. pyproject.toml). Raises NotScanned when the
@@ -279,7 +287,7 @@ def parse_codex_agent(path: Path):
         raise NotScanned(f"not scanned: TOML parse error ({exc})") from exc
     except RecursionError as exc:
         raise NotScanned("not scanned: TOML nested too deeply to parse") from exc
-    if not any(k in data for k in CODEX_AGENT_MARKERS):
+    if declared is None and not any(k in data for k in CODEX_AGENT_MARKERS):
         header, table = _table_with_instructions(data)
         if table is not None:
             found = [f"`{k}`" for k in CODEX_AGENT_MARKERS if k in table]
@@ -291,11 +299,19 @@ def parse_codex_agent(path: Path):
         return None
     body = _text(data.get("developer_instructions")).strip("\n")
     desc = _text(data.get("description"))
+    name = _text(data.get("name"))
+    extra = {}
+    if declared is not None:
+        name = declared["role"]
+        if not desc.strip():
+            desc = declared.get("description") or ""
+        extra["declared"] = {"role": declared["role"], "config": declared["config"]}
     body_tokens = est_tokens(body)
     return {
+        **extra,
         "path": str(path),
         "format": "codex",
-        "name": _text(data.get("name")),
+        "name": name,
         "model": _text(data.get("model")),  # "" => parent's model (or [agents] default)
         "effort": _text(data.get("model_reasoning_effort")),
         "permission_mode": "",
@@ -317,10 +333,10 @@ def parse_codex_agent(path: Path):
     }
 
 
-def parse_agent(path: Path):
+def parse_agent(path: Path, declared: dict | None = None):
     """Return a dict of parsed fields, or None if the file isn't an agent."""
     if path.suffix.lower() == ".toml":
-        return parse_codex_agent(path)
+        return parse_codex_agent(path, declared)
     raw = path.read_text(encoding="utf-8-sig", errors="replace")
     if not raw.lstrip().startswith("---"):
         return None
@@ -422,11 +438,29 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         flags.append({"severity": sev, "code": code, "message": msg})
 
     keys = a["_keys"]
-    missing = [k for k in CODEX_REQUIRED_KEYS if not _text(keys.get(k)).strip()]
+    decl = a.get("declared")
+    if decl is None:
+        missing = [k for k in CODEX_REQUIRED_KEYS if not _text(keys.get(k)).strip()]
+        why = "Codex refuses an agent without name, description and developer_instructions."
+    else:
+        # A declared role takes its name from the table key and may take its
+        # description from the table; its file may leave developer_instructions
+        # out (the child keeps the parent's), but not blank
+        # (codex-rs/agent-roles/src/agent_role_config.rs at rust-v0.156.1).
+        missing = [] if a["description"].strip() else ["description"]
+        if "developer_instructions" in keys and not _text(keys["developer_instructions"]).strip():
+            missing.append("developer_instructions")
+        why = ("Codex refuses a declared role with no description in the file or the "
+               "table, or with a blank developer_instructions.")
     if missing:
-        add("high", "CODEX_MISSING_REQUIRED",
-            f"Missing or blank: {', '.join(missing)}. Codex refuses an agent "
-            "without name, description and developer_instructions.")
+        add("high", "CODEX_MISSING_REQUIRED", f"Missing or blank: {', '.join(missing)}. {why}")
+    file_name = _text(keys.get("name")).strip()
+    if decl is not None and file_name and file_name != decl["role"]:
+        add("info", "CODEX_DECLARED_NAME",
+            f"Declared as [agents.{decl['role']}] in {decl['config']}, but the file sets "
+            f"name = '{file_name}'. Codex rust-v0.156.1 registers the role under the file's "
+            "`name`. Reported under the table key; nothing is renamed. Check which name "
+            "callers use.")
     claude = [k for k in CODEX_CLAUDE_KEYS if k in keys
               and not (k in CODEX_TABLE_KEYS and isinstance(keys[k], dict))]
     if claude:
@@ -651,31 +685,98 @@ def gather(paths: list[str], notes: list | None = None) -> list[Path]:
                     skip_link(f)
                 elif f.is_file():
                     out.append(f)
-    # de-dup, preserve order
+    # de-dup (by real folder, so a declared role met again in a walk counts once), preserve order
     seen, uniq = set(), []
     for f in out:
-        if f not in seen:
-            seen.add(f)
+        key = _file_key(f)
+        if key not in seen:
+            seen.add(key)
             uniq.append(f)
     return uniq
+
+
+def codex_home() -> Path:
+    """$CODEX_HOME, else ~/.codex (as Codex resolves it)."""
+    return Path(os.environ.get("CODEX_HOME") or "~/.codex").expanduser()
+
+
+def codex_config_files() -> list[Path]:
+    """Config files whose [agents.<name>] tables can declare roles."""
+    return [codex_home() / "config.toml", Path.cwd() / ".codex" / "config.toml"]
+
+
+def _file_key(path: Path) -> Path:
+    """Compare paths by their real folder but keep the file itself unresolved,
+    so a symlinked file is still seen as a symlink."""
+    path = Path(os.path.abspath(path))
+    return path.parent.resolve() / path.name
+
+
+def declared_roles(config_files: list[Path], notes: list) -> dict[Path, dict]:
+    """Role files declared as [agents.<name>] tables with a config_file, keyed by
+    _file_key(path). A relative config_file resolves against the folder of the
+    config.toml that declares it; a later config file wins for the same path."""
+    roles: dict[Path, dict] = {}
+    for cfg in config_files:
+        cfg = Path(cfg)
+        if not cfg.is_file():
+            continue
+        if tomllib is None:
+            notes.append({"path": str(cfg), "reason": NEEDS_TOMLLIB})
+            continue
+        try:
+            data = tomllib.loads(cfg.read_text(encoding="utf-8-sig"))
+        except (tomllib.TOMLDecodeError, OSError, UnicodeDecodeError, RecursionError) as exc:
+            notes.append({"path": str(cfg),
+                          "reason": f"declared roles not read: {type(exc).__name__} ({exc})"})
+            continue
+        agents = data.get("agents")
+        if not isinstance(agents, dict):
+            continue
+        for role, table in agents.items():
+            if not isinstance(table, dict) or not isinstance(table.get("config_file"), str):
+                continue  # a fleet setting, or a role with no file of its own
+            target = Path(table["config_file"]).expanduser()
+            if not target.is_absolute():
+                target = cfg.parent / target
+            desc = table.get("description")
+            roles[_file_key(target)] = {
+                "role": role, "config": str(cfg), "path": Path(os.path.normpath(target)),
+                "description": desc if isinstance(desc, str) and desc.strip() else None}
+    return roles
 
 
 def default_targets() -> list[str]:
     home, cwd = Path.home(), Path.cwd()
     return [str(home / ".claude/agents"), str(cwd / ".claude/agents"),
-            str(home / ".codex/agents"), str(cwd / ".codex/agents")]
+            str(codex_home() / "agents"), str(cwd / ".codex/agents")]
 
 
 def scan_paths(paths: list[str], body_limit: int = DEFAULT_BODY_LINES,
-               desc_limit: int = DEFAULT_DESC_CHARS) -> tuple[list[dict], list[dict]]:
-    """Parse and flag every agent under `paths`; return (agents, skipped)."""
+               desc_limit: int = DEFAULT_DESC_CHARS, config_files: list | tuple = (),
+               include_declared: bool = False) -> tuple[list[dict], list[dict]]:
+    """Parse and flag every agent under `paths`; return (agents, skipped).
+
+    Roles declared in `config_files` are recognised wherever the scan meets
+    their file; with `include_declared` their files are scanned too, even
+    outside an agents/ folder."""
     skipped: list[dict] = []
     agents = []
-    for f in gather(paths, skipped):
+    declared = declared_roles(list(config_files), skipped)
+    targets = [str(p) for p in paths]
+    if include_declared:
+        for d in declared.values():
+            if d["path"].is_file() or d["path"].is_symlink():
+                targets.append(str(d["path"]))
+            else:
+                skipped.append({"path": str(d["path"]),
+                                "reason": f"not scanned: declared as [agents.{d['role']}] in "
+                                          f"{d['config']}, but the file does not exist"})
+    for f in gather(targets, skipped):
         try:
             if f.stat().st_size > MAX_AGENT_FILE_BYTES:
                 raise NotScanned("not scanned: larger than 1 MiB")
-            parsed = parse_agent(f)
+            parsed = parse_agent(f, declared.get(_file_key(f)))
         except NotScanned as exc:
             skipped.append({"path": str(f), "reason": str(exc)})
             continue
@@ -698,7 +799,9 @@ def main():
     args = ap.parse_args()
 
     paths = args.paths or default_targets()
-    agents, skipped = scan_paths(paths, args.body_lines, args.desc_chars)
+    agents, skipped = scan_paths(paths, args.body_lines, args.desc_chars,
+                                 config_files=codex_config_files(),
+                                 include_declared=not args.paths)
 
     dups = find_duplicate_blocks(agents)
 
@@ -733,6 +836,8 @@ def main():
         total = a["frontmatter_tokens"] + a["body_tokens"]
         print(f"\n● {a['name']}  [{model}, effort {effort}]  {tools}")
         print(f"  {a['path']}")
+        if a.get("declared"):
+            print(f"  declared as [agents.{a['declared']['role']}] in {a['declared']['config']}")
         print(f"  definition text: desc ~{a['desc_tokens']} tok | body {a['body_lines']} lines "
               f"~{a['body_tokens']} tok | total ~{total} tok "
               "(chars/4 of the file; tool schemas and inherited context not counted)")
@@ -744,7 +849,9 @@ def main():
     if dups:
         print("\n" + "=" * 60 + "\nDUPLICATED BLOCKS (shared verbatim across agents)")
         for d in dups:
-            where = ", ".join(f"{n} ({f})" for n, f in zip(d["agents"], d["files"]))
+            # Paths only where a name repeats, so the usual line stays short.
+            where = ", ".join(f"{n} ({f})" if d["agents"].count(n) > 1 else n
+                              for n, f in zip(d["agents"], d["files"]))
             print(f"  ~{d['tokens']} tok x{len(d['files'])} [{where}]: {d['preview']}")
         waste = sum(d["tokens"] * (len(d["files"]) - 1) for d in dups)
         print(f"  → ~{waste} tokens of repeated boilerplate across the set.")

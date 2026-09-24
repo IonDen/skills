@@ -16,6 +16,13 @@ def _load(name: str):
     return mod
 
 
+@pytest.fixture(autouse=True)
+def _isolated_codex_home(tmp_path_factory, monkeypatch):
+    """Point CODEX_HOME at an empty folder so a real ~/.codex/config.toml never
+    leaks declared roles or notes into a test (subprocess runs inherit it)."""
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex-home")))
+
+
 @pytest.fixture(scope="session")
 def scan():
     return _load("scan_agents")

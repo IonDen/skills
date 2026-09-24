@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-24
+
+- Add `skill-optimizer` 1.0.0: cuts a skill's token cost without losing an instruction. It freezes every rule, anchor, literal and code block in the original `SKILL.md` before any rewrite exists, then gates the candidate deterministically: a rule sentence, an anchored sentence, a literal or a strong rule's position can't disappear or move without the gate rejecting the candidate outright or asking for approval, and only a human sign-off can delete a rule sentence or confirm a section's move into `references/`. What passes the gate is not itself a claim that behaviour is unchanged: catching that needs a reverse-reconstruction read and, where the skill ships evals, a same-prompt run against both versions, and the report has to state whether that step ran or was skipped and why. Run against a copy of this repository's own `subagent-optimizer`, it cut the body from 8,863 to 8,758 characters (-1.2%), left two rule-carrying sentences as flagged decisions instead of removing them, and both of `subagent-optimizer`'s own evals came back with the same 13 of 13 expected clauses met on the optimized copy as on the original. The skill was already tight, and the optimizer said so instead of forcing a bigger number.
+
 ## 2026-09-20 (rename)
 
 - The skill is now `subagent-optimizer`, was `agent-optimiser`, and the version goes to 1.3.0. Searching the skills directory showed the old name was findable only by people who already knew it: it surfaced for "optimiser" and for nothing else, while "subagent", "optimizer", "claude code subagents" and "audit agents" all returned other authors' skills. Names weigh far more than descriptions in that ranking, and the American spelling is what most people type. Install it as `npx skills add IonDen/skills --skill subagent-optimizer`; the old name is gone rather than aliased, because two installs were not worth a permanent second identity.

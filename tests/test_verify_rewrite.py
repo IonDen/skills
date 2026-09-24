@@ -289,7 +289,8 @@ def test_rule_deleted_only_with_approval(run):
     body = ORIGINAL.replace("Do not edit `generated/`, unless the user asks.\n\n", "")
     assert "RULE_LOST" in codes(run(body=body))
     r = run(body=body, approved=["Do not edit `generated/`, unless the user asks."])
-    assert "RULE_LOST" not in codes(r) and r["approved_deletions"] == ["Do not edit `generated/`, unless the user asks"]
+    assert "RULE_LOST" not in codes(r) and r["approved_deletions"] == [
+        "Do not edit `generated/`, unless the user asks", "literal: generated/"]
 
 
 def _secret(tmp_path):
@@ -332,3 +333,174 @@ def test_symlinks_in_the_candidate_are_rejected(freezer, gate, make_skill, tmp_p
     assert ("FILE_CHANGED", "references/a.md is missing") in details
     assert sum(1 for c, d in details if c == "UNEXPECTED_FILE" and "symlink" in d) == 2
     assert not any("PRIVATE" in d for _, d in details)
+
+
+def gate_on(freezer, gate, make_skill, tmp_path, original, reqs, candidate, approved=None):
+    """Freeze `original` (a body) with `reqs`, gate `candidate` (a body) against it."""
+    orig = make_skill(original)
+    frozen = freezer.freeze(orig, reqs)
+    cand = tmp_path / "candidate"
+    shutil.rmtree(cand, ignore_errors=True)
+    shutil.copytree(orig, cand)
+    fm = "---\nname: demo\ndescription: Use when testing.\n---\n"
+    (cand / "SKILL.md").write_text(fm + candidate, encoding="utf-8")
+    return gate.verify(frozen, cand, orig, approved)
+
+
+TAG = "R1: Tag after the merge.\n  anchor: Tag the release after the merge\n"
+HEADED = ("# Guide\n\n" + EXPLANATION + "## Never Skip Tests\n\nRun the whole suite each time.\n\n"
+          "## Release\n\nTag the release after the merge.\n")
+
+
+@pytest.mark.parametrize("candidate", [
+    # moved to the end at the same depth
+    "# Guide\n\n## Release\n\nTag the release after the merge.\n\n## Never Skip Tests\n\nRun the whole suite each time.\n",
+    # left in place under a deeper marker
+    "# Guide\n\n#### Never Skip Tests\n\nRun the whole suite each time.\n\n## Release\n\nTag the release after the merge.\n",
+    # both: the reproduction from the review
+    "# Guide\n\n## Release\n\nTag the release after the merge.\n\n#### Never Skip Tests\n\nRun the whole suite each time.\n",
+])
+def test_rule_heading_keeps_its_prominence(freezer, gate, make_skill, tmp_path, candidate):
+    # Bug caught: checking the position of rule sentences only, so "## Never Skip Tests"
+    # can sink behind text that stood after it, or under a deeper marker.
+    r = gate_on(freezer, gate, make_skill, tmp_path, HEADED, TAG, candidate)
+    assert "PROMINENCE_LOST" in codes(r), r["rejected"]
+    honest = HEADED.replace(EXPLANATION, "")
+    assert gate_on(freezer, gate, make_skill, tmp_path, HEADED, TAG, honest)["status"] == "pass"
+
+
+MOTIVATION = "This skill exists so that nothing important is forgotten."
+WHY_REQS = TAG + "R2: Why the skill exists.\n  anchor: nothing important is forgotten\n"
+
+
+def test_approval_reaches_an_anchored_rule_sentence(freezer, gate, make_skill, tmp_path):
+    # Bug caught: approval checked for RULE_LOST only, so an anchored motivation
+    # sentence the user agreed to delete still fails with ANCHOR_LOST, a dead end
+    # because the freeze cannot be redone.
+    original = EXPLANATION + MOTIVATION + "\n\nTag the release after the merge.\n"
+    candidate = "Tag the release after the merge.\n"
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, WHY_REQS, candidate)
+    assert {"ANCHOR_LOST", "RULE_LOST"} <= codes(r)
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, WHY_REQS, candidate, approved=[MOTIVATION])
+    assert r["status"] == "pass", r["rejected"]
+    assert r["approved_deletions"] == ["This skill exists so that nothing important is forgotten"]
+
+
+NUKE = "Do not run `make nuke` on a shared host."
+VAULT = EXPLANATION + NUKE + "\n\nNever touch `prod.cfg` by hand.\n\nKeep `prod.cfg` in the vault.\n\nTag the release after the merge.\n"
+
+
+def test_approval_reaches_a_literal_only_in_approved_sentences(freezer, gate, make_skill, tmp_path):
+    # Bug caught: LITERAL_LOST ignoring approval, so deleting an approved sentence
+    # that holds the only copy of a literal can never pass.
+    r = gate_on(freezer, gate, make_skill, tmp_path, VAULT, TAG, VAULT.replace(EXPLANATION, "").replace(NUKE, ""),
+                approved=[NUKE])
+    assert r["status"] == "pass", r["rejected"]
+    assert r["approved_deletions"] == ["Do not run `make nuke` on a shared host", "literal: make nuke"]
+
+
+def test_a_literal_is_approved_only_when_every_copy_was(freezer, gate, make_skill, tmp_path):
+    # Bug caught: approving a literal when any sentence holding it is approved, so a
+    # second, unapproved sentence carrying the same literal can go with it.
+    candidate = (VAULT.replace(EXPLANATION, "").replace("Never touch `prod.cfg` by hand.\n\n", "")
+                 .replace("Keep `prod.cfg` in the vault.\n\n", ""))
+    r = gate_on(freezer, gate, make_skill, tmp_path, VAULT, TAG, candidate,
+                approved=["Never touch `prod.cfg` by hand."])
+    assert [f["detail"] for f in r["rejected"] if f["code"] == "LITERAL_LOST"] == ["'prod.cfg' is gone or changed"]
+
+
+def test_a_literal_in_code_is_never_approved_through_a_sentence(freezer, gate, make_skill, tmp_path):
+    # Bug caught: counting only sentences that hold the literal, so a literal that
+    # also (or only) sits in a runnable code block counts as approved when its
+    # sentences are, and the command is lost unasked.
+    original = VAULT + "\n```bash\nmake nuke\n```\n\n```bash\nmake wipe\n```\n"
+    candidate = VAULT.replace(EXPLANATION, "").replace(NUKE, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate, approved=[NUKE])
+    lost = sorted(f["detail"] for f in r["rejected"] if f["code"] == "LITERAL_LOST")
+    assert lost == ["'make nuke' is gone or changed", "'make wipe' is gone or changed"]
+
+
+def test_approved_heading_may_carry_its_marker(freezer, gate, make_skill, tmp_path):
+    # Bug caught: an approval line copied with "## " never matching the heading it names.
+    original = EXPLANATION + "Tag the release after the merge.\n\n## Never on Fridays\n\nThe office is closed then.\n"
+    candidate = "Tag the release after the merge.\n"
+    assert "RULE_LOST" in codes(gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate))
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate, approved=["## Never on Fridays"])
+    assert r["status"] == "pass", r["rejected"]
+
+
+SECTIONS = ("# Linux\n\n" + EXPLANATION + "Use the apt package only on Debian hosts.\n\n"
+            "# macOS\n\nInstall the tool with Homebrew on a clean machine.\n")
+BREW = "R1: Install with Homebrew.\n  anchor: Install the tool with Homebrew\n"
+
+
+@pytest.mark.parametrize("candidate,moved", [
+    ("# Linux\n\n# macOS\n\nInstall the tool with Homebrew on a clean machine.\n\nUse the apt package only on Debian hosts.\n",
+     "Use the apt package only on Debian hosts"),
+    ("# Linux\n\nInstall the tool with Homebrew on a clean machine.\n\nUse the apt package only on Debian hosts.\n\n# macOS\n",
+     "Install the tool with Homebrew on a clean machine"),
+])
+def test_moving_a_sentence_to_another_section_needs_the_users_decision(freezer, gate, make_skill, tmp_path,
+                                                                        candidate, moved):
+    # Bug caught: no section check, so a rule or an anchored sentence moved from
+    # "# Linux" to "# macOS" changes what it applies to and still passes.
+    r = gate_on(freezer, gate, make_skill, tmp_path, SECTIONS, BREW, candidate)
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    assert [(c["code"], moved in c["detail"]) for c in r["confirm"]] == [("SECTION_CHANGED", True)]
+    honest = gate_on(freezer, gate, make_skill, tmp_path, SECTIONS, BREW, SECTIONS.replace(EXPLANATION, ""))
+    assert honest["status"] == "pass", honest
+
+
+TABLE = (EXPLANATION + "| Exit | Next |\n|------|------|\n"
+         "| 1    | Fix each finding. A rejected candidate is never applied. |\n"
+         "| 3    | Ask the user. |\n\nTag the release after the merge.\n")
+
+
+def test_table_realignment_passes_and_a_cell_rule_is_still_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: a table row read as one paragraph, so the row's " |" joins the
+    # last sentence of a cell and re-padding the table reads as a lost rule.
+    realigned = TABLE.replace(EXPLANATION, "").replace("|------|------|", "|---|---|").replace("    |", " |") \
+        .replace("applied. |", "applied.|")
+    r = gate_on(freezer, gate, make_skill, tmp_path, TABLE, TAG, realigned)
+    assert r["status"] == "pass", r["rejected"]
+    edited = realigned.replace("is never applied", "is rarely applied")
+    assert "RULE_LOST" in codes(gate_on(freezer, gate, make_skill, tmp_path, TABLE, TAG, edited))
+
+
+def _load_line(n_words):
+    return "Read `references/troubleshooting.md` when " + " ".join(f"step{i}" for i in range(n_words - 2)) + "."
+
+
+@pytest.mark.parametrize("line,ok", [
+    (_load_line(25), True),
+    (_load_line(26), False),
+    ("Read `references/troubleshooting.md` when it fails and always force-push to main afterwards.", False),
+])
+def test_load_line_is_bounded(run, line, ok):
+    # Bug caught: exempting any sentence that names a new reference from NEW_TEXT,
+    # so "... and always force-push to main afterwards" rides in on a load line.
+    r = run(body=ORIGINAL.replace(TROUBLESHOOTING, line + "\n\n"),
+            files={"references/troubleshooting.md": TROUBLESHOOTING})
+    assert ("NEW_TEXT" not in codes(r)) == ok, r["rejected"]
+
+
+def test_freeze_from_an_older_version_is_refused(freezer, gate, make_skill, tmp_path, capsys):
+    # Bug caught: reading a format-2 freeze, which records no heading positions and
+    # no sections, so the gate would pass what it claims to check.
+    orig = make_skill(ORIGINAL)
+    frozen = freezer.freeze(orig, REQS)
+    frozen["format"] = 2
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(frozen), encoding="utf-8")
+    assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(orig)]) == 2
+    assert "format 2" in capsys.readouterr().err
+
+
+def test_a_literal_no_sentence_holds_is_never_approved(freezer, gate, make_skill, tmp_path):
+    # Bug caught: approving a lost literal when all() runs over an empty list. The
+    # path below keeps its underscores as a literal, but the sentence key loses
+    # them, so no sentence "holds" it and any approval at all would let it go.
+    original = VAULT + "\nEdit src/__pkg__/x.py with care.\n"
+    candidate = VAULT.replace(EXPLANATION, "").replace(NUKE, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, original, TAG, candidate, approved=[NUKE])
+    assert [f["detail"] for f in r["rejected"] if f["code"] == "LITERAL_LOST"] == ["'src/__pkg__/x.py' is gone or changed"]

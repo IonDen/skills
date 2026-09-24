@@ -5,7 +5,15 @@ Every check is deterministic and needs no model call. The contract is
 extractive: text may be deleted, reordered, reflowed or moved into a new
 references/ file, and a clause may be dropped from a sentence that carries no
 rule word and no anchor; nothing may be added, and a sentence with a rule word
-or an anchor may not be edited at all.
+or an anchor may not be edited at all. A sentence with neither is protected
+only through its literals, if it has any. The one new sentence allowed per new
+reference is the first body line naming it, with no strong rule word and at
+most 25 words besides the path.
+
+Deleting a rule sentence, rule heading or anchored sentence passes only when
+the user approved that exact text (--approved). A literal lost with it passes
+only when every original sentence holding it was approved and deleted, and no
+heading or code block of the original held it. Each approved deletion is listed.
 
 Rejects (exit 1):
   ORIGINAL_CHANGED     the skill on disk is not the one that was frozen
@@ -17,16 +25,20 @@ Rejects (exit 1):
   RULE_LOST            a sentence or heading with a rule word is gone or was edited
   ANCHOR_LOST          a sentence a requirement anchors is gone or was edited
   LITERAL_LOST         a command, path, flag, URL, version, date or threshold is gone or changed
-  PROMINENCE_LOST      a strong rule has text in front of it that was behind it, or a deeper heading
+  PROMINENCE_LOST      a strong rule or a rule heading has text in front of it that was behind
+                       it, or sits deeper than it did
   TERMINAL_MOVED       a closing rule no longer closes the body
   REFERENCE_UNLINKED   a new references/ file is not named in the body
   NOT_SMALLER          the body did not get smaller
 Needs the user's decision (exit 3):
   MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file
+  SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
-Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir> [--json]
-Exit 2 on a missing or unreadable input, or a symlinked SKILL.md.
+Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
+                         [--approved approved.txt] [--json]
+Exit 2 on a missing or unreadable input, a symlinked SKILL.md, or a frozen file
+from an older extract_requirements.py.
 """
 from __future__ import annotations
 
@@ -42,10 +54,19 @@ import skillmd  # noqa: E402
 
 NEW_REFERENCE_RE = re.compile(r"^references/[^/]+\.md$")
 TERMINAL_WINDOW = 3
+FORMAT = 3
+LOAD_LINE_MAX_WORDS = 25
+
+
+class FrozenFormatError(ValueError):
+    pass
 
 
 def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dict:
-    """`approved`: normalised rule sentences or headings the user agreed may be deleted."""
+    """`approved`: rule sentences, rule headings or anchored sentences the user agreed may be deleted."""
+    if frozen.get("format") != FORMAT:
+        raise FrozenFormatError(f"the frozen file has format {frozen.get('format')!r}; this gate reads "
+                                f"format {FORMAT}. It was written by an older extract_requirements.py")
     candidate_dir = Path(candidate_dir)
     approved = {skillmd.normalise(a) for a in (approved or ())}
     rejected: list[dict] = []
@@ -55,8 +76,12 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
     def reject(code: str, detail: str) -> None:
         rejected.append({"code": code, "detail": detail})
 
-    def ask(detail: str, rel: str) -> None:
-        confirm.append({"code": "MOVED_TO_REFERENCE", "file": rel, "detail": detail})
+    def ask(detail: str, rel: str, code: str = "MOVED_TO_REFERENCE") -> None:
+        confirm.append({"code": code, "file": rel, "detail": detail})
+
+    def approve(key: str) -> None:
+        if key not in deleted:
+            deleted.append(key)
 
     if original_dir is not None:
         if skillmd.sha256_file(Path(original_dir) / "SKILL.md") != frozen["files"]["SKILL.md"]:
@@ -87,13 +112,20 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             reject("FILE_CHANGED", f"{rel} is missing")
 
     body_sents = skillmd.sentences(body)
-    load_keys = set()
+    # The one new sentence allowed per new reference: the first line naming it,
+    # if it is short and carries no strong rule word. Any other is NEW_TEXT.
+    load_keys, overlong = set(), {}
     for rel in new_refs:
         lines = [s for s in body_sents if rel in s["text"]]
         if not lines:
             reject("REFERENCE_UNLINKED", f"the body never names {rel}, so nothing tells the agent to read it")
+            continue
+        key = lines[0]["key"]
+        words = [t for t in skillmd.tokens(key) if rel not in t]
+        if skillmd.is_strong(key) or len(words) > LOAD_LINE_MAX_WORDS:
+            overlong[key] = rel
         else:
-            load_keys.add(lines[0]["key"])
+            load_keys.add(key)
 
     # Extractive: every sentence and heading must come from one original sentence or heading.
     orig_sents = [skillmd.tokens(k) for k in frozen["sentences"]]
@@ -105,7 +137,10 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
                 continue
             toks = skillmd.tokens(s["key"])
             if not any(skillmd.is_subsequence(toks, o) for o in orig_sents):
-                reject("NEW_TEXT", f"{where}: {s['text']!r} is not cut from any original sentence")
+                why = (f"names {overlong[s['key']]}, but a load line may carry no strong rule word and at most "
+                       f"{LOAD_LINE_MAX_WORDS} words besides the path" if s["key"] in overlong
+                       else "is not cut from any original sentence")
+                reject("NEW_TEXT", f"{where}: {s['text']!r} {why}")
         for u in skillmd.units(text):
             if u["kind"] == "heading":
                 toks = skillmd.tokens(skillmd.normalise(u["text"]))
@@ -133,31 +168,51 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             return "body"
         return next((rel for rel, keys in in_refs.items() if key in keys), None)
 
+    # Scope: a rule or anchored sentence still in the body must sit under the same heading.
+    section_now: dict[str, str] = {}
+    for s in body_sents:
+        section_now.setdefault(s["key"], s["section"])
+    asked_section = set()
+
+    def same_section(key: str, text: str, section: str) -> None:
+        if key in asked_section or section_now[key] == section:
+            return
+        asked_section.add(key)
+        ask(f"{text!r} moved from section {section or '(top)'!r} to {section_now[key] or '(top)'!r}",
+            "SKILL.md", "SECTION_CHANGED")
+
     for rule in frozen["rules"]:
         where = locate("sentence", rule["key"])
         if where is None and rule["key"] in approved:
-            deleted.append(rule["key"])
+            approve(rule["key"])
         elif where is None:
             reject("RULE_LOST", f"{rule['text']!r} is gone or was edited")
         elif where != "body":
             ask(f"{'strong rule' if rule['strong'] else 'rule'} moved: {rule['text']!r}", where)
+        else:
+            same_section(rule["key"], rule["text"], rule["section"])
     for head in frozen["rule_headings"]:
-        where = locate("heading", head)
-        if where is None and head in approved:
-            deleted.append(head)
+        where = locate("heading", head["key"])
+        if where is None and head["key"] in approved:
+            approve(head["key"])
         elif where is None:
-            reject("RULE_LOST", f"heading {head!r} is gone or was edited")
+            reject("RULE_LOST", f"heading {head['key']!r} is gone or was edited")
         elif where != "body":
-            ask(f"heading moved: {head!r}", where)
+            ask(f"heading moved: {head['key']!r}", where)
     for req in frozen["requirements"]:
         for target in req["protects"]:
             where = locate(target["kind"], target["key"])
-            if where is None:
+            if where is None and target["key"] in approved:
+                approve(target["key"])
+            elif where is None:
                 reject("ANCHOR_LOST", f"{req['id']} ({req['requirement']}): {target['key']!r} is gone or was edited")
             elif where != "body":
                 ask(f"{req['id']} moved: {target['key']!r}", where)
+            elif target["kind"] == "sentence":
+                same_section(target["key"], target["key"], target["section"])
 
-    # Prominence: nothing that stood behind a strong rule may stand in front of it.
+    # Prominence: nothing that stood behind a strong rule or a rule heading may
+    # stand in front of it, and it may not sit deeper than it did.
     first = {}
     for i, key in enumerate(frozen["order"]):
         first.setdefault(key, i)
@@ -165,25 +220,42 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
     depth_now = {}
     for s in body_sents:
         depth_now.setdefault(s["key"], s["depth"])
-    for rule in frozen["rules"]:
-        if not rule["strong"] or rule["key"] not in cand_order:
-            continue
-        ahead = cand_order[:cand_order.index(rule["key"])]
-        jumped = [k for k in ahead if k not in load_keys and first.get(k, -1) > rule["index"]]
+    for u in skillmd.units(body):
+        if u["kind"] == "heading":
+            depth_now.setdefault("# " + skillmd.normalise(u["text"]), u["depth"])
+
+    def prominence(label: str, key: str, index: int, depth: int) -> None:
+        if key not in cand_order:
+            return
+        ahead = cand_order[:cand_order.index(key)]
+        jumped = [k for k in ahead if k not in load_keys and first.get(k, -1) > index]
         if jumped:
-            reject("PROMINENCE_LOST", f"{rule['text']!r} now has {jumped[0]!r} in front of it")
-        elif depth_now[rule["key"]] > rule["depth"]:
-            reject("PROMINENCE_LOST",
-                   f"{rule['text']!r} moved under a deeper heading (level {rule['depth']} -> {depth_now[rule['key']]})")
+            reject("PROMINENCE_LOST", f"{label} now has {jumped[0]!r} in front of it")
+        elif depth_now[key] > depth:
+            reject("PROMINENCE_LOST", f"{label} moved under a deeper heading (level {depth} -> {depth_now[key]})")
+
+    for rule in frozen["rules"]:
+        if rule["strong"]:
+            prominence(repr(rule["text"]), rule["key"], rule["index"], rule["depth"])
+    for head in frozen["rule_headings"]:
+        prominence(f"heading {head['key']!r}", "# " + head["key"], head["index"], head["depth"])
 
     tail = {s["key"] for s in body_sents[-TERMINAL_WINDOW:]}
     for key in frozen["terminal"]:
         if key not in tail and key not in deleted:
             reject("TERMINAL_MOVED", f"{key!r} closed the original and no longer closes the body")
 
+    # A lost literal is approved only when every original sentence holding it was
+    # approved and deleted, and no heading or code block of the original held it.
     package = "\n".join(t for _, t in sources)
     for lit in frozen["literals"]:
-        if not skillmd.contains_literal(package, lit):
+        if skillmd.contains_literal(package, lit):
+            continue
+        holders = [k for k in frozen["sentences"] if skillmd.contains_literal(k, lit)]
+        elsewhere = any(skillmd.contains_literal(t, lit) for t in frozen["headings"] + frozen["code_blocks"])
+        if holders and not elsewhere and all(k in approved and locate("sentence", k) is None for k in holders):
+            approve(f"literal: {lit}")
+        else:
             reject("LITERAL_LOST", f"{lit!r} is gone or changed")
 
     before, after = frozen["body_chars"], len(body)
@@ -230,7 +302,7 @@ def main(argv=None) -> int:
         approved = ([ln for ln in skillmd.read_text(Path(args.approved).expanduser()).splitlines() if ln.strip()]
                     if args.approved else None)
         result = verify(frozen, Path(args.candidate).expanduser(), Path(args.original).expanduser(), approved)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, FrozenFormatError) as exc:
         print(f"cannot verify: {exc}", file=sys.stderr)
         return 2
     result["frozen_sha256"] = hashlib.sha256(raw).hexdigest()
@@ -248,7 +320,7 @@ def main(argv=None) -> int:
         for f in result["confirm"]:
             print(f"  ASK {f['code']} ({f['file']}): {f['detail']}")
         for d in result["approved_deletions"]:
-            print(f"  deleted with the user's approval: {d!r}")
+            print(f"  deleted with the user's approval: {d}")
     return EXIT[result["status"]]
 
 

@@ -8,11 +8,14 @@ Records, from the original skill directory:
     under references/). Symlinks are neither followed nor frozen, and a
     symlinked SKILL.md is refused.
   - every sentence and heading carrying a rule word (must, never, not, no,
-    only, unless, without, ...), with its position and whether it is a strong rule
+    only, unless, without, ...), with its position, its heading depth, the
+    heading it sits under, and whether it is a strong rule
   - every literal: inline code, runnable code lines, URLs, flags, versions,
     pins, dates, paths, numbers with a unit or bound
   - every code block, and every sentence and heading, so the gate can refuse
     text the original never had
+  - the sentences nothing protects word for word (no rule word, no anchor),
+    marking the ones whose literal is the only thing the gate checks
   - the requirement list the agent wrote. Each anchor is copied verbatim from
     the original, has at least 3 words, and sits inside exactly one sentence,
     heading or code line; that whole sentence is then protected word for word.
@@ -23,7 +26,8 @@ requirements.md format, one entry per requirement:
 
 Usage:
   extract_requirements.py <skill-dir> --requirements requirements.md --dry-run
-      check the list and print the sentences nothing protects yet; writes nothing
+      check the list and print, in two groups, the sentences nothing protects
+      yet and those protected only through a literal; writes nothing
   extract_requirements.py <skill-dir> --requirements requirements.md -o frozen.json
       freeze; refuses if frozen.json already exists
 Exit 2 on a refusal.
@@ -44,6 +48,7 @@ REQ_RE = re.compile(r"^R(\d+):[ \t]*(\S.*?)\s*$")
 ANCHOR_RE = re.compile(r"^[ \t]+anchor:[ \t]*(\S.*?)\s*$")
 TERMINAL_WINDOW = 3
 MIN_ANCHOR_WORDS = 3
+FORMAT = 3   # verify_rewrite.py refuses any other
 
 
 class FreezeError(ValueError):
@@ -110,13 +115,15 @@ def resolve_anchors(body: str, reqs: list[dict]) -> list[dict]:
     return resolved
 
 
-def unprotected(body: str, reqs: list[dict]) -> list[str]:
-    """Sentences no check covers: no rule word, no literal, no anchor."""
+def unprotected(body: str, reqs: list[dict]) -> list[dict]:
+    """Sentences with no rule word and no anchor. `literal_only` marks the ones that
+    carry a literal: the gate checks that literal, not the rest of the sentence, so
+    "If the build fails, run `make clean`" can lose its condition unless anchored."""
     lits = skillmd.literals(body)
     anchored = {p["key"] for r in reqs for p in r["protects"]}
-    return [s["text"] for s in skillmd.sentences(body)
-            if not skillmd.is_rule(s["key"]) and s["key"] not in anchored
-            and not any(skillmd.contains_literal(s["text"], lit) for lit in lits)]
+    return [{"text": s["text"], "literal_only": any(skillmd.contains_literal(s["text"], lit) for lit in lits)}
+            for s in skillmd.sentences(body)
+            if not skillmd.is_rule(s["key"]) and s["key"] not in anchored]
 
 
 def freeze(skill_dir, requirements_text: str) -> dict:
@@ -126,20 +133,32 @@ def freeze(skill_dir, requirements_text: str) -> dict:
 
     sents = skillmd.sentences(body)
     order = skillmd.order(body)
+    section_of: dict[str, str] = {}
+    for s in sents:
+        section_of.setdefault(s["key"], s["section"])
+    for r in reqs:
+        for target in r["protects"]:
+            if target["kind"] == "sentence":
+                target["section"] = section_of.get(target["key"], "")
     rules, seen = [], set()
     for s in sents:
         if skillmd.is_rule(s["key"]) and s["key"] not in seen:
             seen.add(s["key"])
             rules.append({"key": s["key"], "text": s["text"], "line": s["line"], "depth": s["depth"],
-                          "index": order.index(s["key"]), "strong": skillmd.is_strong(s["key"])})
-    rule_headings = sorted({skillmd.normalise(u["text"]) for u in skillmd.units(body)
-                            if u["kind"] == "heading" and skillmd.is_rule(u["text"])})
+                          "index": order.index(s["key"]), "strong": skillmd.is_strong(s["key"]),
+                          "section": s["section"]})
+    rule_headings, seen = [], set()
+    for u in skillmd.units(body):
+        key = skillmd.normalise(u["text"])
+        if u["kind"] == "heading" and skillmd.is_rule(u["text"]) and key not in seen:
+            seen.add(key)
+            rule_headings.append({"key": key, "index": order.index("# " + key), "depth": u["depth"]})
     # A closing reminder: rule sentences in a short final section (after the last heading).
     last_heading = max((u["line"] for u in skillmd.units(body) if u["kind"] == "heading"), default=0)
     closing = [s["key"] for s in sents if s["line"] > last_heading]
     tail = closing if 0 < len(closing) <= TERMINAL_WINDOW else []
     return {
-        "format": 2,
+        "format": FORMAT,
         "frontmatter": fm,
         "body_chars": len(body),
         "files": {p.relative_to(skill_dir).as_posix(): skillmd.sha256_file(p)
@@ -178,10 +197,17 @@ def main(argv=None) -> int:
         return 2
     summary = (f"{len(data['requirements'])} requirements, {len(data['rules'])} rule sentences, "
                f"{len(data['literals'])} literals, {len(data['files'])} files")
-    if data["unprotected"]:
-        print(f"{len(data['unprotected'])} sentence(s) with no rule word, literal or anchor. "
+    plain = [u["text"] for u in data["unprotected"] if not u["literal_only"]]
+    literal = [u["text"] for u in data["unprotected"] if u["literal_only"]]
+    if plain:
+        print(f"{len(plain)} sentence(s) with no rule word, literal or anchor. "
               "Anchor each one that is an instruction, a condition or a reason:")
-        for s in data["unprotected"]:
+        for s in plain:
+            print(f"  - {s}")
+    if literal:
+        print(f"{len(literal)} sentence(s) with a literal but no rule word or anchor: "
+              "only the literal is checked; anchor it if it is an instruction:")
+        for s in literal:
             print(f"  - {s}")
     if args.dry_run:
         print(f"dry run: {summary}; nothing written")

@@ -1,8 +1,8 @@
 """Shared parsing for the skill-optimizer scripts. Standard library only.
 
-A SKILL.md body is read as units: headings, lines inside code fences, and
-paragraphs (soft-wrapped lines joined; list items, table rows and quotes kept
-apart). Paragraphs split into sentences. Everything the gate compares goes
+A SKILL.md body is read as units: headings, lines inside code fences, table
+cells, and paragraphs (soft-wrapped lines joined; list items and quotes kept
+apart). Paragraphs and cells split into sentences. Everything the gate compares goes
 through normalise(), so reflowing a paragraph or dropping emphasis is not a
 change, and any other edit to a sentence is.
 """
@@ -24,7 +24,11 @@ EXAMPLE_LANGS = {"markdown", "md", "text", "txt", "plaintext", "json", "jsonc", 
                  "toml", "xml", "html", "csv", "diff", "mermaid"}
 MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d{1,3}[.)]|>)\s+")
 BLOCK_START_RE = re.compile(r"^\s*(?:[-*+]\s|\d{1,3}[.)]\s|\||>)")
-SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[\"'(`*_\[]?[A-Z0-9])")
+# A sentence ends at . ! or ?, optionally followed by a closing quote or bracket.
+SENTENCE_SPLIT_RE = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’)\]]))\s+(?=[\"'(`*_\[]?[A-Z0-9])")
+TABLE_ROW_RE = re.compile(r"^\s*\|")
+CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
+TABLE_RULE_RE = re.compile(r"^:?-+:?$")
 TOKEN_RE = re.compile(r"`[^`]+`|[\w][\w'’./:=+~-]*")
 
 # A sentence carrying one of these is a rule: it may move, never change.
@@ -138,6 +142,9 @@ def _unemphasise(s: str) -> str:
 
 
 def normalise(s: str) -> str:
+    hm = HEADING_RE.match(s)
+    if hm:
+        s = hm.group(2)
     s = MARKER_RE.sub("", s, count=1)
     s = _unemphasise(s)
     return " ".join(s.split()).rstrip(".;:,!?").strip()
@@ -191,6 +198,13 @@ def units(body: str) -> list[dict]:
         if not line.strip():
             flush()
             continue
+        if TABLE_ROW_RE.match(line):
+            # Each cell is its own unit, so re-padding a row changes no sentence.
+            flush()
+            cells = [c.strip() for c in CELL_SPLIT_RE.split(line) if c.strip()]
+            if not all(TABLE_RULE_RE.match(c) for c in cells):
+                out.extend({"kind": "text", "text": c, "line": i, "depth": depth} for c in cells)
+            continue
         if para and BLOCK_START_RE.match(line):
             flush()
         if not para:
@@ -211,9 +225,12 @@ def code_blocks(body: str) -> list[dict]:
 
 
 def sentences(body: str) -> list[dict]:
-    """Sentences in body order. `offset` counts the normalised text in front of each."""
-    out, offset = [], 0
+    """Sentences in body order. `offset` counts the normalised text in front of each;
+    `section` is the nearest heading above it ('' before the first heading)."""
+    out, offset, section = [], 0, ""
     for u in units(body):
+        if u["kind"] == "heading":
+            section = normalise(u["text"])
         if u["kind"] != "text":
             offset += len(u["text"]) + 1
             continue
@@ -221,7 +238,7 @@ def sentences(body: str) -> list[dict]:
             key = normalise(piece)
             if key:
                 out.append({"key": key, "text": piece.strip(), "line": u["line"],
-                            "depth": u["depth"], "offset": offset})
+                            "depth": u["depth"], "offset": offset, "section": section})
                 offset += len(key) + 1
     return out
 

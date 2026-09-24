@@ -66,7 +66,7 @@ def test_anchor_protects_its_whole_sentence(freezer, make_skill):
     d = make_skill("Read the repository conventions before starting work in a monorepo.\n")
     frozen = freezer.freeze(d, "R1: Conventions first.\n  anchor: Read the repository conventions\n")
     assert frozen["requirements"][0]["protects"] == [
-        {"kind": "sentence", "key": "Read the repository conventions before starting work in a monorepo"}]
+        {"kind": "sentence", "key": "Read the repository conventions before starting work in a monorepo", "section": ""}]
 
 
 def test_unprotected_sentences_are_listed(freezer, make_skill):
@@ -75,7 +75,8 @@ def test_unprotected_sentences_are_listed(freezer, make_skill):
     d = make_skill("If the build fails, ask the maintainer.\n\nRun `make`.\n\nNEVER push.\n\n"
                    "Read the repository conventions before starting work.\n")
     frozen = freezer.freeze(d, REQS.split("R2")[0])
-    assert frozen["unprotected"] == ["If the build fails, ask the maintainer."]
+    assert frozen["unprotected"] == [{"text": "If the build fails, ask the maintainer.", "literal_only": False},
+                                     {"text": "Run `make`.", "literal_only": True}]
 
 
 def test_caches_and_vcs_files_are_not_frozen(freezer, make_skill):
@@ -166,3 +167,26 @@ def test_symlinked_skill_md_is_refused(freezer, make_skill, tmp_path, capsys):
     assert freezer.main([str(d), "--requirements", str(req), "--dry-run"]) == 2
     err = capsys.readouterr().err
     assert "symlink" in err and "PRIVATE" not in err and len(err.strip().splitlines()) == 1
+
+
+def test_sentences_protected_only_by_a_literal_are_listed_apart(freezer, make_skill, tmp_path, capsys):
+    # Bug caught: leaving every sentence with a literal off the dry run, so the
+    # condition in "If the build fails, run `make clean` and retry." can be cut, or
+    # a whole sentence deleted while its literal survives elsewhere, and nobody is asked.
+    d = make_skill("If the build fails, run `make clean` and retry.\n\n"
+                   "Run `make test` after a failed merge.\n\n`make test` resets the fixtures.\n\n"
+                   "If the cache is stale, ask the maintainer.\n\nNEVER push.\n\n"
+                   "Read the repository conventions before starting work.\n")
+    req = tmp_path / "req.md"
+    req.write_text(REQS.split("R2")[0], encoding="utf-8")
+    frozen = freezer.freeze(d, req.read_text(encoding="utf-8"))
+    assert frozen["unprotected"] == [
+        {"text": "If the build fails, run `make clean` and retry.", "literal_only": True},
+        {"text": "Run `make test` after a failed merge.", "literal_only": True},
+        {"text": "`make test` resets the fixtures.", "literal_only": True},
+        {"text": "If the cache is stale, ask the maintainer.", "literal_only": False}]
+    assert freezer.main([str(d), "--requirements", str(req), "--dry-run"]) == 0
+    plain, literal = capsys.readouterr().out.split("only the literal is checked; anchor it if it is an instruction")
+    assert "  - If the cache is stale, ask the maintainer." in plain and "make clean" not in plain
+    for s in ("If the build fails, run `make clean` and retry.", "Run `make test` after a failed merge."):
+        assert f"  - {s}" in literal

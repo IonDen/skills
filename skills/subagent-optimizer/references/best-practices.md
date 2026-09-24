@@ -188,15 +188,18 @@ what runs, on that release.
 
 **Flags**
 - `[high] CODEX_MISSING_REQUIRED` — a required key is missing or blank; Codex
-  refuses the agent. For a declared role only the description (file or table) and a
-  blank `developer_instructions` count.
-- `[high] CODEX_CLAUDE_KEY` — a Claude Code key (`tools` or `skills` as a list,
-  `disallowedTools`, `permissionMode`, `effort`, `color`, `memory`, `maxTurns`,
+  refuses the agent. For a declared role only the description and a blank
+  `developer_instructions` count; a description that is blank in the file counts
+  even when the table has one, because Codex rejects the blank before it falls back
+  to the table (reported, `codex-rs/agent-roles/src/agent_role_config.rs`).
+- `[high] CODEX_CLAUDE_KEY` — a Claude Code key (`tools`, `skills` or `hooks` as
+  anything but a table, `disallowedTools`, `permissionMode`, `effort`, `color`, `memory`, `maxTurns`,
   `mcpServers`, `background`, `isolation`, `initialPrompt`). The role-file parser
-  denies unknown fields, and Codex's own `tools` and `skills` are tables, so Codex
-  skips the whole agent (reported, `codex-rs/agent-roles/src/agent_role_config.rs`).
-  Remove them; Claude's `effort` is `model_reasoning_effort` here. A `[tools]` or
-  `[[skills.config]]` table is Codex's own and is not flagged.
+  denies unknown fields, and Codex's own `tools`, `skills` and `hooks` are tables,
+  so Codex skips the whole agent (reported,
+  `codex-rs/agent-roles/src/agent_role_config.rs`). Remove them; Claude's `effort` is
+  `model_reasoning_effort` here. A `[tools]`, `[[skills.config]]` or `[hooks]` table
+  is Codex's own and is not flagged here.
 - `[high] CODEX_UNKNOWN_KEY` — a top-level key that is neither a Codex key nor a
   Claude key (`prompt`, `version`). The known list is the role-file keys (`name`,
   `description`, `nickname_candidates`) plus every `ConfigToml` field at
@@ -204,20 +207,31 @@ what runs, on that release.
   agent with a key it does not know. Fix a misspelling or move the content into
   `developer_instructions`.
 - `[high] CODEX_CLAUDE_MODEL` — `model` is a Claude value (`sonnet`, `opus`,
-  `haiku`, `fable`, `inherit`, or `claude-...`). Codex cannot resolve it.
+  `haiku`, `fable`, `inherit`, or `claude-...`). `model` is a plain string, so
+  Codex still loads the agent, but it cannot resolve the model and the agent's
+  requests fail. A `claude-...` ID drops to `[med]` when the agent file or the
+  config that declares it sets `model_provider`, which might serve it; the bare
+  aliases stay `[high]`.
+- `[med] CODEX_SUFFIX_CASE` — an undeclared file whose suffix is not lowercase
+  `.toml` (`Agent.TOML`). Codex's discovery matches `toml` exactly (reported,
+  `codex-rs/agent-roles/src/discovery.rs`), so it will not load the file from an
+  agents folder. Rename it, or declare it with `[agents.<name>] config_file`.
 - `[info] CODEX_DECLARED_NAME` — a declared role's file sets a `name` that differs
   from its table key. The code registers the role under the file's `name`
   (reported). The scanner keeps the table key and never proposes a rename; ask
   which name callers use.
 - `[low] CODEX_IGNORED_KEY` — `sandbox_mode`, `approval_policy`, `mcp_servers`,
-  `model_provider`, `notify`, `apps`, `hooks`, `openai_base_url`,
+  `model_provider`, `notify`, `apps`, `hooks`, `service_tier`, `openai_base_url`,
   `chatgpt_base_url`. The docs say a file may include "other supported
   `config.toml` keys ... such as `model`, `model_reasoning_effort`, `sandbox_mode`,
   `mcp_servers`, and `skills.config`". The code since Codex 0.149 applies only
   `developer_instructions`, `model`, `model_reasoning_effort`,
-  `model_reasoning_summary`, `model_verbosity`, `personality`, `service_tier`, and
-  disable-only `[features]` and `skills` entries; the other keys parse and are not
-  applied (reported, `codex-rs/core/src/agent/role.rs`). On sandboxing the docs say
+  `model_reasoning_summary`, `model_verbosity`, `personality`, and disable-only
+  `[features]` and `skills` entries; the other keys parse and are not applied
+  (reported, `codex-rs/core/src/agent/role.rs`). `role.rs` also copies
+  `service_tier`, but the spawn then replaces it with the parent's tier
+  (`codex-rs/core/src/agent/child_config.rs`, `apply_spawn_agent_service_tier`; and
+  `codex-rs/core/src/agent/control/spawn.rs` on resume), so it is inert too. On sandboxing the docs say
   "Subagents inherit your current sandbox policy." Older Codex still applies these
   keys, so keep them and report them as inert on 0.149 and later; never propose
   removing them.
@@ -285,8 +299,9 @@ what runs, on that release.
   field and no version bump; `bump_version.py` refuses `.toml` files. Adding
   `model_reasoning_effort` is fine. Never add or change `name` on a declared role.
 - Leave `CODEX_IGNORED_KEY` keys in place; they still work on older Codex.
-- Symlinked agent files are skipped by the scanner, and Codex rejects them too
-  (reported).
+- The scanner does not follow symlinked agent files; that is its own safety rule.
+  Codex does follow them (reported, `codex-rs/exec-server/src/local_file_system.rs`
+  `read_directory`).
 
 ## Cross-cutting
 

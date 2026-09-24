@@ -71,7 +71,8 @@ files when walking a directory, so pointing it at a whole `.claude/` tree is saf
 It reads Codex `.toml` agents with Python 3.11+ (`tomllib`); on 3.10, run it with
 `python3.12` or `uv run --python 3.12 scripts/scan_agents.py`. Files it cannot read,
 parse or trust (symlinks, files over 1 MiB, agent keys that fell under a `[table]`
-header) are listed under "not scanned" (`skipped` in JSON) with the reason: say so
+header) are listed under "not scanned" (`skipped` in JSON) with the reason (the
+scanner does not follow symlinks as its own safety rule; Codex does follow them): say so
 in the report rather than auditing them by eye. A declared Codex role is reported
 under its table key and shows `declared as [agents.<name>]`.
 
@@ -167,9 +168,10 @@ the docs still list `sandbox_mode` and `mcp_servers` as keys an agent file may s
 A standalone agent file needs `name`, `description` and `developer_instructions`;
 a declared role may take its name and description from its `[agents.<name>]`
 table, and never add or change `name` on one. A Claude key (`tools`, `effort`,
-`permissionMode` and the rest), a Claude model value, or a key Codex does not know
-makes Codex skip the whole agent, and a level the model does not offer makes the
-spawn fail; both are reported from the Codex source
+`permissionMode` and the rest) or a key Codex does not know makes Codex skip the
+whole agent. A Claude model value does not: `model` is a plain string, so the agent
+loads, but Codex cannot resolve the model and its requests fail. A level the model
+does not offer makes the spawn fail. These are reported from the Codex source
 (https://github.com/openai/codex/blob/rust-v0.156.1/codex-rs/agent-roles/src/agent_role_config.rs,
 https://github.com/openai/codex/blob/rust-v0.156.1/codex-rs/core/src/agent/child_config.rs).
 

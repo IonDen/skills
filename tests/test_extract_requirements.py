@@ -186,7 +186,10 @@ def test_sentences_protected_only_by_a_literal_are_listed_apart(freezer, make_sk
         {"text": "`make test` resets the fixtures.", "literal_only": True},
         {"text": "If the cache is stale, ask the maintainer.", "literal_only": False}]
     assert freezer.main([str(d), "--requirements", str(req), "--dry-run"]) == 0
-    plain, literal = capsys.readouterr().out.split("only the literal is checked; anchor it if it is an instruction")
+    out = capsys.readouterr().out
+    header = "only the literal is checked; anchor it if it is an instruction"
+    assert out.count(header) == 1, out
+    plain, literal = out.split(header)
     assert "  - If the cache is stale, ask the maintainer." in plain and "make clean" not in plain
     for s in ("If the build fails, run `make clean` and retry.", "Run `make test` after a failed merge."):
         assert f"  - {s}" in literal

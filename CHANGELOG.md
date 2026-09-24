@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-24 (skill-optimizer evidence)
+
+- `skill-optimizer` was run on five real skills, four of them from the author's own setup. Each passed the gate and kept every requirement it extracted; the bodies shrank by 1.2% to 3.5%, 2.3% overall, and the cuts the runs were unsure of were listed rather than made. The README carries a chart and a table, and `skills/skill-optimizer/evals/recorded/2026-09-24-real-skills/` holds the numbers, gate lines and reader checks without the personal skills' text. The root README's one-skill figure is replaced by this range.
+
 ## 2026-09-24 (skill-optimizer 1.0.2)
 
 - `skill-optimizer` rejected an unchanged skill whose table had a number with a bound at the end of one row and a word at the start of the next, such as `≤ 0.20` followed by `Pixel mismatch ratio`. The freeze scanned the whole body as one text, so it recorded `≤ 0.20 Pixel` as a literal, which the file never contains. It now scans each table cell, list item and paragraph on its own as well, and keeps a match from the whole-text scan only when the file holds it as written. So `≤ 0.20` is protected on its own, while a bound whose unit starts the next paragraph (`under 20`, then `GiB`) stays protected as `under 20 GiB`. Over 23 skills, every literal 1.0.1 recorded correctly is still recorded. A test also checks that each literal the freeze records in a skill shipped here is found again in that skill's own text. The version goes to 1.0.2 and the plugin to 0.4.1.

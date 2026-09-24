@@ -99,10 +99,12 @@ CODEX_REQUIRED_KEYS = ("name", "description", "developer_instructions")
 CODEX_CLAUDE_KEYS = {
     "tools": None, "disallowedTools": None, "permissionMode": None,
     "effort": "model_reasoning_effort", "color": None, "memory": None,
-    "maxTurns": None, "skills": None, "mcpServers": None,
+    "hooks": None, "maxTurns": None, "skills": None, "mcpServers": None,
     "background": None, "isolation": None, "initialPrompt": None,
 }
-CODEX_TABLE_KEYS = {"tools", "skills"}  # Codex keys too, when the value is a table
+# Codex keys too when the value is a table (ToolsToml, SkillsConfig, HooksToml);
+# any other type fails Codex's parse and the file is skipped.
+CODEX_TABLE_KEYS = {"tools", "skills", "hooks"}
 # Every top-level key an agent file may carry at rust-v0.156.1: the role-file
 # keys (codex-rs/agent-roles/src/agent_role_config.rs, RawAgentRoleFileToml, which
 # denies unknown fields) plus every ConfigToml field it flattens in
@@ -140,10 +142,14 @@ oss_provider
 # Parsed, but not applied to a custom agent from Codex 0.149 (the child keeps the
 # parent's live settings; codex-rs/core/src/agent/role.rs applies only
 # developer_instructions, model, model_reasoning_effort, model_reasoning_summary,
-# model_verbosity, personality, service_tier and disable-only features/skills).
+# model_verbosity, personality and disable-only features/skills). role.rs also
+# copies service_tier, but the spawn then overwrites it with the parent's tier
+# (core/src/agent/child_config.rs apply_spawn_agent_service_tier, called from
+# prepare_agent_spawn_config; core/src/agent/control/spawn.rs on resume).
 # Older Codex still applies them, so they are reported, never removed.
 CODEX_IGNORED_KEYS = ("sandbox_mode", "approval_policy", "mcp_servers", "model_provider",
-                      "notify", "apps", "hooks", "openai_base_url", "chatgpt_base_url")
+                      "notify", "apps", "hooks", "service_tier", "openai_base_url",
+                      "chatgpt_base_url")
 # Claude Code model values; Codex resolves none of them.
 CODEX_CLAUDE_MODEL_ALIASES = {"sonnet", "opus", "haiku", "fable", "inherit"}
 CODEX_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max", "ultra")
@@ -306,6 +312,7 @@ def parse_codex_agent(path: Path, declared: dict | None = None):
         if not desc.strip():
             desc = declared.get("description") or ""
         extra["declared"] = {"role": declared["role"], "config": declared["config"]}
+        extra["_config_provider"] = declared.get("provider", False)
     body_tokens = est_tokens(body)
     return {
         **extra,
@@ -447,7 +454,11 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         # description from the table; its file may leave developer_instructions
         # out (the child keeps the parent's), but not blank
         # (codex-rs/agent-roles/src/agent_role_config.rs at rust-v0.156.1).
-        missing = [] if a["description"].strip() else ["description"]
+        # A blank description in the file is an error before any table fallback
+        # (normalize_agent_role_description), so it counts even with a table one.
+        file_desc = keys.get("description")
+        blank_in_file = file_desc is not None and not _text(file_desc).strip()
+        missing = [] if a["description"].strip() and not blank_in_file else ["description"]
         if "developer_instructions" in keys and not _text(keys["developer_instructions"]).strip():
             missing.append("developer_instructions")
         why = ("Codex refuses a declared role with no description in the file or the "
@@ -475,7 +486,8 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
             f"Keys Codex does not know: {', '.join(unknown)}. Codex skips an agent with a "
             f"key it does not know (known keys as of {CODEX_AS_OF}, Codex rust-v0.156.1). "
             "Fix a misspelling, or move the content into developer_instructions.")
-    ignored = [k for k in CODEX_IGNORED_KEYS if k in keys]
+    ignored = [k for k in CODEX_IGNORED_KEYS if k in keys
+               and not (k in CODEX_TABLE_KEYS and not isinstance(keys[k], dict))]
     if ignored:
         add("low", "CODEX_IGNORED_KEY",
             f"{', '.join(ignored)}: not applied to custom agents from Codex 0.149 (the agent "
@@ -494,10 +506,18 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         add("med", "CODEX_EFFORT_UNSUPPORTED",
             f"{model} does not offer effort '{effort}' (offers {', '.join(offered)}, "
             f"as of {CODEX_AS_OF}); Codex rejects the combination.")
-    if model.lower() in CODEX_CLAUDE_MODEL_ALIASES or model.lower().startswith("claude-"):
+    if model.lower() in CODEX_CLAUDE_MODEL_ALIASES:
         add("high", "CODEX_CLAUDE_MODEL",
-            f"model '{model}' is a Claude Code value; Codex cannot resolve it. Pick a Codex "
-            "model and a model_reasoning_effort it offers.")
+            f"model '{model}' is a Claude Code value; Codex cannot resolve it, so the agent "
+            "loads but its requests fail. Pick a Codex model and a model_reasoning_effort "
+            "it offers.")
+    elif model.lower().startswith("claude-"):
+        provider = bool(keys.get("model_provider")) or a.get("_config_provider", False)
+        add("med" if provider else "high", "CODEX_CLAUDE_MODEL",
+            f"model '{model}' is a Claude model ID; Codex cannot resolve it"
+            + (" unless your model_provider serves it" if provider else "")
+            + ", so the agent loads but its requests fail. Pick a Codex model and a "
+            "model_reasoning_effort it offers.")
     if model in CODEX_RETIRED_MODELS:
         add("med", "CODEX_MODEL_RETIRED",
             f"{model} {CODEX_RETIRED_MODELS[model]} for ChatGPT sign-in, as of "
@@ -506,6 +526,15 @@ def flag_codex_agent(a: dict, body_limit: int, desc_limit: int) -> list[dict]:
         add("low", "CODEX_MODEL_WITHOUT_EFFORT",
             "`model` is set without `model_reasoning_effort`: the agent keeps the "
             "previously resolved effort, which this model may not offer. Set both.")
+
+    suffix = Path(a["path"]).suffix
+    if suffix != ".toml" and decl is None:
+        stem = Path(a["path"]).stem
+        add("med", "CODEX_SUFFIX_CASE",
+            "Codex finds agents only in files ending in lowercase .toml (rust-v0.156.1, "
+            "agent-roles/src/discovery.rs); it will not load this file from an agents "
+            f"folder. Rename it to {stem}.toml, or declare it with [agents.<name>] "
+            "config_file.")
 
     _long_description(a, add, desc_limit)
     _long_body(a, add, body_limit)
@@ -653,11 +682,9 @@ def _is_candidate(path: Path) -> bool:
 
 
 def _symlink_note(path: Path) -> dict:
-    extra = ("; Codex rejects symlinked agent files" if path.suffix.lower() == ".toml"
-             else "")
     return {"path": str(path),
-            "reason": f"not scanned: symlink (not followed, it can point outside the scanned "
-                      f"folder{extra})"}
+            "reason": "not scanned: symlink (the scanner does not follow symlinks, which can "
+                      "point outside the scanned folder)"}
 
 
 def gather(paths: list[str], notes: list | None = None) -> list[Path]:
@@ -679,8 +706,11 @@ def gather(paths: list[str], notes: list | None = None) -> list[Path]:
         elif pth.is_dir():
             # SKILL.md also carries `name` + `description` frontmatter but is a
             # skill, not an agent; a directory walk must not audit it as one.
+            # Nor is Codex's config.toml, whose [profiles.*] may hold
+            # developer_instructions.
             for f in sorted(pth.rglob("*")):
-                if not _is_candidate(f) or f.name == "SKILL.md":
+                # config.toml is read only as the source of declared roles.
+                if not _is_candidate(f) or f.name in ("SKILL.md", "config.toml"):
                     continue
                 if f.is_symlink():
                     skip_link(f)
@@ -719,7 +749,7 @@ def declared_roles(config_files: list[Path], notes: list) -> dict[Path, dict]:
     config.toml that declares it; a later config file wins for the same path."""
     roles: dict[Path, dict] = {}
     for cfg in config_files:
-        cfg = Path(cfg)
+        cfg = Path(os.path.normpath(cfg))
         if not cfg.is_file():
             continue
         if tomllib is None:
@@ -743,6 +773,7 @@ def declared_roles(config_files: list[Path], notes: list) -> dict[Path, dict]:
             desc = table.get("description")
             roles[_file_key(target)] = {
                 "role": role, "config": str(cfg), "path": Path(os.path.normpath(target)),
+                "provider": bool(data.get("model_provider")),
                 "description": desc if isinstance(desc, str) and desc.strip() else None}
     return roles
 
@@ -811,6 +842,7 @@ def main():
             a.pop("body", None)
             a.pop("_paragraphs", None)
             a.pop("_keys", None)
+            a.pop("_config_provider", None)
         print(json.dumps({"agents": agents, "duplicate_blocks": dups,
                           "count": len(agents), "skipped": skipped,
                           "metric": "definition text, chars/4; tool schemas and "

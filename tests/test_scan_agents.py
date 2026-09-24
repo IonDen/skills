@@ -612,6 +612,8 @@ IGNORED_KEY_SNIPPETS = {
     "mcp_servers": '[mcp_servers.docs]\nurl = "https://example.com/mcp"\n',
     "apps": '[apps]\nenabled = false\n',
     "hooks": '[[hooks.PreToolUse]]\nmatcher = "shell"\n',
+    # role.rs copies it, but child_config.rs and control/spawn.rs overwrite it with the parent's tier.
+    "service_tier": 'service_tier = "flex"\n',
 }
 
 
@@ -629,13 +631,6 @@ def test_codex_ignored_keys_are_low_and_kept(scan, codex_file, key):
 
 
 @needs_toml
-def test_service_tier_is_applied_so_not_ignored(scan, codex_file):
-    # Bug caught: listing service_tier as ignored, though rust-v0.156.1 applies it to the child.
-    flags = cflags(scan, codex_file("tier", 'service_tier = "flex"\n' + CODEX_OK))
-    assert "CODEX_IGNORED_KEY" not in flags and "CODEX_UNKNOWN_KEY" not in flags
-
-
-@needs_toml
 @pytest.mark.parametrize("model", ["sonnet", "Opus", "HAIKU", "fable", "inherit",
                                    "claude-opus-5-5", "Claude-Sonnet-4-6"])
 def test_codex_claude_model_is_high(scan, codex_file, model):
@@ -644,6 +639,9 @@ def test_codex_claude_model_is_high(scan, codex_file, model):
     text = CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
     f = cflags(scan, codex_file("cm", text))["CODEX_CLAUDE_MODEL"]
     assert f["severity"] == "high" and model in f["message"]
+    # Bug caught: claiming Codex skips the agent; `model` is a plain string, so the agent loads
+    # and its requests fail.
+    assert "skip" not in f["message"] and "requests fail" in f["message"]
 
 
 @needs_toml
@@ -772,13 +770,14 @@ def test_symlinked_md_in_a_walk_gets_a_note(scan, tmp_path):
 
 
 def test_symlinked_toml_is_refused_for_being_a_symlink(scan, tmp_path):
-    # Bug caught: a symlinked .toml refused for some other reason (or parsed through the link).
+    # Bug caught: a symlinked .toml refused for some other reason (or parsed through the link),
+    # or a reason claiming Codex rejects symlinks, which it does not (it follows them).
     outside = tmp_path.parent / f"{tmp_path.name}-outside.toml"
     outside.write_text(CODEX_OK)
     (tmp_path / "link.toml").symlink_to(outside)
     files, notes = _walk(scan, tmp_path)
     assert files == []
-    assert notes[0]["reason"].startswith("not scanned: symlink") and "Codex" in notes[0]["reason"]
+    assert notes[0]["reason"].startswith("not scanned: symlink") and "Codex" not in notes[0]["reason"]
 
 
 @needs_toml
@@ -937,3 +936,80 @@ def test_cli_reads_declared_roles_from_codex_home_and_project(scan, tmp_path):
     text = subprocess.run([sys.executable, str(scan.__file__)], cwd=proj, env=env,
                           capture_output=True, text=True, check=True).stdout
     assert "declared as [agents.proj_role] in" in text
+
+
+
+# --- round 2 ---------------------------------------------------------------
+
+@needs_toml
+def test_upper_case_toml_suffix_is_flagged_unless_declared(scan, tmp_path):
+    # Bug caught: scanning Upper.TOML as a normal agent although Codex's discovery only loads
+    # lowercase .toml; and flagging it when a config_file declaration loads it anyway.
+    (tmp_path / "Upper.TOML").write_text(CODEX_OK)
+    agents, _ = scan.scan_paths([str(tmp_path)])
+    f = {x["code"]: x for x in agents[0]["flags"]}["CODEX_SUFFIX_CASE"]
+    assert f["severity"] == "med" and "Upper.toml" in f["message"] and "lowercase .toml" in f["message"]
+    home = tmp_path / "home"
+    cfg = _declare(home, '[agents.up]\ndescription = "d"\nconfig_file = "Role.TOML"\n')
+    (home / "Role.TOML").write_text('developer_instructions = "Do it."\n')
+    [d] = _declared_scan(scan, cfg)[0]
+    assert "CODEX_SUFFIX_CASE" not in {x["code"] for x in d["flags"]}
+    lower = home / "lower.toml"
+    lower.write_text(CODEX_OK)
+    assert "CODEX_SUFFIX_CASE" not in {x["code"] for x in scan.scan_paths([str(lower)])[0][0]["flags"]}
+
+
+@needs_toml
+def test_declared_role_with_blank_file_description_is_flagged(scan, tmp_path):
+    # Bug caught: falling back to the table description when the file's is blank; Codex errors
+    # on the blank first and drops the role.
+    cfg = _declare(tmp_path / "home", '[agents.x]\ndescription = "From the table."\nconfig_file = "x.toml"\n')
+    (tmp_path / "home" / "x.toml").write_text('description = "  "\ndeveloper_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    f = {x["code"]: x for x in a["flags"]}["CODEX_MISSING_REQUIRED"]
+    assert f["message"].startswith("Missing or blank: description.")
+
+
+@needs_toml
+def test_config_toml_in_a_walk_is_not_an_agent(scan, tmp_path):
+    # Bug caught: walking .codex/ reads config.toml as an agent candidate, so a profile's
+    # developer_instructions produce a false "move the keys" note.
+    codex = tmp_path / ".codex"
+    codex.mkdir()
+    (codex / "config.toml").write_text('model = "gpt-6-sol"\n[profiles.x]\ndeveloper_instructions = "Be brief."\n')
+    agents, skipped = scan.scan_paths([str(codex)])
+    assert agents == [] and skipped == []
+
+
+@needs_toml
+def test_claude_slug_is_med_when_a_model_provider_is_set(scan, tmp_path, codex_file):
+    # Bug caught: a flat high for `claude-...` ignores a model_provider that may serve it;
+    # a bare alias stays high because no provider slug looks like that.
+    slug = CODEX_OK.replace('"gpt-6-luna"', '"claude-opus-5-5"')
+    f = cflags(scan, codex_file("prov", 'model_provider = "anthropic"\n' + slug))["CODEX_CLAUDE_MODEL"]
+    assert f["severity"] == "med" and "unless your model_provider serves it" in f["message"]
+    alias = CODEX_OK.replace('"gpt-6-luna"', '"sonnet"')
+    assert cflags(scan, codex_file("prov2", 'model_provider = "anthropic"\n' + alias))["CODEX_CLAUDE_MODEL"]["severity"] == "high"
+    cfg = _declare(tmp_path / "home", 'model_provider = "anthropic"\n[agents.r]\ndescription = "d"\nconfig_file = "r.toml"\n')
+    (tmp_path / "home" / "r.toml").write_text('model = "claude-opus-5-5"\ndeveloper_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    assert {x["code"]: x for x in a["flags"]}["CODEX_CLAUDE_MODEL"]["severity"] == "med"
+
+
+@needs_toml
+def test_hooks_that_is_not_a_table_is_a_claude_key(scan, codex_file):
+    # Bug caught: treating any `hooks` value as Codex's table; a string or list fails Codex's
+    # HooksToml type and the file is skipped.
+    flags = cflags(scan, codex_file("h", CODEX_OK + 'hooks = ["pre.sh"]\n'))
+    assert "hooks" in flags["CODEX_CLAUDE_KEY"]["message"] and "CODEX_IGNORED_KEY" not in flags
+
+
+@needs_toml
+def test_declared_paths_are_shown_normalised(scan, tmp_path):
+    # Bug caught: printing `home/./x/../r.toml` as given instead of a clean path.
+    home = tmp_path / "home"
+    cfg = _declare(home, '[agents.r]\ndescription = "d"\nconfig_file = "./sub/../r.toml"\n')
+    (home / "r.toml").write_text('developer_instructions = "Do it."\n')
+    (home / "sub").mkdir()
+    [a] = scan.scan_paths([], config_files=[f"{home}/sub/../config.toml"], include_declared=True)[0]
+    assert a["path"] == str(home / "r.toml") and a["declared"]["config"] == str(cfg)

@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ionden-skills",
   "description": "Agent skills for Claude Code and OpenAI Codex. subagent-optimizer audits Claude Code subagents and Codex custom agents for tool allowlists, keys Codex rejects, prompt bloat, model and effort, and launch token cost; skill-optimizer cuts a skill's own SKILL.md without losing an instruction.",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "author": {
     "name": "Denis Ineshin",
     "url": "https://github.com/IonDen"

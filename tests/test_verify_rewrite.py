@@ -726,3 +726,271 @@ def test_a_new_reference_may_not_take_a_name_the_skill_already_uses(freezer, gat
         r = gate.verify(frozen, cand, orig)
         clash = [f["detail"] for f in r["rejected"] if f["code"] == "UNEXPECTED_FILE"]
         assert clash == ([] if ok else [f"references/{name}.md exists in the skill as a link or file; choose another name"]), name
+
+
+FIT = (EXPLANATION + "1. **Does it fit?** Use the fit rule (GiB; peak + cache + ~1 GiB; ≤ 23 fits,\n"
+       "   > 27 fails). Take the peak from the profile.\n\nTag the release after the merge.\n")
+
+
+def test_a_bound_wrapped_to_a_quote_marker_is_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: reading the `>` of "   > 27 fails)." as a quote marker only, so
+    # the bound is never frozen: the sentence carries no rule word, and deleting
+    # it passes, as does changing 27 to 25 wherever the new number is not new text.
+    honest = FIT.replace(EXPLANATION, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, FIT, TAG, honest)
+    assert r["status"] == "pass", r["rejected"]
+    for edited in (honest.replace("> 27", "> 25"), honest.replace("> 27 fails). ", "> ")):
+        r = gate_on(freezer, gate, make_skill, tmp_path, FIT, TAG, edited)
+        assert "'> 27 fails' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+QUOTED = EXPLANATION + "> Keep the margin under 20\n> GiB at all times.\n\nTag the release after the merge.\n"
+
+
+def test_a_literal_wrapped_inside_a_quote_is_found_and_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: freezing `under 20 GiB` from a quote but searching the raw file,
+    # where a `>` sits between `20` and `GiB`, so the unchanged skill is rejected;
+    # or dropping it, so `GiB` can become `MiB`.
+    orig = make_skill(QUOTED)
+    assert "under 20 GiB" in freezer.freeze(orig, TAG)["literals"]
+    assert gate_on(freezer, gate, make_skill, tmp_path, QUOTED, TAG, QUOTED)["status"] == "unchanged"
+    edited = QUOTED.replace(EXPLANATION, "").replace("> GiB", "> MiB")
+    r = gate_on(freezer, gate, make_skill, tmp_path, QUOTED, TAG, edited)
+    assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+MARGIN_A = "The safety margin is under 20"
+MARGIN_B = "GiB, and that is the budget."
+MARGIN = EXPLANATION + MARGIN_A + "\n\n" + MARGIN_B + "\n\nTag the release after the merge.\n"
+PAIR = MARGIN_A + "\n\n" + MARGIN_B + "\n\n"
+
+
+def test_a_literal_across_two_sentences_records_them(freezer, make_skill):
+    # Bug caught: freezing no contributing sentences for a literal no single
+    # sentence holds, so the gate has nothing to approve it through.
+    spans = freezer.freeze(make_skill(MARGIN), TAG)["literal_spans"]
+    assert spans["under 20 GiB"] == [["The safety margin is under 20", "GiB, and that is the budget"]]
+
+
+def test_a_literal_across_two_approved_sentences_is_approved(freezer, gate, make_skill, tmp_path):
+    # Bug caught: looking for one sentence holding the whole literal, so deleting
+    # both halves of `under 20` / `GiB` with the user's approval is still LITERAL_LOST.
+    candidate = MARGIN.replace(EXPLANATION, "").replace(PAIR, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, candidate, approved=[MARGIN_A, MARGIN_B])
+    assert r["status"] == "pass", r["rejected"]
+    assert "literal: under 20 GiB" in r["approved_deletions"]
+
+
+@pytest.mark.parametrize("gone,approved", [
+    (MARGIN_B + "\n\n", []),                  # one half deleted, nothing approved
+    (MARGIN_B + "\n\n", [MARGIN_B]),          # one half deleted with approval, the other kept
+    (PAIR, [MARGIN_B]),                       # both deleted, only one approved
+], ids=["unapproved", "half-approved-half-kept", "one-of-two-approved"])
+def test_a_literal_across_two_sentences_needs_both_approved(freezer, gate, make_skill, tmp_path, gone, approved):
+    # Bug caught: approving the literal once any contributing sentence is approved,
+    # so `under 20` is left without its unit, or goes with an unapproved sentence.
+    candidate = MARGIN.replace(EXPLANATION, "").replace(gone, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, candidate, approved=approved)
+    assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+def test_a_literal_across_two_sentences_moved_together_asks(freezer, gate, make_skill, tmp_path):
+    # Bug caught: rejecting a literal whose sentences moved together into one
+    # reference (here as two list items, so a "- " now sits inside it) instead of
+    # asking; or passing it silently.
+    body = MARGIN.replace(EXPLANATION, "").replace(PAIR, "Read `references/margin.md` when sizing.\n\n")
+    ref = "- " + MARGIN_A + "\n- " + MARGIN_B + "\n"
+    gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, body)   # writes the candidate
+    cand = tmp_path / "candidate"
+    (cand / "references").mkdir()
+    (cand / "references" / "margin.md").write_text(ref, encoding="utf-8")
+    r = gate.verify(freezer.freeze(tmp_path / "original", TAG), cand, tmp_path / "original")
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    # `20 GiB` and `under 20 GiB` both run across the pair
+    assert sorted((c["code"], c["file"], c["detail"].split(" ran across")[0]) for c in r["confirm"]) == [
+        ("MOVED_TO_REFERENCE", "references/margin.md", "'20 GiB'"),
+        ("MOVED_TO_REFERENCE", "references/margin.md", "'under 20 GiB'")]
+    # split between the body and a reference, it is lost, not moved
+    split = MARGIN.replace(EXPLANATION, "").replace(MARGIN_B, "Read `references/margin.md` when sizing.")
+    (cand / "SKILL.md").write_text("---\nname: demo\ndescription: Use when testing.\n---\n" + split, encoding="utf-8")
+    (cand / "references" / "margin.md").write_text("- " + MARGIN_B + "\n", encoding="utf-8")
+    r = gate.verify(freezer.freeze(tmp_path / "original", TAG), cand, tmp_path / "original")
+    assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+@pytest.mark.parametrize("ref,note", [
+    ("- " + MARGIN_A + "\n- " + MARGIN_B + "\n", False),     # same order, still next to each other
+    (MARGIN_B + "\n\n" + MARGIN_A + "\n", True),             # order swapped
+], ids=["adjacent", "swapped"])
+def test_a_spanning_literal_ask_says_where_it_went(freezer, gate, make_skill, tmp_path, ref, note):
+    # Bug caught: an ask that says the sentences "moved together" when they only
+    # landed in the same file, so the user approves a move that broke their order.
+    body = MARGIN.replace(EXPLANATION, "").replace(PAIR, "Read `references/margin.md` when sizing.\n\n")
+    gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, body)   # writes the candidate
+    cand = tmp_path / "candidate"
+    (cand / "references").mkdir()
+    (cand / "references" / "margin.md").write_text(ref, encoding="utf-8")
+    r = gate.verify(freezer.freeze(tmp_path / "original", TAG), cand, tmp_path / "original")
+    details = [c["detail"] for c in r["confirm"] if c["detail"].startswith("'under 20 GiB'")]
+    assert len(details) == 1 and "moved into the same reference" in details[0], r["confirm"]
+    assert ("(not adjacent)" in details[0]) == note, details
+
+
+def test_a_freeze_without_literal_spans_is_still_read(freezer, gate, make_skill, tmp_path):
+    # Bug caught: indexing frozen["literal_spans"], so a freeze written before the
+    # field existed fails with a KeyError instead of gating as it used to.
+    orig = make_skill(MARGIN)
+    frozen = freezer.freeze(orig, TAG)
+    del frozen["literal_spans"]
+    assert gate.verify(frozen, orig, orig)["status"] == "unchanged"
+
+
+LOUD = (EXPLANATION + "- **Never** force-push to `main`.\n"
+        "- *Always* read the changelog before tagging a release.\n"
+        "- __Check the signing key__ on the release host first.\n\nTag the release after the merge.\n")
+LOUD_REQS = TAG + "R2: Check the key.\n  anchor: on the release host first\n"
+
+
+def emphasis_asks(r):
+    return [(c["code"], c["file"]) for c in r["confirm"] if c["code"] == "EMPHASIS_LOST"]
+
+
+@pytest.mark.parametrize("old,new", [
+    ("**Never**", "Never"),                                   # bold off a strong rule
+    ("*Always*", "Always"),                                   # italic off a rule
+    ("__Check the signing key__", "Check the signing key"),   # bold off an anchored sentence
+    ("**Never**", "*Never*"),                                 # bold weakened to italic
+    ("__Check the signing key__", "*Check the signing key*"),  # underscore bold weakened, several words
+], ids=["bold", "italic", "anchored", "weakened", "weakened-underscore"])
+def test_emphasis_stripped_from_a_rule_asks_the_user(freezer, gate, make_skill, tmp_path, old, new):
+    # Bug caught: comparing sentences with emphasis removed, so a candidate that
+    # strips the bold off a rule's lead-in passes unchanged and the author's
+    # salience signal is gone without anyone deciding it may go.
+    candidate = LOUD.replace(EXPLANATION, "").replace(old, new)
+    r = gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, candidate)
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    assert emphasis_asks(r) == [("EMPHASIS_LOST", "SKILL.md")], r["confirm"]
+
+
+def test_emphasis_kept_or_added_passes(freezer, gate, make_skill, tmp_path):
+    # Bug caught: flagging every emphasised sentence, or any change of markup, so an
+    # honest cut or an added bold asks the user for nothing.
+    assert gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, LOUD)["status"] == "unchanged"
+    honest = LOUD.replace(EXPLANATION, "")
+    assert gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, honest)["status"] == "pass"
+    louder = honest.replace("**Never** force-push", "**Never force-push**").replace(
+        "Tag the release after", "**Tag** the release after")
+    r = gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, louder)
+    assert r["status"] == "pass", (r["rejected"], r["confirm"])
+
+
+def test_emphasis_lost_exits_3_and_is_listed(freezer, gate, make_skill, tmp_path, capsys):
+    # Bug caught: recording EMPHASIS_LOST but exiting 0, or leaving it out of the
+    # printed list, so the workflow applies the candidate without asking.
+    orig = make_skill(LOUD)
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(freezer.freeze(orig, LOUD_REQS)), encoding="utf-8")
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    skill = cand / "SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8").replace(EXPLANATION, "").replace("**Never**", "Never"),
+                     encoding="utf-8")
+    assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(cand)]) == 3
+    assert "ASK EMPHASIS_LOST (SKILL.md): " in capsys.readouterr().out
+
+
+def test_emphasis_is_checked_in_a_reference_and_without_a_recorded_field(freezer, gate, make_skill, tmp_path):
+    # Bug caught: checking emphasis in the body only, so a rule moved into a
+    # reference can lose its bold on the way; or indexing frozen["emphasis"], so a
+    # freeze written before the field existed stops the gate with a KeyError.
+    orig = make_skill(LOUD)
+    frozen = freezer.freeze(orig, LOUD_REQS)
+    del frozen["emphasis"]
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    body = LOUD.replace(EXPLANATION, "").replace("- **Never** force-push to `main`.\n",
+                                                 "- Read `references/push.md` before pushing.\n")
+    (cand / "SKILL.md").write_text("---\nname: demo\ndescription: Use when testing.\n---\n" + body, encoding="utf-8")
+    (cand / "references").mkdir()
+    (cand / "references" / "push.md").write_text("Never force-push to `main`.\n", encoding="utf-8")
+    r = gate.verify(frozen, cand, orig)
+    assert emphasis_asks(r) == [("EMPHASIS_LOST", "references/push.md")], r["confirm"]
+
+
+def test_emphasis_is_checked_where_the_sentence_lives(freezer, gate, make_skill, tmp_path):
+    # Bug caught: pooling emphasis over the body and every new reference, so a rule
+    # whose body copy lost its bold passes because a bold copy sits in a reference.
+    body = (LOUD.replace(EXPLANATION, "").replace("**Never**", "Never")
+            .replace("Tag the release", "Read `references/push.md` before pushing.\n\nTag the release"))
+    gate_on(freezer, gate, make_skill, tmp_path, LOUD, LOUD_REQS, body)   # writes the candidate
+    cand = tmp_path / "candidate"
+    (cand / "references").mkdir()
+    (cand / "references" / "push.md").write_text("**Never** force-push to `main`.\n", encoding="utf-8")
+    r = gate.verify(freezer.freeze(tmp_path / "original", LOUD_REQS), cand, tmp_path / "original")
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    assert emphasis_asks(r) == [("EMPHASIS_LOST", "SKILL.md")], r["confirm"]
+
+
+LOUD_HEAD = "# Guide\n\n" + EXPLANATION + "## **Never** skip the tests\n\nRun the suite.\n\nTag the release after the merge.\n"
+
+
+@pytest.mark.parametrize("marked", ["**Never**", "__Never__", "_Never_"])
+def test_emphasis_on_a_rule_heading_is_checked(freezer, gate, make_skill, tmp_path, marked):
+    # Bug caught: recording emphasis for sentences only, so "## **Never** skip the
+    # tests" can lose its bold and still pass; and testing the raw heading for a rule
+    # word, where `_` joins the word, so "## __Never__ skip" is not a rule heading.
+    loud = LOUD_HEAD.replace("**Never**", marked)
+    stripped = loud.replace(EXPLANATION, "").replace("## " + marked, "## Never")
+    r = gate_on(freezer, gate, make_skill, tmp_path, loud, TAG, stripped)
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    assert emphasis_asks(r) == [("EMPHASIS_LOST", "SKILL.md")], r["confirm"]
+    assert gate_on(freezer, gate, make_skill, tmp_path, loud, TAG, loud)["status"] == "unchanged"
+
+
+def test_an_underscore_emphasised_rule_heading_is_protected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: is_rule() on the raw heading, where `__Never__` has no word
+    # boundary, so the heading can be deleted with only SECTION_CHANGED.
+    orig = make_skill(EXPLANATION + "## __Never__ on Fridays\n\nDeploy with the script.\n")
+    frozen = freezer.freeze(orig, "R1: Deploy.\n  anchor: Deploy with the script\n")
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    (cand / "SKILL.md").write_text((orig / "SKILL.md").read_text(encoding="utf-8")
+                                   .replace(EXPLANATION, "").replace("## __Never__ on Fridays\n\n", ""),
+                                   encoding="utf-8")
+    assert "RULE_LOST" in codes(gate.verify(frozen, cand, orig))
+
+
+WRAPPED_QUOTE = EXPLANATION + "> Keep the cache small\n> and clear it often.\n\nTag the release after the merge.\n"
+
+
+@pytest.mark.parametrize("body,code", [(WRAPPED_QUOTE, 2), (LOUD, 0)], ids=["wrapped-quote", "no-quote"])
+def test_an_older_freeze_of_a_wrapped_quote_asks_for_a_new_freeze(freezer, gate, make_skill, tmp_path, capsys,
+                                                                   body, code):
+    # Bug caught: gating a 1.0.x freeze (no emphasis or literal_spans fields) against
+    # a skill whose blockquote wraps over two lines. 1.0.x read each `>` line as its
+    # own sentence; this version joins them, so the unchanged skill is rejected.
+    orig = make_skill(body)
+    frozen = freezer.freeze(orig, TAG)
+    for field in ("emphasis", "literal_spans"):
+        del frozen[field]
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(frozen), encoding="utf-8")
+    assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(orig)]) == code
+    err = capsys.readouterr().err
+    assert ("freeze the original again" in err) == (code == 2), err
+
+
+def test_an_older_freeze_that_split_the_text_differently_asks_for_a_new_freeze(freezer, gate, make_skill,
+                                                                              tmp_path, capsys):
+    # Bug caught: detecting only wrapped quotes, so a 1.0.x freeze whose sentences
+    # were split another way (a `>` indented as a list continuation) rejects the
+    # unchanged skill with NEW_TEXT / RULE_LOST instead of asking for a new freeze.
+    orig = make_skill(LOUD)
+    frozen = freezer.freeze(orig, TAG)
+    for field in ("emphasis", "literal_spans"):
+        del frozen[field]
+    frozen["sentences"] = sorted(frozen["sentences"] + ["27 never)."])  # a split 1.0.x made
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(frozen), encoding="utf-8")
+    assert gate.main(["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(orig)]) == 2
+    assert "freeze the original again" in capsys.readouterr().err

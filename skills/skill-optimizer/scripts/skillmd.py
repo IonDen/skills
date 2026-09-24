@@ -1,10 +1,12 @@
 """Shared parsing for the skill-optimizer scripts. Standard library only.
 
 A SKILL.md body is read as units: headings, lines inside code fences, table
-cells, and paragraphs (soft-wrapped lines joined; list items and quotes kept
-apart). Paragraphs and cells split into sentences. Everything the gate compares goes
-through normalise(), so reflowing a paragraph or dropping emphasis is not a
-change, and any other edit to a sentence is.
+cells, and paragraphs (soft-wrapped lines joined, the lines of one quote too;
+list items and quotes kept apart). Paragraphs and cells split into sentences.
+Every sentence the gate compares goes through normalise(), so reflowing a
+paragraph or changing emphasis does not change a sentence, and any other edit
+does. emphasis() keeps the bold and italic that normalise() drops, for the
+gate's separate check on rules and anchored sentences.
 """
 from __future__ import annotations
 
@@ -24,6 +26,11 @@ EXAMPLE_LANGS = {"markdown", "md", "text", "txt", "plaintext", "json", "jsonc", 
                  "toml", "xml", "html", "csv", "diff", "mermaid"}
 MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d{1,3}[.)]|>)\s+")
 BLOCK_START_RE = re.compile(r"^\s*(?:[-*+]\s|\d{1,3}[.)]\s|\||>)")
+LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d{1,3}[.)])\s+")
+QUOTE_MARK_RE = re.compile(r"^\s*>[ \t]?")
+# Any line-leading quote markers, nested ones included: `contains_literal` also
+# reads the file with them removed, so a literal wrapped inside a quote is found.
+QUOTE_MARKS_RE = re.compile(r"^[ \t]*(?:>[ \t]?)+", re.M)
 # A sentence ends at . ! or ?, optionally followed by a closing quote or bracket.
 SENTENCE_SPLIT_RE = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’)\]]))\s+(?=[\"'(`*_\[]?[A-Z0-9])")
 TABLE_ROW_RE = re.compile(r"^\s*\|")
@@ -150,11 +157,122 @@ def _outside_code(s: str, fn) -> str:
     return "".join(parts)
 
 
+ITALIC_RES = (re.compile(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])"),
+              re.compile(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])"))
+
+
 def _unemphasise(s: str) -> str:
     s = _outside_code(s, lambda p: p.replace("**", "").replace("__", ""))
-    s = _outside_code(s, lambda p: re.sub(r"(?<![\w*])\*(?=\S)(.+?)(?<=\S)\*(?![\w*])", r"\1", p))
-    s = _outside_code(s, lambda p: re.sub(r"(?<![\w_])_(?=\S)(.+?)(?<=\S)_(?![\w_])", r"\1", p))
+    for pat in ITALIC_RES:
+        s = _outside_code(s, lambda p, pat=pat: pat.sub(r"\1", p))
     return s
+
+
+def _plain_parts(text: str):
+    """(offset, part) for each part of text outside a code span."""
+    pos = 0
+    for i, part in enumerate(CODE_SPAN_RE.split(text)):
+        if not i % 2:
+            yield pos, part
+        pos += len(part)
+
+
+def _strip_marks(text: str, strength: list[int], found: list) -> tuple[str, list[int]]:
+    """Drop the marker positions in `found` and raise the strength of what they enclose."""
+    drop = set()
+    for marks, (a, b), level in found:
+        drop.update(marks)
+        for k in range(a, b):
+            strength[k] = max(strength[k], level)
+    keep = [k for k in range(len(text)) if k not in drop]
+    return "".join(text[k] for k in keep), [strength[k] for k in keep]
+
+
+def _marked(s: str) -> tuple[str, list[int]]:
+    """_unemphasise(s), step for step, with each remaining character's emphasis:
+    2 inside bold (** or __), 1 inside italic (* or _), 0 outside."""
+    text, strength = s, [0] * len(s)
+    for marker in ("**", "__"):
+        found, opened = [], None
+        for off, part in _plain_parts(text):
+            for m in re.finditer(re.escape(marker), part):
+                at = off + m.start()
+                if opened is None:
+                    opened = at
+                else:
+                    found.append(([opened, opened + 1, at, at + 1], (opened + 2, at), 2))
+                    opened = None
+        if opened is not None:        # an unpaired marker is dropped too, and marks nothing
+            found.append(([opened, opened + 1], (0, 0), 0))
+        text, strength = _strip_marks(text, strength, found)
+    for pat in ITALIC_RES:
+        found = []
+        for off, part in _plain_parts(text):
+            for m in pat.finditer(part):
+                a, b = off + m.start(), off + m.end() - 1
+                found.append(([a, b], (a + 1, b), 1))
+        text, strength = _strip_marks(text, strength, found)
+    return text, strength
+
+
+def emphasis(body: str) -> dict[str, list[list]]:
+    """For each sentence or heading that has emphasis, its emphasised phrases as
+    [normalised phrase, strength] pairs (2 bold, 1 italic). Sentences are keyed like
+    sentences(), headings like order(): "# " and the heading's key."""
+    out: dict[str, list[list]] = {}
+    for u in units(body):
+        if u["kind"] not in ("text", "heading"):
+            continue
+        text, strength = _marked(u["text"])
+        start = 0
+        ends = [(len(text), len(text))]
+        if u["kind"] == "text":
+            ends = [m.span() for m in SENTENCE_SPLIT_RE.finditer(text)] + ends
+        for a, b in ends:
+            key = normalise(text[start:a])
+            if key and u["kind"] == "heading":
+                key = "# " + key
+            k = start
+            while key and k < a:
+                j = k
+                while j < a and strength[j] == strength[k]:
+                    j += 1
+                phrase = normalise(text[k:j])
+                if strength[k] and tokens(phrase) and [phrase, strength[k]] not in out.get(key, []):
+                    out.setdefault(key, []).append([phrase, strength[k]])
+                k = j
+            start = b
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def has_wrapped_quote(body: str) -> bool:
+    """True when two `>` lines follow each other outside a code fence: a quote that
+    skill-optimizer 1.0.x read line by line and this version reads as one paragraph."""
+    fence, prev = None, False
+    for line in body.splitlines():
+        fm = FENCE_RE.match(line)
+        if fence:
+            if fm and fm.group(1)[0] == fence[0] and len(fm.group(1)) >= len(fence):
+                fence = None
+            continue
+        if fm:
+            fence, prev = fm.group(1), False
+            continue
+        quote = line.lstrip().startswith(">")
+        if quote and prev:
+            return True
+        prev = quote
+    return False
+
+
+def keeps_emphasis(phrase: str, level: int, now: list[list]) -> bool:
+    """True when some phrase in `now` is at least as strong and holds `phrase`'s words in a row."""
+    want = tokens(phrase)
+    for p, lvl in now:
+        have = tokens(p)
+        if lvl >= level and any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1)):
+            return True
+    return False
 
 
 def normalise(s: str) -> str:
@@ -190,10 +308,22 @@ def _cells(row: str) -> list[str]:
     return cells
 
 
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip())
+
+
 def units(body: str) -> list[dict]:
+    """Blocks as CommonMark reads them. The lines of one blockquote paragraph join
+    into one unit, markers stripped. A `>` line indented four or more columns past
+    the paragraph's text continues that paragraph. A `>` line that interrupts a
+    paragraph or a list item starts a quote, and its unit carries `"interrupts": True`
+    because that `>` may be a bound's comparator wrapped to the start of a line."""
     out: list[dict] = []
     para: list[str] = []
     para_line = 0
+    para_col = 0          # the column the paragraph's text starts at
+    para_quote = False    # the paragraph is inside a blockquote
+    interrupts = False
     depth = 0
     fence = None
     lang = ""
@@ -202,7 +332,10 @@ def units(body: str) -> list[dict]:
     def flush() -> None:
         if para:
             text = MARKER_RE.sub("", " ".join(para), count=1)
-            out.append({"kind": "text", "text": text, "line": para_line, "depth": depth})
+            unit = {"kind": "text", "text": text, "line": para_line, "depth": depth}
+            if interrupts:
+                unit["interrupts"] = True
+            out.append(unit)
             para.clear()
 
     for i, line in enumerate(body.splitlines(), 1):
@@ -235,10 +368,27 @@ def units(body: str) -> list[dict]:
             if not all(TABLE_RULE_RE.match(c) for c in cells):
                 out.extend({"kind": "text", "text": c, "line": i, "depth": depth} for c in cells)
             continue
+        quote = line.lstrip().startswith(">")
+        if quote and not QUOTE_MARK_RE.sub("", line, count=1).strip():
+            flush()               # a bare `>`: a paragraph break inside the quote
+            continue
+        if para and quote:
+            rest = QUOTE_MARK_RE.sub("", line, count=1)
+            if para_quote and not (BLOCK_START_RE.match(rest) or HEADING_RE.match(rest)):
+                para.append(rest.strip())     # the next line of the same quote
+                continue
+            if _indent(line) >= para_col + 4:
+                para.append(line.strip())     # indented continuation, not a quote
+                continue
+        started_by = quote and bool(para) and not para_quote
         if para and BLOCK_START_RE.match(line):
             flush()
         if not para:
             para_line = i
+            para_quote = quote
+            interrupts = started_by
+            m = LIST_ITEM_RE.match(line)
+            para_col = m.end() if m else _indent(line)
         para.append(line.strip())
     flush()
     return out
@@ -318,15 +468,19 @@ def literals(body: str) -> list[str]:
     joined text is scanned too, which keeps a bound whose unit starts the next
     paragraph (`under 20` / `GiB`); a match from that pass is kept only when the
     file holds it as written, so `≤ 0.20` at the end of a table row never joins
-    the first word of the next row."""
+    the first word of the next row.
+
+    A quote that interrupts a paragraph or a list item is scanned with its `>`
+    put back, so `≤ 23 fits,` / `> 27 never` wrapped that way keeps `> 27 never`."""
     out, kept = set(), []
     for u in units(body):
         if u["kind"] == "code":
             if u["lang"] in EXAMPLE_LANGS:
                 continue
             out.add(" ".join(u["text"].split()))
-        kept.append(u["text"])
-        out.update(_scan(u["text"]))
+        text = "> " + u["text"] if u.get("interrupts") else u["text"]
+        kept.append(text)
+        out.update(_scan(text))
     out.update(v for v in _scan("\n".join(kept)) if contains_literal(body, v))
     return sorted(out)
 
@@ -370,7 +524,10 @@ def _on_boundaries(text: str, literal: str) -> list[str]:
 def contains_literal(haystack: str, literal: str) -> bool:
     """True when `literal` occurs in `haystack` on token boundaries, so `20 GiB`
     is not found inside `120 GiB`, `pytest -q` not inside `pytest -qq`, and
-    `main` not inside `origin/main`."""
-    hay = " ".join(haystack.split())
+    `main` not inside `origin/main`. The haystack is read twice: as written, and
+    with line-leading quote markers removed, so `under 20` / `GiB` wrapped inside
+    a blockquote (`> under 20` / `> GiB`) is still found."""
     lit = " ".join(literal.split())
-    return re.search(r"(?<![\w./-])" + re.escape(lit) + r"(?![\w/-])", hay) is not None
+    pattern = re.compile(r"(?<![\w./-])" + re.escape(lit) + r"(?![\w/-])")
+    return any(pattern.search(" ".join(h.split()))
+               for h in (haystack, QUOTE_MARKS_RE.sub("", haystack)))

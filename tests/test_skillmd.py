@@ -273,3 +273,68 @@ def test_a_double_backtick_code_span_keeps_its_pipe(skillmd):
     # the pipe inside it splits the table cell and the command is cut in half.
     body = "| Step | How |\n|---|---|\n| Filter | Run ``ps aux | grep `mlx` `` to list them. |\n"
     assert keys(skillmd, body) == ["Step", "How", "Filter", "Run ``ps aux | grep `mlx` `` to list them"]
+
+
+# The heavy-runs shape: a wrap inside a list item puts a bound's comparator at the
+# start of a line. CommonMark reads "   > 27 never)." as a blockquote inside the
+# item, so the split is right, but the `>` is still the bound's comparator.
+FIT = ("1. **Does it fit?** Use the fit rule (GiB; peak + cache + ~1 GiB; ≤ 23 fits,\n"
+       "   > 27 never). Take the peak from the profile.\n")
+
+
+def test_a_quote_marker_that_is_a_bound_keeps_its_comparator(skillmd):
+    # Bug caught: stripping the `>` of a blockquote that interrupts a list item or
+    # paragraph as a marker only, so the `> 27` bound is never frozen and an edit
+    # to `> 25` passes the gate.
+    lits = skillmd.literals(FIT)
+    assert any(lit.startswith("> 27") for lit in lits), lits
+    assert all(skillmd.contains_literal(FIT, lit) for lit in lits)
+    edited = FIT.replace("> 27", "> 25")
+    assert not all(skillmd.contains_literal(edited, lit) for lit in lits)
+
+
+def test_a_multi_line_blockquote_is_one_unit(skillmd):
+    # Bug caught: starting a new unit at every `>` line, so a wrapped quote splits
+    # per line and `under 20` loses its unit word `GiB`.
+    body = "> under 20\n> GiB is the cap.\n"
+    assert [(u["kind"], u["text"]) for u in skillmd.units(body)] == [("text", "under 20 GiB is the cap.")]
+    lits = skillmd.literals(body)
+    assert "under 20 GiB" in lits
+    assert all(skillmd.contains_literal(body, lit) for lit in lits)
+    assert not skillmd.contains_literal(body.replace("GiB", "MiB"), "under 20 GiB")
+
+
+def test_an_empty_quote_line_ends_a_paragraph_inside_the_quote(skillmd):
+    # Bug caught: joining every `>` line into one unit, so two quoted paragraphs
+    # run together, or keeping the bare `>` as a sentence of its own.
+    assert keys(skillmd, "> First part.\n>\n> Second part.\n") == ["First part", "Second part"]
+
+
+def test_a_quote_marker_indented_past_the_paragraph_continues_it(skillmd):
+    # Bug caught: splitting at every `>` line. CommonMark reads a `>` indented four
+    # or more columns past the paragraph's text as paragraph text, not a quote.
+    body = "- Keep it small,\n      > 27 is too many. Stop there.\n"
+    assert keys(skillmd, body) == ["Keep it small, > 27 is too many", "Stop there"]
+
+
+TRICKY = ["Edit `__init__.py` and **bold `x | y`** now.", "***Both*** at once, and a**b, and * not * this.",
+          "An unpaired ** marker and _snake_case_ and __dunder__.", "**Stop. Now.** Then *go*.",
+          "Use ``a `b` c`` with **care**."]
+
+
+@pytest.mark.parametrize("path", REAL_SKILLS, ids=lambda p: str(p.relative_to(REPO)))
+def test_emphasis_tracking_reads_the_same_text_as_the_keys(skillmd, path):
+    # Bug caught: _marked() removing markers differently from _unemphasise(), so
+    # emphasis is recorded under a key no sentence has and a stripped bold is never checked.
+    _, body = skillmd.split_frontmatter(skillmd.read_text(path))
+    texts = TRICKY + [u["text"] for u in skillmd.units(body) if u["kind"] == "text"]
+    assert [skillmd._marked(t)[0] for t in texts] == [skillmd._unemphasise(t) for t in texts]
+
+
+def test_emphasis_belongs_to_the_sentence_it_sits_in(skillmd):
+    # Bug caught: giving a unit's emphasis to every sentence in it, or losing a bold
+    # phrase that spans a sentence break, so the gate flags the wrong sentence or none.
+    assert skillmd.emphasis("- **Kept exactly.** Never edit it.\n") == {"Kept exactly": [["Kept exactly", 2]]}
+    assert skillmd.emphasis("**Stop. Now.** Then *go* home.\n") == {
+        "Stop": [["Stop", 2]], "Now": [["Now", 2]], "Then go home": [["go", 1]]}
+    assert skillmd.emphasis("Run `__init__.py` as is.\n") == {}

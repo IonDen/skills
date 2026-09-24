@@ -10,9 +10,11 @@ Records, from the original skill directory:
   - every sentence and heading carrying a rule word (must, never, not, no,
     only, unless, without, ...), with its position, its heading depth (the
     shallowest, for a heading that repeats), the heading it sits under, and
-    whether it is a strong rule
+    whether it is a strong rule, and the bold or italic phrases in it (and in
+    each rule heading and anchored sentence)
   - every literal: inline code, runnable code lines, URLs, flags, versions,
-    pins, dates, paths, numbers with a unit or bound
+    pins, dates, paths, numbers with a unit or bound; for a literal that runs
+    across sentences (`under 20` / `GiB`), the consecutive sentences holding it
   - every code block, and every sentence and heading, so the gate can refuse
     text the original never had
   - the sentences nothing protects word for word (no rule word, no anchor),
@@ -48,6 +50,7 @@ import skillmd  # noqa: E402
 REQ_RE = re.compile(r"^R(\d+):[ \t]*(\S.*?)\s*$")
 ANCHOR_RE = re.compile(r"^[ \t]+anchor:[ \t]*(\S.*?)\s*$")
 TERMINAL_WINDOW = 3
+SPAN_MAX = 4   # the most consecutive sentences one literal is looked for across
 MIN_ANCHOR_WORDS = 3
 FORMAT = 3   # verify_rewrite.py refuses any other
 
@@ -99,7 +102,7 @@ def resolve_anchors(body: str, reqs: list[dict]) -> list[dict]:
         protects = []
         for a in r["anchors"]:
             na = skillmd.normalise(a)
-            if len(na.split()) < MIN_ANCHOR_WORDS:
+            if len(skillmd.tokens(na)) < MIN_ANCHOR_WORDS:   # words as the gate reads them
                 problems.append(f"{r['id']}: anchor {a!r} is shorter than {MIN_ANCHOR_WORDS} words")
                 continue
             hits = list({(t["kind"], t["key"]): t for t in targets if na in t["key"]}.values())
@@ -125,6 +128,32 @@ def unprotected(body: str, reqs: list[dict]) -> list[dict]:
     return [{"text": s["text"], "literal_only": any(skillmd.contains_literal(s["text"], lit) for lit in lits)}
             for s in skillmd.sentences(body)
             if not skillmd.is_rule(s["key"]) and s["key"] not in anchored]
+
+
+def literal_spans(order: list[str], literals: list[str]) -> dict[str, list[list[str]]]:
+    """For each literal that runs across sentences, every run of consecutive
+    sentences that holds it where no shorter run does. A run with a heading in
+    it is left out: that literal has no sentences to approve it through."""
+    out: dict[str, list[list[str]]] = {}
+    for lit in literals:
+        words = lit.split()
+        if len(words) < 2:
+            continue          # a sentence break falls between words
+        runs: list[list[str]] = []
+        for size in range(2, SPAN_MAX + 1):
+            for i in range(len(order) - size + 1):
+                run = order[i:i + size]
+                if words[0] not in run[0] or words[-1] not in run[-1]:
+                    continue      # cheap test first: the run must start and end inside the literal
+                if (run in runs or any(k.startswith("# ") for k in run)
+                        or not skillmd.contains_literal(" ".join(run), lit)
+                        or skillmd.contains_literal(" ".join(run[1:]), lit)
+                        or skillmd.contains_literal(" ".join(run[:-1]), lit)):
+                    continue
+                runs.append(run)
+        if runs:
+            out[lit] = runs
+    return out
 
 
 def freeze(skill_dir, requirements_text: str) -> dict:
@@ -153,7 +182,9 @@ def freeze(skill_dir, requirements_text: str) -> dict:
     rule_headings, seen = [], {}
     for u in skillmd.units(body):
         key = skillmd.normalise(u["text"])
-        if u["kind"] == "heading" and skillmd.is_rule(u["text"]):
+        # Test the heading with its emphasis removed: in `__Never__`, `_` joins the
+        # word, so the raw text has no rule word at a word boundary.
+        if u["kind"] == "heading" and skillmd.is_rule(skillmd._unemphasise(u["text"])):
             if key in seen:
                 seen[key]["depth"] = min(seen[key]["depth"], u["depth"])
                 continue
@@ -163,6 +194,9 @@ def freeze(skill_dir, requirements_text: str) -> dict:
     last_heading = max((u["line"] for u in skillmd.units(body) if u["kind"] == "heading"), default=0)
     closing = [s["key"] for s in sents if s["line"] > last_heading]
     tail = closing if 0 < len(closing) <= TERMINAL_WINDOW else []
+    literals = skillmd.literals(body)
+    loud = ({r["key"] for r in rules} | {"# " + h["key"] for h in rule_headings}
+            | {t["key"] for r in reqs for t in r["protects"] if t["kind"] == "sentence"})
     return {
         "format": FORMAT,
         "frontmatter": fm,
@@ -172,7 +206,9 @@ def freeze(skill_dir, requirements_text: str) -> dict:
         "rules": rules,
         "rule_headings": rule_headings,
         "terminal": sorted({k for k in tail if skillmd.is_rule(k)}),
-        "literals": skillmd.literals(body),
+        "literals": literals,
+        "literal_spans": literal_spans(order, literals),
+        "emphasis": {k: v for k, v in skillmd.emphasis(body).items() if k in loud},
         "order": order,
         "sentences": sorted({s["key"] for s in sents}),
         "headings": sorted({skillmd.normalise(u["text"]) for u in skillmd.units(body) if u["kind"] == "heading"}),

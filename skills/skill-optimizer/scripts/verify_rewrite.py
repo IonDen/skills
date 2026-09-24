@@ -18,7 +18,8 @@ sentence, unless it is identical to another original sentence that survives
 unchanged. A
 literal lost with it passes only when every original sentence holding it was
 approved and truly deleted, and no heading or code block of the original held
-it. Each approved deletion is listed.
+it; a literal that runs across sentences (`under 20` / `GiB`) is held by each
+of them. Each approved deletion is listed.
 
 Rejects (exit 1):
   ORIGINAL_CHANGED     the skill on disk is not the one that was frozen
@@ -39,10 +40,15 @@ Rejects (exit 1):
   REFERENCE_UNLINKED   a new references/ file is not named in the body
   NOT_SMALLER          the body did not get smaller
 Needs the user's decision (exit 3):
-  MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file
+  MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file,
+                       or a literal that ran across sentences moved there with all of them
+                       and no longer reads as written
   SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
                        (a trimmed heading is the original heading it was cut from, when
                        exactly one fits and that original is not still in the body)
+  EMPHASIS_LOST        a rule, a rule heading or an anchored sentence lost bold or italic it
+                       had where it now lives (or bold became italic); emphasis added or
+                       kept passes
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir>
@@ -50,8 +56,9 @@ Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate
 --original may name a skill whose SKILL.md is a link to a file named SKILL.md
 (a per-file install); the gate reads that file. Exit 2 on a missing or
 unreadable input, a candidate SKILL.md that is a symlink, an original SKILL.md
-linked to anything but a SKILL.md, or a frozen file from an older
-extract_requirements.py.
+linked to anything but a SKILL.md, a frozen file from an older
+extract_requirements.py, or a 1.0.x freeze of a skill with a blockquote wrapped
+over two `>` lines (freeze it again).
 """
 from __future__ import annotations
 
@@ -102,6 +109,18 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         original_md = skillmd.skill_md(Path(original_dir) / "SKILL.md")
         if skillmd.sha256_file(original_md) != frozen["files"]["SKILL.md"]:
             reject("ORIGINAL_CHANGED", "the skill's SKILL.md changed after it was frozen")
+        # A 1.0.x freeze (no emphasis or literal_spans) read each line of a wrapped
+        # quote, and a `>` indented as a list continuation, as its own sentence;
+        # this version reads them differently, so such sentences would look lost.
+        # The format number stays, so compare what the freeze recorded with how
+        # this version reads the unchanged original, and ask for a new freeze.
+        _, original_body = skillmd.split_frontmatter(skillmd.read_text(original_md))
+        if ("emphasis" not in frozen and "literal_spans" not in frozen
+                and (skillmd.has_wrapped_quote(original_body)
+                     or set(frozen["sentences"]) != {s["key"] for s in skillmd.sentences(original_body)})):
+            raise FrozenFormatError("this freeze was written by skill-optimizer 1.0.x, which read each line of a "
+                                    "wrapped blockquote as its own sentence; freeze the original again into a new "
+                                    "file and gate against that")
 
     fm, body = skillmd.split_frontmatter(skillmd.read_text(candidate_dir / "SKILL.md"))
     if fm != frozen["frontmatter"]:
@@ -268,6 +287,30 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
             elif target["kind"] == "sentence":
                 same_section(target["key"], target["key"], target["section"])
 
+    # Emphasis: a rule, a rule heading or an anchored sentence keeps every bold or
+    # italic phrase it had, at least as strong, in the place it now lives (the body,
+    # or the reference locate() names; a bold copy elsewhere does not count).
+    # Stripping it asks the user. A freeze from before the field existed is read
+    # from the original on disk.
+    emph = frozen.get("emphasis")
+    if emph is None and original_dir is not None:
+        loud = ({r["key"] for r in frozen["rules"]} | {"# " + h["key"] for h in frozen["rule_headings"]}
+                | {t["key"] for r in frozen["requirements"] for t in r["protects"] if t["kind"] == "sentence"})
+        emph = {k: v for k, v in skillmd.emphasis(original_body).items() if k in loud}
+    emph_now = {("body" if where == "SKILL.md" else where): skillmd.emphasis(text) for where, text in sources}
+    rule_text = {r["key"]: r["text"] for r in frozen["rules"]}
+    for key, phrases in sorted((emph or {}).items()):
+        heading = key.startswith("# ")
+        where = locate("heading", key[2:]) if heading else locate("sentence", key)
+        if where is None:
+            continue      # gone: RULE_LOST, ANCHOR_LOST or an approved deletion says so
+        now = emph_now[where].get(key, [])
+        lost_here = [p for p, level in phrases if not skillmd.keeps_emphasis(p, level, now)]
+        if lost_here:
+            label = f"heading {key[2:]!r}" if heading else repr(rule_text.get(key, key))
+            ask(f"{label} lost the emphasis on " + ", ".join(repr(p) for p in lost_here),
+                "SKILL.md" if where == "body" else where, "EMPHASIS_LOST")
+
     # Prominence: nothing that stood behind a strong rule or a rule heading may
     # stand in front of it, and it may not sit deeper than it did.
     first = {}
@@ -313,15 +356,30 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
 
     # A lost literal is approved only when every original sentence holding it was
     # approved and truly deleted (not trimmed), and no heading or code block of the
-    # original held it.
+    # original held it. A literal that runs across sentences (`under 20` / `GiB`)
+    # counts each of them as a holder. When those sentences all moved into the
+    # same new reference, where the literal no longer reads as written, the user
+    # decides. A freeze from before `literal_spans` has none.
     package = "\n".join(t for _, t in sources)
+    spans = frozen.get("literal_spans", {})
     for lit in frozen["literals"]:
         if skillmd.contains_literal(package, lit):
             continue
         holders = [k for k in frozen["sentences"] if skillmd.contains_literal(k, lit)]
+        runs = spans.get(lit, [])
+        across = [k for k in dict.fromkeys(k for run in runs for k in run) if k not in holders]
+        holders += across
         elsewhere = any(skillmd.contains_literal(t, lit) for t in frozen["headings"] + frozen["code_blocks"])
+        places = {locate("sentence", k) for k in holders}
         if holders and not elsewhere and all(deleted_with_approval("sentence", k) for k in holders):
             approve(f"literal: {lit}")
+        elif across and not elsewhere and len(places) == 1 and places.isdisjoint({None, "body"}):
+            rel = places.pop()
+            order_there = [s["key"] for s in skillmd.sentences(new_refs[rel])]
+            adjacent = any(run == order_there[i:i + len(run)] for run in runs for i in range(len(order_there)))
+            ask(f"{lit!r} ran across sentences that moved into the same reference"
+                f"{'' if adjacent else ' (not adjacent)'} and no longer reads as written there: "
+                + ", ".join(repr(k) for k in holders), rel)
         else:
             reject("LITERAL_LOST", f"{lit!r} is gone or changed")
 

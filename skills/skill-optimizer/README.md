@@ -2,7 +2,7 @@
 
 A skill optimizer for Claude Code and OpenAI Codex, packaged as an agent skill. It reads a `SKILL.md`, works out what part of it is paid on every turn and what part is paid only when the skill runs, and cuts only what its gate allows, with a reason for each cut, rather than whatever looks long. It is plain Markdown plus five Python scripts, so it runs under both harnesses.
 
-It works on agent skills, the folders with a `SKILL.md`. Subagent definitions in `.claude/agents/` are a different thing; [subagent-optimizer](../subagent-optimizer/) handles those.
+It works on agent skills, the folders with a `SKILL.md`. Subagent definitions in `.claude/agents/` and Codex agents in `.codex/agents/` are a different thing; [subagent-optimizer](../subagent-optimizer/) handles those.
 
 Triggers: "optimize this skill", "shrink my skill", "this skill is too long", "trim SKILL.md", "my skills eat my context", "skill optimizer".
 

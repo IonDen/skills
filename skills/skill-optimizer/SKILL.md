@@ -7,7 +7,8 @@ description: >-
   references/ behind a load trigger, and checks that every rule, exception,
   command and threshold survives before anything is applied. Never edits the
   frontmatter; suggests description changes instead. Subagent definitions in
-  .claude/agents/ are a different thing, handled by subagent-optimizer.
+  .claude/agents/ and Codex agents in .codex/agents/ are a different thing,
+  handled by subagent-optimizer.
   Triggers: "optimize this skill", "shrink my skill", "this skill is too long",
   "trim SKILL.md", "my skills eat my context", "skill optimizer".
 license: MIT

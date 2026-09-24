@@ -107,6 +107,7 @@ subagent-optimizer/
 └── evals/
     ├── evals.json               five prompts with expected outcomes
     ├── fixtures/                the agents they run against
+    ├── fixtures-effort/         the read-only agent at effort max for eval 4
     └── recorded/                measured runs, with the harness that produced them
 ```
 

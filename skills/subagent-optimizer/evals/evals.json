@@ -33,8 +33,10 @@
       "id": 4,
       "name": "effort-readonly",
       "prompt": "Review the log-searcher agent at <AGENT_FILE>: is its model and effort setup right for what it does? Write your report to <OUTPUTS_DIR>/report.md. Report only; do not change the file.",
-      "expected_output": "The file is unchanged. The report shows the agent's model and effort (sonnet, max), flags HIGH_EFFORT_READONLY because the agent is read-only (Read, Grep, Glob) and only finds and quotes log lines, and recommends a lower effort (low or medium) as a candidate to verify on the agent's real task, not as a measured saving. It does not propose adding tools.",
-      "files": []
+      "expected_output": "The file is unchanged. The report shows the agent's model and effort (sonnet, max), flags HIGH_EFFORT_READONLY because the agent is read-only (Read, Grep, Glob) and only finds and quotes log lines, and recommends a lower effort (low or medium, or haiku with no effort field) as a candidate to verify on the agent's real task, not as a measured saving. It does not propose adding tools.",
+      "files": [
+        "evals/fixtures-effort/log-searcher.md"
+      ]
     }
   ]
 }

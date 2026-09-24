@@ -11,13 +11,15 @@ Rules:
   - `--set X.Y.Z`               -> force that exact version.
   - A `version:` line that does not parse, frontmatter that does not start on
     line 1, or a symlink -> SKIP, file untouched.
+  - A Codex agent (.toml) -> REFUSE, file untouched, exit code 1: Codex agent
+    files have no version field and Codex skips an agent with an unknown key.
 
 The field is inserted right after the `name:` line so it stays visible. Line
 endings are preserved (a leading BOM is not) and the file is replaced atomically.
 
 Usage:
     python bump_version.py AGENT.md [AGENT.md ...] [--set X.Y.Z] [--dry-run]
-Exit code is 1 if any path could not be read or written.
+Exit code is 1 if any path could not be read or written, or was refused.
 """
 from __future__ import annotations
 
@@ -37,7 +39,13 @@ def bump(major: int, minor: int) -> str:
     return f"{major}.{minor + 1}.0"
 
 
+REFUSE_PREFIX = "REFUSE"
+
+
 def process(path: Path, force: str | None, dry: bool) -> str:
+    if path.suffix == ".toml":
+        return (f"{REFUSE_PREFIX} {path.name}: Codex agent files have no version field and "
+                "Codex skips an agent with an unknown key; not bumped")
     if path.is_symlink():
         return f"SKIP {path.name}: refusing to follow a symlink"
     with path.open("r", encoding="utf-8-sig", newline="") as fh:
@@ -106,7 +114,9 @@ def main() -> int:
     for p in args.paths:
         path = Path(p).expanduser()
         try:
-            print(process(path, args.force, args.dry_run))
+            result = process(path, args.force, args.dry_run)
+            print(result)
+            failed = failed or result.startswith(REFUSE_PREFIX)
         except (OSError, UnicodeDecodeError) as exc:
             failed = True
             print(f"ERROR {path.name}: {exc}")

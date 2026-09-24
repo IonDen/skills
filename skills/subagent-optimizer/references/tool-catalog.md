@@ -1,5 +1,11 @@
 # Tool catalogue & archetype → tools map
 
+Claude Code only. Codex custom agents have no per-agent tool list: the only tool
+controls in a Codex agent file are disable-only `[features]` switches (such as
+`shell_tool`), as reported from the openai/codex source, and a Claude-style
+`tools = [...]` key makes Codex skip the agent. Never propose an allowlist for a
+Codex agent.
+
 Use this to propose a minimal `tools` allowlist. Tool names vary slightly across
 Claude Code versions — when a name in a file isn't here, treat it as possibly an
 MCP tool (`mcp__*`), a plugin tool, or a newer/older built-in, and verify rather

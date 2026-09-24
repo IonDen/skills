@@ -18,6 +18,13 @@ def _load(name: str, scripts: Path = SCRIPTS):
     return mod
 
 
+@pytest.fixture(autouse=True)
+def _isolated_codex_home(tmp_path_factory, monkeypatch):
+    """Point CODEX_HOME at an empty folder so a real ~/.codex/config.toml never
+    leaks declared roles or notes into a test (subprocess runs inherit it)."""
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex-home")))
+
+
 @pytest.fixture(scope="session")
 def scan():
     return _load("scan_agents")
@@ -34,6 +41,16 @@ def agent_file(tmp_path):
     def _write(name: str, frontmatter: str, body: str = "Do the job.\n"):
         p = tmp_path / f"{name}.md"
         p.write_text(f"---\nname: {name}\n{frontmatter}---\n{body}", encoding="utf-8")
+        return p
+    return _write
+
+
+@pytest.fixture
+def codex_file(tmp_path):
+    """Write a Codex custom agent (.toml) and return its path."""
+    def _write(name: str, text: str):
+        p = tmp_path / f"{name}.toml"
+        p.write_text(text, encoding="utf-8")
         return p
     return _write
 

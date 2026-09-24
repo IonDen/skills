@@ -112,3 +112,14 @@ def test_preplanted_tmp_symlink_cannot_redirect_the_write(bump, tmp_path):
     bump.process(agent, None, False)
     assert outside.read_text() == "untouched\n"
     assert not agent.is_symlink() and "version: 1.1.0" in agent.read_text()
+
+
+def test_codex_toml_is_refused_without_writing(bump, tmp_path):
+    # Bug caught: treating a .toml like any other file (SKIP, exit 0) hides that Codex files must never get a version key.
+    import subprocess, sys
+    p = tmp_path / "agent.toml"
+    original = 'name = "a"\ndescription = "d"\ndeveloper_instructions = "x"\n'
+    p.write_text(original)
+    r = subprocess.run([sys.executable, str(bump.__file__), str(p)], capture_output=True, text=True)
+    assert r.returncode != 0 and "Codex" in r.stdout
+    assert p.read_text() == original

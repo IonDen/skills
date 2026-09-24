@@ -2,6 +2,9 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
+
+import pytest
 
 
 def flags_of(scan, path):
@@ -283,3 +286,730 @@ def test_readable_report_labels_the_metric_as_definition_text(scan, agent_file):
     out = subprocess.run([sys.executable, str(scan.__file__), str(p)],
                          capture_output=True, text=True, check=True).stdout
     assert "definition text" in out and "tokens/launch" not in out
+
+
+# --- effort (reasoning effort next to the model) ---------------------------
+
+def test_effort_is_parsed_like_model(scan, agent_file):
+    # Bug caught: reading `effort` without `_scalar` keeps the quotes, so "high" never validates.
+    quoted = agent_file("a", 'description: Use when x\ntools: Read\neffort: "high"\n')
+    missing = agent_file("b", "description: Use when x\ntools: Read\n")
+    assert scan.parse_agent(quoted)["effort"] == "high"
+    assert scan.parse_agent(missing)["effort"] == ""
+
+
+def test_effort_invalid_flags_values_outside_the_documented_five(scan, agent_file):
+    # Bug caught: leaving `xhigh` (or any documented level) out of the valid set flags a legal value.
+    for i, level in enumerate(["low", "medium", "high", "xhigh", "max"]):
+        p = agent_file(f"ok{i}", f"description: Use when x\ntools: Read\neffort: {level}\n")
+        assert "EFFORT_INVALID" not in flags_of(scan, p), level
+    bad = flags_of(scan, agent_file("bad", "description: Use when x\ntools: Read\neffort: extreme\n"))
+    assert bad["EFFORT_INVALID"]["severity"] == "med" and "extreme" in bad["EFFORT_INVALID"]["message"]
+    assert "EFFORT_INHERIT" not in bad
+
+
+def test_effort_inherit_flag(scan, agent_file):
+    # Bug caught: inverting `if not a["effort"]` flags agents that set effort and misses the rest.
+    unset = flags_of(scan, agent_file("a", "description: Use when x\ntools: Read\n"))
+    assert unset["EFFORT_INHERIT"]["severity"] == "low"
+    assert "session" in unset["EFFORT_INHERIT"]["message"]
+    assert "EFFORT_INHERIT" not in flags_of(scan, agent_file("b", "description: Use when x\ntools: Read\neffort: low\n"))
+
+
+def test_high_effort_on_a_read_only_agent_is_questioned(scan, agent_file):
+    # Bug caught: testing only `max` (or only `xhigh`) misses the other top level on a read-only agent.
+    for level in ("xhigh", "max"):
+        ro = agent_file(f"ro-{level}", f"description: Use when x\ntools: Read, Grep, Glob\neffort: {level}\n")
+        assert flags_of(scan, ro)["HIGH_EFFORT_READONLY"]["severity"] == "low", level
+    assert "HIGH_EFFORT_READONLY" not in flags_of(
+        scan, agent_file("hi", "description: Use when x\ntools: Read, Grep\neffort: high\n"))
+
+
+def test_high_effort_readonly_needs_a_read_only_tool_list(scan, agent_file):
+    # Bug caught: checking only Edit/Write treats a Bash or inherit-all agent as read-only.
+    for i, tools in enumerate(["Read, Edit", "Read, Write", "Read, NotebookEdit",
+                               "Read, Bash", "Read, Bash(git diff:*)"]):
+        p = agent_file(f"w{i}", f"description: Use when x\ntools: {tools}\neffort: max\n")
+        assert "HIGH_EFFORT_READONLY" not in flags_of(scan, p), tools
+    inherit_all = agent_file("all", "description: Use when x\neffort: max\n")
+    assert "HIGH_EFFORT_READONLY" not in flags_of(scan, inherit_all)
+
+
+def test_reports_show_effort_next_to_the_model(scan, agent_file):
+    # Bug caught: parsing effort but never printing it leaves the report blind to the setting.
+    p = agent_file("a", "description: Use when x\ntools: Read\nmodel: sonnet\neffort: max\n")
+    q = agent_file("b", "description: Use when x\ntools: Read\n")
+    text = subprocess.run([sys.executable, str(scan.__file__), str(p), str(q)],
+                          capture_output=True, text=True, check=True).stdout
+    assert "[sonnet, effort max]" in text
+    assert "[inherit (default), effort inherit (session)]" in text
+    data = json.loads(subprocess.run([sys.executable, str(scan.__file__), str(p), "--json"],
+                                     capture_output=True, text=True, check=True).stdout)
+    assert data["agents"][0]["effort"] == "max"
+
+
+def test_haiku_does_not_get_effort_inherit(scan, agent_file):
+    # Bug caught: checking EFFORT_INHERIT before the model asks a haiku agent to pin a level it ignores.
+    haiku = flags_of(scan, agent_file("a", "description: Use when x\ntools: Read\nmodel: haiku\n"))
+    assert "EFFORT_INHERIT" not in haiku and "EFFORT_UNSUPPORTED" not in haiku
+    for model in ("inherit", "sonnet", "claude-opus-5-5"):
+        other = flags_of(scan, agent_file(f"m-{model}", f"description: Use when x\ntools: Read\nmodel: {model}\n"))
+        assert "EFFORT_INHERIT" in other, model
+
+
+def test_effort_set_on_haiku_is_unsupported(scan, agent_file):
+    # Bug caught: validating effort without looking at the model lets `effort: max` on haiku pass as HIGH_EFFORT_READONLY.
+    p = agent_file("a", "description: Use when x\ntools: Read, Grep\nmodel: haiku\neffort: max\n")
+    flags = flags_of(scan, p)
+    assert flags["EFFORT_UNSUPPORTED"]["severity"] == "low"
+    # Bug caught: stating an absolute "ignores effort, drop it" when a per-invocation model
+    # override can run the agent on a model that does take effort.
+    msg = flags["EFFORT_UNSUPPORTED"]["message"]
+    assert "the pinned model does not support effort" in msg and "per-invocation" in msg
+    assert "drop" not in msg.lower()
+    assert "HIGH_EFFORT_READONLY" not in flags
+    sonnet = flags_of(scan, agent_file("b", "description: Use when x\ntools: Read, Grep\nmodel: sonnet\neffort: max\n"))
+    assert "EFFORT_UNSUPPORTED" not in sonnet and "HIGH_EFFORT_READONLY" in sonnet
+
+
+def test_haiku_full_model_id_is_treated_like_the_alias(scan, agent_file):
+    # Bug caught: matching only the exact alias `haiku` misses `claude-haiku-4-5`, which has no effort either.
+    unset = flags_of(scan, agent_file("a", "description: Use when x\ntools: Read\nmodel: claude-haiku-4-5\n"))
+    assert "EFFORT_INHERIT" not in unset
+    pinned = flags_of(scan, agent_file("b", "description: Use when x\ntools: Read\nmodel: claude-haiku-4-5\neffort: low\n"))
+    assert pinned["EFFORT_UNSUPPORTED"]["severity"] == "low"
+
+
+# --- Codex custom agents (.codex/agents/*.toml) ----------------------------
+
+needs_toml = pytest.mark.skipif(sys.version_info < (3, 11),
+                                reason="tomllib is in the standard library from Python 3.11")
+
+CODEX_OK = '''name = "log_reader"
+description = "Finds error lines in logs."
+model = "gpt-6-luna"
+model_reasoning_effort = "high"
+developer_instructions = """
+Find the error lines and report them as path:line with a quote.
+"""
+'''
+
+
+def cflags(scan, path):
+    return flags_of(scan, path)
+
+
+@needs_toml
+def test_codex_agent_is_normalised_into_the_shared_dict(scan, codex_file):
+    # Bug caught: reading effort from `effort` instead of `model_reasoning_effort` loses the Codex setting.
+    a = scan.parse_agent(codex_file("log_reader", CODEX_OK))
+    assert a["format"] == "codex" and a["name"] == "log_reader"
+    assert a["model"] == "gpt-6-luna" and a["effort"] == "high"
+    assert "path:line" in a["body"] and a["description"] == "Finds error lines in logs."
+    assert a["tools"] == [] and a["has_tools"] is False
+
+
+def test_claude_agents_are_labelled_claude(scan, agent_file):
+    # Bug caught: leaving `format` off Claude agents makes the shared report unable to tell them apart.
+    assert scan.parse_agent(agent_file("a", "description: Use when x\ntools: Read\n"))["format"] == "claude"
+
+
+@needs_toml
+def test_codex_agent_gets_no_claude_only_flags(scan, codex_file):
+    # Bug caught: running the Claude checks on a Codex agent reports a missing `tools` field Codex has no use for.
+    text = CODEX_OK.replace('model = "gpt-6-luna"\nmodel_reasoning_effort = "high"\n', "")
+    flags = cflags(scan, codex_file("log_reader", text))
+    for code in ("NO_TOOLS_FIELD", "MODEL_INHERIT", "EFFORT_INHERIT", "NAME_FORMAT", "WEAK_TRIGGER"):
+        assert code not in flags, code
+
+
+@needs_toml
+def test_codex_missing_or_blank_required_keys(scan, codex_file):
+    # Bug caught: testing only `key in data` lets a blank developer_instructions through, which Codex refuses.
+    p = codex_file("x", 'name = "x"\ndeveloper_instructions = "   "\n')
+    f = cflags(scan, p)["CODEX_MISSING_REQUIRED"]
+    assert f["severity"] == "high"
+    assert f["message"].startswith("Missing or blank: description, developer_instructions.")
+    assert "CODEX_MISSING_REQUIRED" not in cflags(scan, codex_file("ok", CODEX_OK))
+
+
+@needs_toml
+def test_codex_claude_style_keys_are_high(scan, codex_file):
+    # Bug caught: flagging `skills` whatever its type flags Codex's own `[[skills.config]]` table.
+    text = CODEX_OK + 'tools = ["Read", "Grep"]\neffort = "high"\npermissionMode = "plan"\nskills = ["a"]\n'
+    f = cflags(scan, codex_file("claude_keys", text))["CODEX_CLAUDE_KEY"]
+    assert f["severity"] == "high"
+    for key in ("tools", "effort", "permissionMode", "skills"):
+        assert key in f["message"], key
+    assert "model_reasoning_effort" in f["message"]
+    codex_skills = CODEX_OK + '\n[[skills.config]]\npath = "/x/SKILL.md"\nenabled = false\n'
+    assert "CODEX_CLAUDE_KEY" not in cflags(scan, codex_file("codex_skills", codex_skills))
+
+
+@needs_toml
+def test_codex_effort_values_outside_the_documented_six_are_invalid(scan, codex_file):
+    # Bug caught: a valid set without `ultra` (Claude's five) flags a legal Codex level.
+    def with_effort(name, effort):
+        return codex_file(name, CODEX_OK.replace('"gpt-6-luna"', '"my-model"')
+                          .replace('effort = "high"', f'effort = "{effort}"'))
+    for level in ("low", "medium", "high", "xhigh", "max", "ultra"):
+        assert "CODEX_EFFORT_INVALID" not in cflags(scan, with_effort(f"ok_{level}", level)), level
+    bad = cflags(scan, with_effort("bad", "extreme"))["CODEX_EFFORT_INVALID"]
+    assert bad["severity"] == "med" and "extreme" in bad["message"]
+    minimal = cflags(scan, with_effort("minimal", "minimal"))["CODEX_EFFORT_INVALID"]
+    assert "not offered" in minimal["message"]
+
+
+@needs_toml
+def test_codex_effort_must_be_one_the_model_offers(scan, codex_file):
+    # Bug caught: checking effort against the global set instead of the model's table misses ultra on Luna.
+    def agent(name, model, effort):
+        return codex_file(name, CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
+                          .replace('effort = "high"', f'effort = "{effort}"'))
+    luna_ultra = cflags(scan, agent("a", "gpt-6-luna", "ultra"))["CODEX_EFFORT_UNSUPPORTED"]
+    assert luna_ultra["severity"] == "med" and "gpt-6-luna" in luna_ultra["message"]
+    assert "CODEX_EFFORT_UNSUPPORTED" in cflags(scan, agent("b", "gpt-5.5", "max"))
+    assert "CODEX_EFFORT_UNSUPPORTED" in cflags(scan, agent("c", "gpt-5.6-luna", "ultra"))
+    assert "CODEX_EFFORT_UNSUPPORTED" not in cflags(scan, agent("d", "gpt-6-luna", "max"))
+    assert "CODEX_EFFORT_UNSUPPORTED" not in cflags(scan, agent("e", "gpt-6-sol", "ultra"))
+    assert "CODEX_EFFORT_UNSUPPORTED" not in cflags(scan, agent("f", "someone-elses-model", "ultra"))
+
+
+@needs_toml
+def test_codex_retired_models_are_flagged_with_the_date(scan, codex_file):
+    # Bug caught: dropping gpt-5.4-mini from the retired table lets a dead slug through.
+    for model in ("gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.2", "gpt-5.3-codex"):
+        p = codex_file(f"m{model}", CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
+                       .replace('effort = "high"', 'effort = "low"'))
+        f = cflags(scan, p)["CODEX_MODEL_RETIRED"]
+        assert f["severity"] == "med" and "ChatGPT sign-in, as of 2026-09-24" in f["message"], model
+    assert "CODEX_MODEL_RETIRED" not in cflags(scan, codex_file("sol", CODEX_OK.replace("gpt-6-luna", "gpt-6-sol")))
+
+
+@needs_toml
+def test_codex_model_pinned_without_effort(scan, codex_file):
+    # Bug caught: inverting the check flags agents that pin both and misses the ones that pin only the model.
+    only_model = CODEX_OK.replace('model_reasoning_effort = "high"\n', "")
+    assert cflags(scan, codex_file("a", only_model))["CODEX_MODEL_WITHOUT_EFFORT"]["severity"] == "low"
+    assert "CODEX_MODEL_WITHOUT_EFFORT" not in cflags(scan, codex_file("b", CODEX_OK))
+    neither = only_model.replace('model = "gpt-6-luna"\n', "")
+    assert "CODEX_MODEL_WITHOUT_EFFORT" not in cflags(scan, codex_file("c", neither))
+
+
+@needs_toml
+def test_codex_agents_reuse_the_length_checks_and_duplicate_blocks(scan, codex_file, agent_file):
+    # Bug caught: a Codex dict without body_lines/_paragraphs skips LONG_BODY and duplicate detection.
+    long_body = "\n".join(f"line {i}" for i in range(scan.DEFAULT_BODY_LINES + 1))
+    p = codex_file("long", f'name = "long"\ndescription = "d"\ndeveloper_instructions = """\n{long_body}\n"""\n')
+    assert "LONG_BODY" in cflags(scan, p)
+    para = "Shared rule: " + "x" * 130
+    c = scan.parse_agent(codex_file("c", f'name = "c"\ndescription = "d"\ndeveloper_instructions = """\n{para}\n"""\n'))
+    m = scan.parse_agent(agent_file("m", "description: Use when x\ntools: Read\n", para + "\n"))
+    assert scan.find_duplicate_blocks([c, m])[0]["agents"] == ["c", "m"]
+
+
+@needs_toml
+def test_toml_without_agent_keys_is_not_an_agent(scan, tmp_path):
+    # Bug caught: treating every .toml as an agent puts pyproject.toml in the report.
+    p = tmp_path / "pyproject.toml"
+    p.write_text('[project]\nname = "pkg"\nversion = "1"\n')
+    assert scan.parse_agent(p) is None
+
+
+@needs_toml
+def test_malformed_toml_is_reported_not_fatal(scan, tmp_path, agent_file):
+    # Bug caught: letting TOMLDecodeError escape aborts the whole scan on one broken file.
+    bad = tmp_path / "bad.toml"
+    bad.write_text('name = "bad\n')
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["good"]
+    assert skipped[0]["path"].endswith("bad.toml") and "TOML" in skipped[0]["reason"]
+
+
+def test_directory_walk_finds_toml_and_notes_symlinked_toml(scan, tmp_path):
+    # Bug caught: a walk over `*.md` only never sees Codex agents; a silent symlink skip hides why one is missing.
+    (tmp_path / "a.md").write_text("---\nname: a\ndescription: Use when x\n---\nbody\n")
+    (tmp_path / "b.toml").write_text(CODEX_OK)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.toml"
+    outside.write_text(CODEX_OK)
+    (tmp_path / "link.toml").symlink_to(outside)
+    notes = []
+    files = scan.gather([str(tmp_path)], notes)
+    assert sorted(f.name for f in files) == ["a.md", "b.toml"]
+    assert notes[0]["path"].endswith("link.toml") and "symlink" in notes[0]["reason"]
+
+
+def test_without_tomllib_codex_files_are_not_scanned_but_claude_files_are(scan, tmp_path, monkeypatch):
+    # Bug caught: calling tomllib unguarded crashes the whole scan on Python 3.10.
+    monkeypatch.setattr(scan, "tomllib", None)
+    (tmp_path / "a.md").write_text("---\nname: a\ndescription: Use when x\n---\nbody\n")
+    (tmp_path / "b.toml").write_text(CODEX_OK)
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["a"]
+    assert [n["path"] for n in skipped] == [str(tmp_path / "b.toml")]
+    # Bug caught: a bare "needs Python 3.11+" leaves the user without a way to run the scan.
+    reason = skipped[0]["reason"]
+    assert reason.startswith("not scanned: Codex files need Python 3.11+")
+    for hint in ("python3.12", "python3.11", "uv run --python 3.12 scripts/scan_agents.py"):
+        assert hint in reason, hint
+
+
+def test_default_targets_include_codex_agent_folders(scan, monkeypatch):
+    # Bug caught: scanning only .claude/agents by default never finds personal Codex agents.
+    monkeypatch.delenv("CODEX_HOME")
+    targets = scan.default_targets()
+    assert str(Path.home() / ".claude/agents") in targets
+    assert str(Path.home() / ".codex/agents") in targets
+
+
+@needs_toml
+def test_codex_reports_show_format_model_and_effort(scan, codex_file):
+    # Bug caught: printing the Claude tools summary for a Codex agent claims a tools field it cannot have.
+    p = codex_file("log_reader", CODEX_OK)
+    text = subprocess.run([sys.executable, str(scan.__file__), str(p)],
+                          capture_output=True, text=True, check=True).stdout
+    assert "[gpt-6-luna, effort high]  Codex agent (no per-agent tool list)" in text
+    data = json.loads(subprocess.run([sys.executable, str(scan.__file__), str(p), "--json"],
+                                     capture_output=True, text=True, check=True).stdout)
+    a = data["agents"][0]
+    assert a["format"] == "codex" and "body" not in a and "_keys" not in a
+    assert data["skipped"] == []
+
+
+# --- PR 11 fixes: declared roles, new Codex flags, robustness ---------------
+
+def test_duplicate_blocks_keep_same_named_files_apart(scan, tmp_path):
+    # Bug caught: keying duplicate detection by `name` collapses a Claude agent and its
+    # same-named port (or user and project scope copies) into one, hiding the duplication.
+    para = "Shared rule: " + "x" * 130
+    user = tmp_path / "user"
+    proj = tmp_path / "proj"
+    user.mkdir()
+    proj.mkdir()
+    (user / "reviewer.md").write_text(f"---\nname: reviewer\ndescription: Use when x\ntools: Read\n---\n{para}\n")
+    (proj / "reviewer.md").write_text(f"---\nname: reviewer\ndescription: Use when x\ntools: Read\n---\n{para}\n")
+    agents, _ = scan.scan_paths([str(user), str(proj)])
+    dups = scan.find_duplicate_blocks(agents)
+    assert len(dups) == 1
+    assert dups[0]["files"] == [str(proj / "reviewer.md"), str(user / "reviewer.md")]
+    text = subprocess.run([sys.executable, str(scan.__file__), str(user), str(proj)],
+                          capture_output=True, text=True, check=True).stdout
+    assert "DUPLICATED BLOCKS" in text
+    assert f"reviewer ({user / 'reviewer.md'})" in text and f"reviewer ({proj / 'reviewer.md'})" in text
+
+
+# Keys Codex 0.149+ parses but does not apply to a custom agent (rust-v0.156.1,
+# core/src/agent/role.rs AgentRoleOverrides). Written out, not read from the scanner,
+# so dropping one from CODEX_IGNORED_KEYS turns its case red.
+IGNORED_KEY_SNIPPETS = {
+    "sandbox_mode": 'sandbox_mode = "read-only"\n',
+    "approval_policy": 'approval_policy = "never"\n',
+    "model_provider": 'model_provider = "openai"\n',
+    "notify": 'notify = ["notify-send"]\n',
+    "openai_base_url": 'openai_base_url = "https://example.com"\n',
+    "chatgpt_base_url": 'chatgpt_base_url = "https://example.com"\n',
+    "mcp_servers": '[mcp_servers.docs]\nurl = "https://example.com/mcp"\n',
+    "apps": '[apps]\nenabled = false\n',
+    "hooks": '[[hooks.PreToolUse]]\nmatcher = "shell"\n',
+    # role.rs copies it, but child_config.rs and control/spawn.rs overwrite it with the parent's tier.
+    "service_tier": 'service_tier = "flex"\n',
+}
+
+
+@needs_toml
+@pytest.mark.parametrize("key", sorted(IGNORED_KEY_SNIPPETS))
+def test_codex_ignored_keys_are_low_and_kept(scan, codex_file, key):
+    # Bug caught: a key missing from CODEX_IGNORED_KEYS (or `hooks` left in the Claude list)
+    # is either reported as effective or told to be removed, though older Codex still applies it.
+    flags = cflags(scan, codex_file(f"ign_{key}", CODEX_OK + "\n" + IGNORED_KEY_SNIPPETS[key]))
+    f = flags["CODEX_IGNORED_KEY"]
+    assert f["severity"] == "low" and key in f["message"]
+    assert "0.149" in f["message"] and "older" in f["message"]
+    assert "remove" not in f["message"].lower()
+    assert "CODEX_CLAUDE_KEY" not in flags and "CODEX_UNKNOWN_KEY" not in flags
+
+
+@needs_toml
+@pytest.mark.parametrize("model", ["sonnet", "Opus", "HAIKU", "fable", "inherit",
+                                   "claude-opus-5-5", "Claude-Sonnet-4-6"])
+def test_codex_claude_model_is_high(scan, codex_file, model):
+    # Bug caught: a case-sensitive alias match, or no `claude-` prefix check, lets a Claude model
+    # through that Codex cannot resolve.
+    text = CODEX_OK.replace('"gpt-6-luna"', f'"{model}"')
+    f = cflags(scan, codex_file("cm", text))["CODEX_CLAUDE_MODEL"]
+    assert f["severity"] == "high" and model in f["message"]
+    # Bug caught: claiming Codex skips the agent; `model` is a plain string, so the agent loads
+    # and its requests fail.
+    assert "skip" not in f["message"] and "requests fail" in f["message"]
+
+
+@needs_toml
+@pytest.mark.parametrize("model", ["gpt-6-sol", "someone-elses-model", "my-claude-proxy"])
+def test_codex_model_that_is_not_claude_is_not_flagged(scan, codex_file, model):
+    # Bug caught: a substring match on "claude" flags a Codex model whose slug merely contains it.
+    text = CODEX_OK.replace('"gpt-6-luna"', f'"{model}"').replace('effort = "high"', 'effort = "low"')
+    assert "CODEX_CLAUDE_MODEL" not in cflags(scan, codex_file("ok", text))
+
+
+@needs_toml
+def test_codex_unknown_top_level_key_is_high(scan, codex_file):
+    # Bug caught: without a known-key list, `prompt` and `version` pass silently while Codex
+    # skips the whole agent.
+    f = cflags(scan, codex_file("unk", 'prompt = "x"\nversion = 2\n' + CODEX_OK))["CODEX_UNKNOWN_KEY"]
+    assert f["severity"] == "high"
+    assert "prompt" in f["message"] and "version" in f["message"] and "skips" in f["message"]
+
+
+@needs_toml
+def test_codex_known_keys_are_not_unknown(scan, codex_file):
+    # Bug caught: a known-key list missing Codex's own keys (nickname_candidates, personality,
+    # [features], [[skills.config]], [tools]) flags a valid agent as one Codex will skip.
+    text = ('nickname_candidates = ["Ada"]\npersonality = "pragmatic"\nmodel_verbosity = "low"\n'
+            'model_reasoning_summary = "concise"\n' + CODEX_OK
+            + '\n[features]\nshell_tool = false\n\n[[skills.config]]\npath = "/x/SKILL.md"\nenabled = false\n'
+            '\n[tools]\nweb_search = false\n')
+    flags = cflags(scan, codex_file("known", text))
+    assert "CODEX_UNKNOWN_KEY" not in flags and "CODEX_CLAUDE_KEY" not in flags
+
+
+@needs_toml
+def test_claude_keys_are_not_also_reported_as_unknown(scan, codex_file):
+    # Bug caught: checking unknown keys without excluding Claude keys reports `color` twice.
+    flags = cflags(scan, codex_file("ck", CODEX_OK + 'color = "blue"\n'))
+    assert "color" in flags["CODEX_CLAUDE_KEY"]["message"] and "CODEX_UNKNOWN_KEY" not in flags
+
+
+def _walk(scan, *paths):
+    notes = []
+    files = scan.gather([str(p) for p in paths], notes)
+    return files, notes
+
+
+@needs_toml
+def test_deeply_nested_toml_is_not_scanned_and_the_scan_goes_on(scan, tmp_path, agent_file):
+    # Bug caught: catching only TOMLDecodeError lets tomllib's RecursionError abort the whole scan.
+    (tmp_path / "deep.toml").write_text('name = "deep"\nx = ' + "[" * 5000 + "]" * 5000 + "\n")
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["good"]
+    assert skipped[0]["path"].endswith("deep.toml") and "nested too deeply" in skipped[0]["reason"]
+
+
+@needs_toml
+def test_toml_that_is_not_utf8_is_not_scanned(scan, tmp_path):
+    # Bug caught: decoding with errors="replace" scans a file Codex cannot read as if it were fine.
+    (tmp_path / "bad.toml").write_bytes(b'name = "\xff"\ndeveloper_instructions = "x"\n')
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert agents == []
+    assert skipped[0]["path"].endswith("bad.toml") and "UTF-8" in skipped[0]["reason"]
+
+
+def test_unreadable_file_is_not_scanned_and_the_scan_goes_on(scan, tmp_path, agent_file):
+    # Bug caught: an OSError from read_text (no permission) aborts the whole scan.
+    locked = agent_file("locked", "description: Use when x\ntools: Read\n")
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    locked.chmod(0)
+    try:
+        agents, skipped = scan.scan_paths([str(tmp_path)])
+    finally:
+        locked.chmod(0o644)
+    assert [a["name"] for a in agents] == ["good"]
+    assert skipped[0]["path"].endswith("locked.md") and skipped[0]["reason"].startswith("not scanned:")
+
+
+def test_directory_named_like_an_agent_file_is_not_read(scan, tmp_path, agent_file):
+    # Bug caught: rglob("*.toml") also yields directories, and reading one raises IsADirectoryError.
+    (tmp_path / "folder.toml").mkdir()
+    (tmp_path / "folder.md").mkdir()
+    agent_file("good", "description: Use when x\ntools: Read\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["name"] for a in agents] == ["good"] and skipped == []
+
+
+def test_agent_file_over_one_mib_is_not_scanned(scan, tmp_path, agent_file):
+    # Bug caught: no size cap reads a huge file whole into memory and reports it as an agent.
+    agent_file("huge", "description: Use when x\ntools: Read\n", "x" * (1024 * 1024 + 1) + "\n")
+    small = agent_file("small", "description: Use when x\ntools: Read\n", "y" * 1000 + "\n")
+    agents, skipped = scan.scan_paths([str(tmp_path)])
+    assert [a["path"] for a in agents] == [str(small)]
+    assert skipped[0]["path"].endswith("huge.md") and "1 MiB" in skipped[0]["reason"]
+
+
+@needs_toml
+def test_toml_suffix_matches_in_any_case(scan, tmp_path):
+    # Bug caught: comparing the suffix to ".toml" exactly misses Agent.TOML in a walk and as an argument.
+    p = tmp_path / "Upper.TOML"
+    p.write_text(CODEX_OK)
+    files, _ = _walk(scan, tmp_path)
+    assert files == [p]
+    assert scan.parse_agent(p)["format"] == "codex"
+    assert scan.gather([str(p)]) == [p]
+
+
+def test_explicit_symlinked_file_argument_is_not_followed(scan, tmp_path):
+    # Bug caught: gather() accepts any is_file() path, and is_file() follows the link.
+    outside = tmp_path / "outside.md"
+    outside.write_text("---\nname: outside\ndescription: Use when x\n---\nbody\n")
+    link = tmp_path / "link.md"
+    link.symlink_to(outside)
+    files, notes = _walk(scan, link)
+    assert files == []
+    assert notes == [{"path": str(link), "reason": notes[0]["reason"]}]
+    assert notes[0]["reason"].startswith("not scanned: symlink")
+
+
+def test_symlinked_md_in_a_walk_gets_a_note(scan, tmp_path):
+    # Bug caught: dropping a symlinked .md silently, so the user never learns why an agent is missing.
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.md"
+    outside.write_text("---\nname: outside\ndescription: Use when x\n---\nbody\n")
+    (tmp_path / "link.md").symlink_to(outside)
+    files, notes = _walk(scan, tmp_path)
+    assert files == []
+    assert notes[0]["path"].endswith("link.md") and notes[0]["reason"].startswith("not scanned: symlink")
+
+
+def test_symlinked_toml_is_refused_for_being_a_symlink(scan, tmp_path):
+    # Bug caught: a symlinked .toml refused for some other reason (or parsed through the link),
+    # or a reason claiming Codex rejects symlinks, which it does not (it follows them).
+    outside = tmp_path.parent / f"{tmp_path.name}-outside.toml"
+    outside.write_text(CODEX_OK)
+    (tmp_path / "link.toml").symlink_to(outside)
+    files, notes = _walk(scan, tmp_path)
+    assert files == []
+    assert notes[0]["reason"].startswith("not scanned: symlink") and "Codex" not in notes[0]["reason"]
+
+
+@needs_toml
+def test_lone_top_level_description_is_not_an_agent(scan, tmp_path):
+    # Bug caught: counting `description` as an agent marker lists every TOML with a description.
+    p = tmp_path / "meta.toml"
+    p.write_text('description = "A config file"\n')
+    assert scan.parse_agent(p) is None
+
+
+@needs_toml
+def test_top_level_developer_instructions_alone_is_an_agent(scan, tmp_path):
+    # Bug caught: requiring `name` for detection hides an agent that forgot its name.
+    p = tmp_path / "noname.toml"
+    p.write_text('developer_instructions = "Do the job."\n')
+    a = scan.parse_agent(p)
+    assert a["format"] == "codex"
+    f = scan.flag_agent(a, scan.DEFAULT_BODY_LINES, scan.DEFAULT_DESC_CHARS)
+    assert any(x["code"] == "CODEX_MISSING_REQUIRED" and "name" in x["message"] for x in f)
+
+
+@needs_toml
+def test_agent_keys_under_a_table_header_get_a_note(scan, tmp_path):
+    # Bug caught: a file whose agent keys fell under a [table] header is dropped with no word why.
+    p = tmp_path / "misplaced.toml"
+    p.write_text('[agent]\nname = "x"\ndeveloper_instructions = "Do it."\n')
+    agents, skipped = scan.scan_paths([str(p)])
+    assert agents == []
+    reason = skipped[0]["reason"]
+    assert "[agent]" in reason and "belong to that table" in reason and "Codex" in reason
+
+
+@needs_toml
+def test_nested_table_with_agent_keys_names_the_dotted_header(scan, tmp_path):
+    # Bug caught: looking only one level down misses keys that fell under [mcp_servers.docs].
+    p = tmp_path / "late.toml"
+    p.write_text('description = "d"\n[mcp_servers.docs]\nurl = "u"\nname = "x"\n'
+                 'developer_instructions = "Do it."\n')
+    _, skipped = scan.scan_paths([str(p)])
+    assert "[mcp_servers.docs]" in skipped[0]["reason"]
+    assert "`name` and `developer_instructions` sit" in skipped[0]["reason"]
+
+
+# --- Codex roles declared in config.toml ([agents.<name>] + config_file) -----
+
+def _declare(home, body):
+    home.mkdir(parents=True, exist_ok=True)
+    cfg = home / "config.toml"
+    cfg.write_text(body)
+    return cfg
+
+
+def _declared_scan(scan, cfg, *paths):
+    return scan.scan_paths(list(paths), config_files=[cfg], include_declared=True)
+
+
+@needs_toml
+def test_declared_role_outside_agents_folder_is_scanned_under_the_table_key(scan, tmp_path):
+    # Bug caught: scanning only agents/ folders never sees a role that config.toml points
+    # elsewhere, and a missing file `name` would be reported as CODEX_MISSING_REQUIRED.
+    cfg = _declare(tmp_path / "home", '[agents]\nmax_threads = 4\ndefault_subagent_model = "gpt-6-sol"\n\n'
+                   '[agents.reviewer]\ndescription = "Reviews diffs."\nconfig_file = "roles/rev.toml"\n')
+    (tmp_path / "home" / "roles").mkdir()
+    (tmp_path / "home" / "roles" / "rev.toml").write_text('developer_instructions = "Review it."\n')
+    agents, skipped = _declared_scan(scan, cfg)
+    assert skipped == []
+    [a] = agents
+    assert a["name"] == "reviewer" and a["description"] == "Reviews diffs."
+    assert a["declared"] == {"role": "reviewer", "config": str(cfg)}
+    assert "CODEX_MISSING_REQUIRED" not in {f["code"] for f in a["flags"]}
+
+
+@needs_toml
+def test_declared_role_file_may_omit_developer_instructions_but_not_blank_them(scan, tmp_path):
+    # Bug caught: requiring developer_instructions in a declared role file, which Codex
+    # rust-v0.156.1 accepts (the child keeps the parent's instructions); a blank one it refuses.
+    cfg = _declare(tmp_path / "home", '[agents.tuner]\ndescription = "d"\nconfig_file = "tuner.toml"\n'
+                   '[agents.blank]\ndescription = "d"\nconfig_file = "blank.toml"\n')
+    (tmp_path / "home" / "tuner.toml").write_text('model = "gpt-6-sol"\nmodel_reasoning_effort = "medium"\n')
+    (tmp_path / "home" / "blank.toml").write_text('developer_instructions = "  "\n')
+    by_name = {a["name"]: {f["code"]: f for f in a["flags"]} for a in _declared_scan(scan, cfg)[0]}
+    assert "CODEX_MISSING_REQUIRED" not in by_name["tuner"]
+    assert by_name["blank"]["CODEX_MISSING_REQUIRED"]["message"].startswith("Missing or blank: developer_instructions.")
+
+
+@needs_toml
+def test_declared_role_without_any_description_is_flagged(scan, tmp_path):
+    # Bug caught: treating the table key as proof of a complete role hides the missing description.
+    cfg = _declare(tmp_path / "home", '[agents.x]\nconfig_file = "x.toml"\n')
+    (tmp_path / "home" / "x.toml").write_text('developer_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    f = {f["code"]: f for f in a["flags"]}["CODEX_MISSING_REQUIRED"]
+    assert f["message"].startswith("Missing or blank: description.")
+
+
+@needs_toml
+def test_declared_role_whose_file_name_differs_gets_a_note_not_a_rename(scan, tmp_path):
+    # Bug caught: silently reporting the file's `name`, or proposing a rename, when the table key
+    # and the file disagree (Codex registers the role under the file's `name`).
+    cfg = _declare(tmp_path / "home", '[agents.reviewer]\ndescription = "d"\nconfig_file = "r.toml"\n')
+    role = tmp_path / "home" / "r.toml"
+    role.write_text('name = "critic"\ndeveloper_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    assert a["name"] == "reviewer"
+    note = {f["code"]: f for f in a["flags"]}["CODEX_DECLARED_NAME"]
+    assert note["severity"] == "info"
+    assert "critic" in note["message"] and "[agents.reviewer]" in note["message"]
+    assert "nothing is renamed" in note["message"]
+
+
+@needs_toml
+def test_declared_role_inside_agents_folder_is_listed_once_as_declared(scan, tmp_path):
+    # Bug caught: the walk and the declaration both add the same file, so it shows twice.
+    home = tmp_path / "home"
+    cfg = _declare(home, '[agents.reviewer]\ndescription = "d"\nconfig_file = "agents/r.toml"\n')
+    (home / "agents").mkdir()
+    (home / "agents" / "r.toml").write_text('developer_instructions = "Do it."\n')
+    agents, _ = _declared_scan(scan, cfg, home / "agents")
+    assert [(a["name"], a.get("declared", {}).get("role")) for a in agents] == [("reviewer", "reviewer")]
+
+
+@needs_toml
+def test_declared_role_file_that_does_not_exist_gets_a_note(scan, tmp_path):
+    # Bug caught: a dangling config_file vanishes from the report, though Codex refuses the role.
+    cfg = _declare(tmp_path / "home", '[agents.ghost]\ndescription = "d"\nconfig_file = "gone.toml"\n')
+    agents, skipped = _declared_scan(scan, cfg)
+    assert agents == []
+    assert skipped[0]["path"].endswith("gone.toml")
+    assert "[agents.ghost]" in skipped[0]["reason"] and "does not exist" in skipped[0]["reason"]
+
+
+def test_codex_home_moves_the_default_agents_folder_and_config(scan, tmp_path, monkeypatch):
+    # Bug caught: hard-coding ~/.codex ignores CODEX_HOME, so a relocated Codex home is never scanned.
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "ch"))
+    monkeypatch.chdir(tmp_path)
+    assert str(tmp_path / "ch" / "agents") in scan.default_targets()
+    assert str(Path.home() / ".codex/agents") not in scan.default_targets()
+    assert scan.codex_config_files() == [tmp_path / "ch" / "config.toml",
+                                         tmp_path / ".codex" / "config.toml"]
+
+
+@needs_toml
+def test_cli_reads_declared_roles_from_codex_home_and_project(scan, tmp_path):
+    # Bug caught: main() never passes the config files, so declared roles are missing from a default scan.
+    home, proj = tmp_path / "h", tmp_path / "p"
+    _declare(home / ".codex", '[agents.user_role]\ndescription = "d"\nconfig_file = "u.toml"\n')
+    (home / ".codex" / "u.toml").write_text('developer_instructions = "Do it."\n')
+    _declare(proj / ".codex", '[agents.proj_role]\ndescription = "d"\nconfig_file = "../roles/p.toml"\n')
+    (proj / "roles").mkdir()
+    (proj / "roles" / "p.toml").write_text('developer_instructions = "Do it."\n')
+    env = {"HOME": str(home), "CODEX_HOME": str(home / ".codex"), "PATH": "/usr/bin:/bin"}
+    out = subprocess.run([sys.executable, str(scan.__file__), "--json"], cwd=proj, env=env,
+                         capture_output=True, text=True, check=True).stdout
+    data = json.loads(out)
+    assert sorted(a["name"] for a in data["agents"]) == ["proj_role", "user_role"]
+    text = subprocess.run([sys.executable, str(scan.__file__)], cwd=proj, env=env,
+                          capture_output=True, text=True, check=True).stdout
+    assert "declared as [agents.proj_role] in" in text
+
+
+
+# --- round 2 ---------------------------------------------------------------
+
+@needs_toml
+def test_upper_case_toml_suffix_is_flagged_unless_declared(scan, tmp_path):
+    # Bug caught: scanning Upper.TOML as a normal agent although Codex's discovery only loads
+    # lowercase .toml; and flagging it when a config_file declaration loads it anyway.
+    (tmp_path / "Upper.TOML").write_text(CODEX_OK)
+    agents, _ = scan.scan_paths([str(tmp_path)])
+    f = {x["code"]: x for x in agents[0]["flags"]}["CODEX_SUFFIX_CASE"]
+    assert f["severity"] == "med" and "Upper.toml" in f["message"] and "lowercase .toml" in f["message"]
+    home = tmp_path / "home"
+    cfg = _declare(home, '[agents.up]\ndescription = "d"\nconfig_file = "Role.TOML"\n')
+    (home / "Role.TOML").write_text('developer_instructions = "Do it."\n')
+    [d] = _declared_scan(scan, cfg)[0]
+    assert "CODEX_SUFFIX_CASE" not in {x["code"] for x in d["flags"]}
+    lower = home / "lower.toml"
+    lower.write_text(CODEX_OK)
+    assert "CODEX_SUFFIX_CASE" not in {x["code"] for x in scan.scan_paths([str(lower)])[0][0]["flags"]}
+
+
+@needs_toml
+def test_declared_role_with_blank_file_description_is_flagged(scan, tmp_path):
+    # Bug caught: falling back to the table description when the file's is blank; Codex errors
+    # on the blank first and drops the role.
+    cfg = _declare(tmp_path / "home", '[agents.x]\ndescription = "From the table."\nconfig_file = "x.toml"\n')
+    (tmp_path / "home" / "x.toml").write_text('description = "  "\ndeveloper_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    f = {x["code"]: x for x in a["flags"]}["CODEX_MISSING_REQUIRED"]
+    assert f["message"].startswith("Missing or blank: description.")
+
+
+@needs_toml
+def test_config_toml_in_a_walk_is_not_an_agent(scan, tmp_path):
+    # Bug caught: walking .codex/ reads config.toml as an agent candidate, so a profile's
+    # developer_instructions produce a false "move the keys" note.
+    codex = tmp_path / ".codex"
+    codex.mkdir()
+    (codex / "config.toml").write_text('model = "gpt-6-sol"\n[profiles.x]\ndeveloper_instructions = "Be brief."\n')
+    agents, skipped = scan.scan_paths([str(codex)])
+    assert agents == [] and skipped == []
+
+
+@needs_toml
+def test_claude_slug_is_med_when_a_model_provider_is_set(scan, tmp_path, codex_file):
+    # Bug caught: a flat high for `claude-...` ignores a model_provider that may serve it;
+    # a bare alias stays high because no provider slug looks like that.
+    slug = CODEX_OK.replace('"gpt-6-luna"', '"claude-opus-5-5"')
+    f = cflags(scan, codex_file("prov", 'model_provider = "anthropic"\n' + slug))["CODEX_CLAUDE_MODEL"]
+    assert f["severity"] == "med" and "unless your model_provider serves it" in f["message"]
+    alias = CODEX_OK.replace('"gpt-6-luna"', '"sonnet"')
+    assert cflags(scan, codex_file("prov2", 'model_provider = "anthropic"\n' + alias))["CODEX_CLAUDE_MODEL"]["severity"] == "high"
+    cfg = _declare(tmp_path / "home", 'model_provider = "anthropic"\n[agents.r]\ndescription = "d"\nconfig_file = "r.toml"\n')
+    (tmp_path / "home" / "r.toml").write_text('model = "claude-opus-5-5"\ndeveloper_instructions = "Do it."\n')
+    [a] = _declared_scan(scan, cfg)[0]
+    assert {x["code"]: x for x in a["flags"]}["CODEX_CLAUDE_MODEL"]["severity"] == "med"
+
+
+@needs_toml
+def test_hooks_that_is_not_a_table_is_a_claude_key(scan, codex_file):
+    # Bug caught: treating any `hooks` value as Codex's table; a string or list fails Codex's
+    # HooksToml type and the file is skipped.
+    flags = cflags(scan, codex_file("h", CODEX_OK + 'hooks = ["pre.sh"]\n'))
+    assert "hooks" in flags["CODEX_CLAUDE_KEY"]["message"] and "CODEX_IGNORED_KEY" not in flags
+
+
+@needs_toml
+def test_declared_paths_are_shown_normalised(scan, tmp_path):
+    # Bug caught: printing `home/./x/../r.toml` as given instead of a clean path.
+    home = tmp_path / "home"
+    cfg = _declare(home, '[agents.r]\ndescription = "d"\nconfig_file = "./sub/../r.toml"\n')
+    (home / "r.toml").write_text('developer_instructions = "Do it."\n')
+    (home / "sub").mkdir()
+    [a] = scan.scan_paths([], config_files=[f"{home}/sub/../config.toml"], include_declared=True)[0]
+    assert a["path"] == str(home / "r.toml") and a["declared"]["config"] == str(cfg)

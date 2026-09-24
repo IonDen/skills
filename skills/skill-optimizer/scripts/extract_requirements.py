@@ -5,7 +5,8 @@ any rewrite exists: an inventory taken from the rewrite could only agree with it
 Records, from the original skill directory:
   - the frontmatter block, byte for byte (the rewrite may not touch it)
   - a SHA-256 of every file (only SKILL.md may change; new files may appear
-    under references/)
+    under references/). Symlinks are neither followed nor frozen, and a
+    symlinked SKILL.md is refused.
   - every sentence and heading carrying a rule word (must, never, not, no,
     only, unless, without, ...), with its position and whether it is a strong rule
   - every literal: inline code, runnable code lines, URLs, flags, versions,

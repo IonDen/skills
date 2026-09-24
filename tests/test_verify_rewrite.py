@@ -290,3 +290,45 @@ def test_rule_deleted_only_with_approval(run):
     assert "RULE_LOST" in codes(run(body=body))
     r = run(body=body, approved=["Do not edit `generated/`, unless the user asks."])
     assert "RULE_LOST" not in codes(r) and r["approved_deletions"] == ["Do not edit `generated/`, unless the user asks"]
+
+
+def _secret(tmp_path):
+    secret = tmp_path / "secret.md"
+    secret.write_text("PRIVATE KEY\n", encoding="utf-8")
+    return secret
+
+
+def test_symlinked_skill_md_is_refused(freezer, gate, make_skill, tmp_path, capsys):
+    # Bug caught: following a symlinked SKILL.md in the original or the candidate,
+    # so the gate reads, hashes and may quote a file outside the skill.
+    orig = make_skill(ORIGINAL)
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(freezer.freeze(orig, REQS)), encoding="utf-8")
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    (cand / "SKILL.md").unlink()
+    (cand / "SKILL.md").symlink_to(_secret(tmp_path))
+    args = ["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(cand)]
+    assert gate.main(args) == 2
+    err = capsys.readouterr().err
+    assert "symlink" in err and "PRIVATE" not in err and len(err.strip().splitlines()) == 1
+
+
+def test_symlinks_in_the_candidate_are_rejected(freezer, gate, make_skill, tmp_path):
+    # Bug caught: skipping a link in the candidate without a word, so a frozen file
+    # swapped for a link, or a new reference that is a link, reaches the apply step unchecked.
+    orig = make_skill(ORIGINAL, files={"references/a.md": "Original.\n"})
+    frozen = freezer.freeze(orig, REQS)
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    (cand / "SKILL.md").write_text((orig / "SKILL.md").read_text(encoding="utf-8").replace(EXPLANATION, ""),
+                                   encoding="utf-8")
+    assert gate.verify(frozen, cand, orig)["status"] == "pass"
+    (cand / "references" / "a.md").unlink()
+    (cand / "references" / "a.md").symlink_to(orig / "references" / "a.md")
+    (cand / "references" / "b.md").symlink_to(_secret(tmp_path))
+    r = gate.verify(frozen, cand, orig)
+    details = [(f["code"], f["detail"]) for f in r["rejected"]]
+    assert ("FILE_CHANGED", "references/a.md is missing") in details
+    assert sum(1 for c, d in details if c == "UNEXPECTED_FILE" and "symlink" in d) == 2
+    assert not any("PRIVATE" in d for _, d in details)

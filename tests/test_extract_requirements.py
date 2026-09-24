@@ -138,3 +138,31 @@ def test_freeze_happens_once(freezer, make_skill, tmp_path, capsys):
     before = out.read_bytes()
     assert freezer.main([str(d), "--requirements", str(req), "-o", str(out)]) == 2
     assert out.read_bytes() == before and "Freeze once" in capsys.readouterr().err
+
+
+def test_symlinked_reference_is_neither_frozen_nor_read(freezer, make_skill, tmp_path):
+    # Bug caught: hashing every path is_file() accepts, which follows a link out of
+    # the skill. The target is unreadable, so reading it would fail the freeze.
+    secret = tmp_path / "secret.txt"
+    secret.write_text("PRIVATE KEY\n", encoding="utf-8")
+    secret.chmod(0)
+    d = make_skill(BODY, files={"references/a.md": "A.\n"})
+    (d / "references" / "leak.md").symlink_to(secret)
+    try:
+        assert set(freezer.freeze(d, REQS)["files"]) == {"SKILL.md", "references/a.md"}
+    finally:
+        secret.chmod(0o600)
+
+
+def test_symlinked_skill_md_is_refused(freezer, make_skill, tmp_path, capsys):
+    # Bug caught: following a symlinked SKILL.md, so the freeze reads whatever it points at.
+    secret = tmp_path / "secret.md"
+    secret.write_text("PRIVATE KEY\n", encoding="utf-8")
+    d = make_skill(BODY)
+    (d / "SKILL.md").unlink()
+    (d / "SKILL.md").symlink_to(secret)
+    req = tmp_path / "req.md"
+    req.write_text(REQS, encoding="utf-8")
+    assert freezer.main([str(d), "--requirements", str(req), "--dry-run"]) == 2
+    err = capsys.readouterr().err
+    assert "symlink" in err and "PRIVATE" not in err and len(err.strip().splitlines()) == 1

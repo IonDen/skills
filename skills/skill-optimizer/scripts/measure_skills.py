@@ -10,7 +10,7 @@ mark a description over a documented limit, because text past a limit is
 dropped or rejected, not because a smaller number is better.
 
 Usage: measure_skills.py <skill-dir | SKILL.md> [...] [--json]
-Exit 2 when a path does not exist or has no SKILL.md.
+Exit 2 when a path does not exist, has no SKILL.md, or its SKILL.md is a symlink.
 """
 from __future__ import annotations
 

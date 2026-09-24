@@ -61,3 +61,15 @@ def test_cli_reports_an_unreadable_file_without_a_traceback(measure, tmp_path, c
     (d / "SKILL.md").write_bytes(b"---\nname: bad\ndescription: x\n---\n\xff\xfe broken\n")
     assert measure.main([str(d)]) == 2
     assert "cannot read" in capsys.readouterr().err
+
+
+def test_cli_refuses_a_symlinked_skill_md(measure, make_skill, tmp_path, capsys):
+    # Bug caught: measuring through a symlinked SKILL.md, which reads a file outside the skill.
+    secret = tmp_path / "secret.md"
+    secret.write_text(fm("Use when x.") + "PRIVATE KEY\n", encoding="utf-8")
+    d = make_skill("x\n")
+    (d / "SKILL.md").unlink()
+    (d / "SKILL.md").symlink_to(secret)
+    assert measure.main([str(d)]) == 2
+    out = capsys.readouterr()
+    assert "symlink" in out.err and out.out == "" and len(out.err.strip().splitlines()) == 1

@@ -9,6 +9,7 @@ change, and any other edit to a sentence is.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 
@@ -61,24 +62,54 @@ LITERAL_RES = [
 PATH_RE = re.compile(r"(?<![\w/.~-])(~?/?(?:[\w.-]+/)+[\w.-]*)")
 
 
+class SymlinkError(OSError):
+    """A link where the scripts expect a real file. They never follow one: a link
+    inside a skill can point anywhere, ~/.ssh included."""
+
+
+def _real_file(path) -> Path:
+    path = Path(path)
+    if path.is_symlink():
+        raise SymlinkError(f"{path} is a symlink; copy the skill with its links resolved (cp -RL)")
+    return path
+
+
 def read_text(path) -> str:
     """Decode without newline translation, so a CRLF edit is still an edit."""
-    return Path(path).read_bytes().decode("utf-8-sig")
+    return _real_file(path).read_bytes().decode("utf-8-sig")
 
 
 def sha256_file(path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    return hashlib.sha256(_real_file(path).read_bytes()).hexdigest()
 
 
 SKIP_PARTS = {"__pycache__", ".git", ".DS_Store"}
 
 
+def _walk(root: Path):
+    """(path, is_link) for every file and directory under root, not descending into links."""
+    for top, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = [d for d in dirs if d not in SKIP_PARTS]
+        for name in dirs + files:
+            if name not in SKIP_PARTS:
+                p = Path(top) / name
+                yield p, p.is_symlink()
+
+
 def package_files(root) -> list[Path]:
-    """Files of a skill directory, without caches, VCS data or Finder litter."""
+    """Real files of a skill directory, without caches, VCS data or Finder litter.
+    Links are left out, and so is anything under a linked directory or outside the root."""
     root = Path(root)
-    return [p for p in sorted(root.rglob("*"))
-            if p.is_file() and not SKIP_PARTS.intersection(p.relative_to(root).parts)
-            and p.suffix != ".pyc"]
+    real_root = root.resolve()
+    return sorted(p for p, link in _walk(root)
+                  if not link and p.is_file() and p.suffix != ".pyc"
+                  and p.resolve().is_relative_to(real_root))
+
+
+def symlinks(root) -> list[str]:
+    """Links inside a skill directory, as paths relative to it."""
+    root = Path(root)
+    return sorted(p.relative_to(root).as_posix() for p, link in _walk(root) if link)
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:

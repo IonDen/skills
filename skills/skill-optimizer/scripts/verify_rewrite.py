@@ -11,7 +11,7 @@ Rejects (exit 1):
   ORIGINAL_CHANGED     the skill on disk is not the one that was frozen
   FRONTMATTER_CHANGED  any byte of the frontmatter differs
   FILE_CHANGED         a file other than SKILL.md differs or is missing
-  UNEXPECTED_FILE      a new file outside references/*.md
+  UNEXPECTED_FILE      a new file outside references/*.md, or a symlink anywhere
   NEW_TEXT             a sentence or heading uses words the original never put together
   CODE_EDITED          a code block that survives differs from every original block
   RULE_LOST            a sentence or heading with a rule word is gone or was edited
@@ -26,7 +26,7 @@ Needs the user's decision (exit 3):
 Exit 0 with status `pass`, or `unchanged` when the candidate is the original.
 
 Usage: verify_rewrite.py --frozen frozen.json --original <skill-dir> --candidate <dir> [--json]
-Exit 2 on a missing or unreadable input.
+Exit 2 on a missing or unreadable input, or a symlinked SKILL.md.
 """
 from __future__ import annotations
 
@@ -67,8 +67,12 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         reject("FRONTMATTER_CHANGED", "the frontmatter must stay byte-identical")
 
     new_refs: dict[str, str] = {}
+    for rel in skillmd.symlinks(candidate_dir):
+        reject("UNEXPECTED_FILE", f"{rel} is a symlink; the gate does not follow links")
+    present = set()
     for p in skillmd.package_files(candidate_dir):
         rel = p.relative_to(candidate_dir).as_posix()
+        present.add(rel)
         if rel == "SKILL.md":
             continue
         if rel in frozen["files"]:
@@ -79,7 +83,7 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
         else:
             reject("UNEXPECTED_FILE", f"{rel}: new files may only be references/<name>.md")
     for rel in frozen["files"]:
-        if rel != "SKILL.md" and not (candidate_dir / rel).is_file():
+        if rel != "SKILL.md" and rel not in present:
             reject("FILE_CHANGED", f"{rel} is missing")
 
     body_sents = skillmd.sentences(body)

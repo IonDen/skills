@@ -1,4 +1,5 @@
 """skill-optimizer shared parsing. Each test names the one-line bug that would make it fail."""
+import pytest
 
 
 def keys(skillmd, body):
@@ -138,3 +139,36 @@ def test_code_blocks_keep_their_lines_together(skillmd):
     # still matches some original line and passes.
     body = "```yaml\na: 1\nb: 2\n```\n\nText.\n\n```bash\nmake\n```\n"
     assert skillmd.code_blocks(body) == [{"lang": "yaml", "text": "a: 1\nb: 2"}, {"lang": "bash", "text": "make"}]
+
+
+def _linked_skill(tmp_path):
+    """A skill directory holding a file link and a directory link, both pointing inside it,
+    and a link to a file outside it."""
+    secret = tmp_path / "secret.txt"
+    secret.write_text("PRIVATE KEY\n", encoding="utf-8")
+    d = tmp_path / "skill"
+    (d / "references").mkdir(parents=True)
+    (d / "SKILL.md").write_text("Body.\n", encoding="utf-8")
+    (d / "references" / "a.md").write_text("A.\n", encoding="utf-8")
+    (d / "references" / "alias.md").symlink_to(d / "references" / "a.md")
+    (d / "references" / "leak.md").symlink_to(secret)
+    (d / "mirror").symlink_to(d / "references", target_is_directory=True)
+    return d, secret
+
+
+def test_symlinks_are_not_package_files(skillmd, tmp_path):
+    # Bug caught: keeping every path is_file() accepts, which follows links, so a
+    # link to ~/.ssh/id_rsa inside a skill is hashed and read, and a linked
+    # directory brings its files in under a second name.
+    d, _ = _linked_skill(tmp_path)
+    assert [p.relative_to(d).as_posix() for p in skillmd.package_files(d)] == ["SKILL.md", "references/a.md"]
+
+
+def test_reading_a_symlink_is_refused(skillmd, tmp_path):
+    # Bug caught: read_text() and sha256_file() dereferencing a link, so a
+    # symlinked SKILL.md sends another file's bytes into the freeze and the gate.
+    d, _ = _linked_skill(tmp_path)
+    for fn in (skillmd.read_text, skillmd.sha256_file):
+        with pytest.raises(OSError, match="symlink"):
+            fn(d / "references" / "leak.md")
+    assert skillmd.read_text(d / "references" / "a.md") == "A.\n"

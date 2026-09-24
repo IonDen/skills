@@ -6,7 +6,7 @@
 
 ## 2026-09-24 (subagent-optimizer 1.3.1)
 
-- Two sentences in `subagent-optimizer`'s SKILL.md only restated the sentence before them ("A tight allowlist is cheaper and more correct." and "The scan tells you what is off; you decide the fix.") and are gone. `skill-optimizer` found them and checked that nothing else changed; the skill's own evals 1 and 3 gave the same results before and after. The version goes to 1.3.1.
+- Two sentences in `subagent-optimizer`'s SKILL.md only repeated what the surrounding text already says ("A tight allowlist is cheaper and more correct." and "The scan tells you what is off; you decide the fix.") and are gone. `skill-optimizer` (#9) found them and checked that every rule and instruction it tracks survived; the skill's own evals 1 and 3 gave the same results before and after. The version goes to 1.3.1.
 
 ## 2026-09-20 (rename)
 

@@ -1,0 +1,12 @@
+NEEDS_CONFIRMATION  body 2,898 -> 1,380 chars (-52.4%), 608 chars moved to new references; 16 requirements, 14 unprotected sentences; frozen 32bb505c57ea
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): rule moved: 'If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository.'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): strong rule moved: 'If the tag already exists on the remote, do not delete it.'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): rule moved: 'If the changelog check fails in CI, the entry heading does not match the tag.'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): strong rule moved: 'The heading must be `## vX.Y.Z (YYYY-MM-DD)`.'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R12 moved: 'If the publish workflow fails with `403 Forbidden`, the PyPI trusted publisher is not configured for this repository'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R12 moved: 'Open https://pypi.org/manage/account/publishing/ and add the repository, the workflow file `.github/workflows/publish.yml` and the environment `pypi`'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R13 moved: 'If the build fails with `No module named build`, install it with `python3 -m pip install build` and build again'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R14 moved: 'If the tag already exists on the remote, do not delete it'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R14 moved: 'Ask the maintainer'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R15 moved: 'If the changelog check fails in CI, the entry heading does not match the tag'
+  ASK MOVED_TO_REFERENCE (references/troubleshooting.md): R15 moved: 'The heading must be `## vX.Y.Z (YYYY-MM-DD)`'

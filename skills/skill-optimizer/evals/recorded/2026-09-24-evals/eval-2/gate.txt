@@ -1,0 +1,10 @@
+REJECTED  body 2,898 -> 2,619 chars (-9.6%), 0 chars moved to new references; 16 requirements, 15 unprotected sentences; frozen 3c7af135b61e
+  RULE_LOST: "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run." is gone or was edited
+  RULE_LOST: 'You MUST run `pytest -q --maxfail=1` before opening a pull request.' is gone or was edited
+  ANCHOR_LOST: R2 (Do not push a tag without the maintainer's explicit approval, unless the user asked for a dry run.): "Do not push a tag without the maintainer's explicit approval, unless the user has asked for a dry run" is gone or was edited
+  ANCHOR_LOST: R3 (Run pytest before opening a pull request.): 'You MUST run `pytest -q --maxfail=1` before opening a pull request' is gone or was edited
+  ANCHOR_LOST: R4 (Keep the wired memory limit under 20 GiB on a 32 GB machine.): 'Keep the wired memory limit under 20 GiB on a 32 GB machine' is gone or was edited
+  PROMINENCE_LOST: 'NEVER commit directly to `main`.' now has '# Steps' in front of it
+  LITERAL_LOST: '20 GiB' is gone or changed
+  LITERAL_LOST: '32 GB' is gone or changed
+  LITERAL_LOST: 'under 20 GiB' is gone or changed

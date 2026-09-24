@@ -1,0 +1,852 @@
+{
+  "body_chars": 8863,
+  "code_blocks": [
+    "## <agent-name>  (<path>)\nCurrent: model <model> \u00b7 <tools state> \u00b7 body <N> lines \u00b7 definition text ~<T> tok\nVersion: <current> \u2192 <proposed>\nFindings\n- [high] <code>: <issue> \u2192 <proposed fix>\n- [med]  <code>: <issue> \u2192 <proposed fix>\n...\nTool policy: <old: \"inherit-all\" or N tools> \u2192 <proposed comma list>\n? <uncertain tool>: keep or drop? \u2014 <reason it's uncertain>\n(schema cost of the removed tools is not measured by the scanner)\nProposed trims: <bullet list of sections/lines to cut, with ~definition-text tokens each>\nDefinition text: ~<old> \u2192 ~<new> tok (chars/4 of the file; not a launch-cost measurement)\nModel: <unchanged | candidate: <model>, verify on the agent's task before adopting>",
+    "## Summary\n<n> agents audited \u00b7 definition text ~<old> \u2192 ~<new> tok \u00b7 <k> agents move from\ninherit-all to an allowlist (tool-schema savings real but unmeasured here)\nApply all / pick per-agent / adjust?",
+    "python3 scripts/bump_version.py <agent.md>",
+    "python3 scripts/scan_agents.py <targets> --json"
+  ],
+  "files": {
+    "README.md": "d2717306552cd84e0d807fb560d50b7069131823a05374df940a6b773d39f3ba",
+    "SKILL.md": "a6174ec0eafd4317a48a1196b0775429e95262d8f5e9ccf8bdc69fbb71979c10",
+    "agents/openai.yaml": "494bcfaaa8bbd2890dc3ed46d9b3c8bd01f8364363b797ab33ff867081c9f742",
+    "evals/README.md": "827dc11f9faa805c3212287588ee2b4ff9699a2e85a081c08b38a95caf71e78c",
+    "evals/evals.json": "72ac96eb9fbf40201f31d3202c1e5b88b86c290751a953fdc8dd6888093ec2ae",
+    "evals/fixtures/bash-git-ops.md": "705d0ae34b875ea7758c72ae1d741456447f81189bae95dc1280745c5b90d0a7",
+    "evals/fixtures/code-explorer.md": "5654e7cf0c3bbbab9212edae55a9cf44f867c9825f39169ec2a522eaea6d3c61",
+    "evals/fixtures/plan-driven-coder.md": "1e1e726bff50717783703ddc489f96f5c1ecc12df156f305086d29d64cc18be7",
+    "evals/fixtures/plan-reviewer.md": "f86c0539b11e142d32713f99ecbdbe3cfc9b2af73ffe0551a5ad69dab8e6dece",
+    "evals/fixtures/solution-architect.md": "6539279ba73e3215ae97dba1948f225085132be1a42d20f01546028195861097",
+    "evals/measure/md2agent.py": "35e47281c764fe9fdd6f567ba42c9bf0f1116a01ff98b1e8c95ce4e13cd1269e",
+    "evals/measure/measure.sh": "07fa69c63e58629cd488a6a171cfee32ffce839dabcbfdd6bf93435d031bd86b",
+    "evals/measure/probe-agents-2.json": "e140aa0f6acf3f1723a2b97a536d51c1250c6b7b5ca63cfa8fc12c83fc4c67ff",
+    "evals/measure/probe-agents.json": "32424650bdabd0837aa899fc1dc4075a81ba488c220feecd4e0ce3ad30b332ed",
+    "evals/recorded/2026-09-19-launch-cost/README.md": "3fd0a6a08878497af7dcfa6bd8c182e4d83aa3ae377d3c26c4daf70d75299f0d",
+    "evals/recorded/2026-09-19-launch-cost/after/bash-git-ops.md": "0987e7d0efe965e9f4171f06da697d4408f84b0603dcce539ccb0ef6c1d646e5",
+    "evals/recorded/2026-09-19-launch-cost/after/plan-driven-coder.md": "ccbaa4bf97fc1a5d868c6ffe67dc32738315b10c05415110df2d438727f0f89c",
+    "evals/recorded/2026-09-19-launch-cost/after/solution-architect.md": "9fb3545ab1211a491f4c534aac8ea6659a7e5c309b8ea0a9b06242a6199944b6",
+    "evals/recorded/2026-09-19-launch-cost/optimizer-report.md": "2118ddac83838923cd8606050ff34270acf97d6ad6eacd1edacef48e36cd2582",
+    "references/best-practices.md": "59253a72e29bacb6d695fa919737b247b956fc99c9c6ff957df872f4f506ea45",
+    "references/tool-catalog.md": "04aaf625392690400616c0a4e047f2fc057a1df9f2c2cdce7da115a53ca34cc2",
+    "scripts/bump_version.py": "aee200cc43da2ccc9016332d42d7d076bb33556fa6731916757d32e4cb0b6e21",
+    "scripts/scan_agents.py": "93db35090ebe3d9b75139443bfaf53e394020b13eb0e48f151e4c9e4238cd3fa"
+  },
+  "format": 2,
+  "frontmatter": "---\nname: subagent-optimizer\ndescription: >-\n  Use when asked to audit, optimise, slim down, or fix Claude Code subagent\n  definitions (.claude/agents/*.md) \u2014 set a proper `tools` allowlist (an agent\n  with no `tools` field inherits every tool on each launch), cut bloated or\n  duplicated system prompts, tighten descriptions so they trigger reliably, and\n  right-size the model. Triggers: \"optimize my subagents\", \"optimise my agents\",\n  \"audit my subagents\", \"subagent optimizer\", \"my agent uses too many tokens\",\n  \"fix the tools list\", \"review .claude/agents\", \"make my agents cheaper\".\nlicense: MIT\nmetadata:\n  version: \"1.3.0\"\n  author: IonDen\n---\n",
+  "headings": [
+    "Agent Optimiser",
+    "Analyse each agent (judgement on top of the scan)",
+    "Apply approved changes, then bump versions",
+    "Principles",
+    "Report and STOP",
+    "Report template",
+    "Resolve scope from the invocation",
+    "Scan (deterministic measurements)",
+    "Workflow"
+  ],
+  "literals": [
+    "## <agent-name> (<path>)",
+    "## Summary",
+    "${CLAUDE_SKILL_DIR}",
+    "(schema cost of the removed tools is not measured by the scanner)",
+    "- [high] <code>: <issue> \u2192 <proposed fix>",
+    "- [med] <code>: <issue> \u2192 <proposed fix>",
+    "--json",
+    "...",
+    "./.claude/agents/",
+    ".agents/skills/subagent-optimizer/",
+    ".claude/",
+    ".claude/agents/",
+    "1.1.0",
+    "150 lines",
+    "<n> agents audited \u00b7 definition text ~<old> \u2192 ~<new> tok \u00b7 <k> agents move from",
+    ">~150 lines",
+    "? <uncertain tool>: keep or drop? \u2014 <reason it's uncertain>",
+    "Agent",
+    "Agent(worker, researcher)",
+    "Apply all / pick per-agent / adjust?",
+    "AskUserQuestion",
+    "Bash",
+    "Current: model <model> \u00b7 <tools state> \u00b7 body <N> lines \u00b7 definition text ~<T> tok",
+    "Definition text: ~<old> \u2192 ~<new> tok (chars/4 of the file; not a launch-cost measurement)",
+    "Edit",
+    "EndConversation",
+    "EnterPlanMode",
+    "ExitPlanMode",
+    "Findings",
+    "MEMORY_BOILERPLATE",
+    "Model: <unchanged | candidate: <model>, verify on the agent's task before adopting>",
+    "NO_TOOLS_FIELD",
+    "NotebookEdit",
+    "OMITS_CLAUDE_MD",
+    "Proposed trims: <bullet list of sections/lines to cut, with ~definition-text tokens each>",
+    "SKILL.md",
+    "ScheduleWakeup",
+    "Task",
+    "Tool policy: <old: \"inherit-all\" or N tools> \u2192 <proposed comma list>",
+    "Version: <current> \u2192 <proposed>",
+    "WRITE_ON_READONLY",
+    "Workflow",
+    "Write",
+    "X.(Y+1).0",
+    "X.Y.Z",
+    "haiku",
+    "inherit",
+    "inherit-all to an allowlist (tool-schema savings real but unmeasured here)",
+    "memory:",
+    "omitClaudeMd: true",
+    "permissionMode: plan",
+    "python3 scripts/bump_version.py <agent.md>",
+    "python3 scripts/scan_agents.py <targets> --json",
+    "references/best-practices.md",
+    "references/tool-catalog.md",
+    "scripts/bump_version.py",
+    "scripts/scan_agents.py",
+    "solution-architect",
+    "tool-catalog.md",
+    "tools",
+    "version",
+    "~/.agents/skills/subagent-optimizer/",
+    "~/.claude/agents/",
+    "~/.claude/agents/*.md",
+    "~/.claude/agents/<name>.md",
+    "~/.codex/skills/"
+  ],
+  "order": [
+    "# Agent Optimiser",
+    "Audit Claude Code subagent files and propose token-economy + quality fixes, then apply the approved ones and bump each changed agent's version",
+    "The biggest win is the `tools` field: an agent with no `tools` inherits every tool available to subagents, loading all schemas on every launch, and every extra schema costs tokens and selection accuracy",
+    "A tight allowlist is cheaper and more correct",
+    "Read `references/best-practices.md` for the rationale behind each flag and `references/tool-catalog.md` for the tool list and archetype \u2192 tools map \u2014 consult both before proposing tool changes",
+    "All paths below are relative to this skill's directory: in Claude Code that is `${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from (`~/.agents/skills/subagent-optimizer/`, a project's `.agents/skills/subagent-optimizer/`, or the older `~/.codex/skills/`)",
+    "Resolve scripts from that directory, not from a guessed home path",
+    "# Workflow",
+    "Default mode is report, then apply on approval \u2014 never edit agent files before the user approves the report",
+    "# Resolve scope from the invocation",
+    "No argument \u2192 audit all user agents: `~/.claude/agents/*.md`",
+    "An agent name (e.g. `solution-architect`) \u2192 `~/.claude/agents/<name>.md`; if absent, search `./.claude/agents/` and report what you found",
+    "A path (file or directory) \u2192 use it directly",
+    "\"project\" / a project dir \u2192 that project's `.claude/agents/`",
+    "State the resolved target list in one line before scanning",
+    "# Scan (deterministic measurements)",
+    "Run the bundled scanner \u2014 it parses frontmatter, sizes everything, estimates tokens, raises flag codes, and finds boilerplate duplicated across agents",
+    "Use `--json` for structured data to reason over; run without `--json` for a readable view",
+    "The flag codes (e.g",
+    "`NO_TOOLS_FIELD`, `WRITE_ON_READONLY`, `MEMORY_BOILERPLATE`) map to explanations in `references/best-practices.md`",
+    "The scanner skips `SKILL.md` files when walking a directory, so pointing it at a whole `.claude/` tree is safe",
+    "# Analyse each agent (judgement on top of the scan)",
+    "Read the full agent file",
+    "The scan tells you what is off; you decide the fix",
+    "Tool allowlist (conservative + flag)",
+    "This is the priority",
+    "Read the body and list every tool its instructions actually require",
+    "Cross-check against the archetype floor in `tool-catalog.md`",
+    "Then",
+    "Propose the minimal allowlist that covers everything the body does",
+    "Keep anything plausibly used \u2014 when in doubt, keep it and flag it as a question (\"body never edits files \u2014 drop `Edit`/`Write`? keep `Bash`?\") rather than removing silently",
+    "Breaking an agent costs far more than a slightly wide list",
+    "Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`, `ScheduleWakeup`, `EnterPlanMode`) outright \u2014 subagents can never use them",
+    "Rename legacy names (`Task` \u2192 `Agent`)",
+    "Two tools are conditional, not dead: `ExitPlanMode` is valid when the agent sets `permissionMode: plan` (the scanner already honours this), and `Agent` is valid when the body delegates \u2014 nested subagents are on by default, so keep it in that case and ask otherwise",
+    "A parameterised form such as `Agent(worker, researcher)` is one tool that also restricts which subagents may be spawned; never split or drop its arguments",
+    "Memory exception: if frontmatter sets `memory:`, the agent needs `Edit` + `Write` to maintain its memory files \u2014 keep them even on an otherwise read-only agent",
+    "Never propose stripping them; it silently breaks memory upkeep. (`NotebookEdit` is still droppable.)",
+    "Net check: a tool granted but never used \u2192 propose drop; an action the body requires but no tool covers \u2192 propose add (and note the body/tools mismatch)",
+    "Token / prose trims",
+    "Duplicated boilerplate across agents (the scanner lists it) \u2014 usually a hand-written \"Persistent Agent Memory\" section, redundant when `memory:` is set because the harness injects it",
+    "Trim to one line",
+    "CLAUDE.md / global rules re-pasted into the body",
+    "Before calling a passage a duplicate, find the matching rule in a CLAUDE.md that this agent actually loads (project or user level) and quote where it lives",
+    "If the agent sets `omitClaudeMd: true` (the scanner reports `OMITS_CLAUDE_MD`), it inherits nothing and the body may hold the only copy: keep it",
+    "A section merely titled \"global rules\" with no matching inherited source is not a duplicate",
+    "Over-long bodies (>~150 lines for a single-purpose agent), over-explaining, excessive ALL-CAPS MUST/NEVER, contradictions, signposting filler",
+    "Preserve meaning",
+    "Trimming must not drop a real instruction; if unsure whether a passage is load-bearing, flag it, don't cut it",
+    "Description",
+    "Ensure concrete triggers (\"use when\u2026/after\u2026\"), a proactive cue if it should auto-fire, and no runaway multi-example bloat (it loads session-wide)",
+    "Model",
+    "Match to job. `haiku` suits mechanical work (formatting, mechanical checks, lookups); read-only is not by itself a reason to downgrade \u2014 a security review or an architecture analysis reads only and still needs a strong model",
+    "Flag complex agents left on default `inherit` that could silently run on a weak session model",
+    "Present any model change as a candidate to verify on the agent's real task, not as a saving; without a before/after comparison on that task it is a guess",
+    "Frontmatter hygiene",
+    "Name lowercase-hyphenated; required fields present; tool names valid (treat unknown names as possibly MCP/plugin \u2014 verify, don't assume typo)",
+    "# Report and STOP",
+    "Present one section per agent using the template below, then a portfolio summary",
+    "Stop and ask for approval",
+    "No agent file changes before that answer, even when the request sounds like \"make them cheaper\"; only an explicit \"apply\" (or a prompt that authorises edits up front) moves to step 5",
+    "If the user wants per-finding control, let them accept/reject individually",
+    "# Apply approved changes, then bump versions",
+    "Edit only the approved changes",
+    "Keep edits surgical; don't reflow untouched prose",
+    "After a file's content edits are applied, bump its version",
+    "No `version` field \u2192 becomes `1.1.0`; existing `X.Y.Z` \u2192 minor bump `X.(Y+1).0`",
+    "Only bump agents you actually changed",
+    "Re-run the scanner on the changed agents and report before/after token totals and the new version numbers",
+    "# Report template",
+    "Use this exact structure per agent",
+    "End with",
+    "The two numbers are different things: definition text is what the scanner measures (and an allowlist makes it slightly larger, since the `tools` line adds characters); the tool-schema reduction is the larger runtime effect and is reported as a policy change, not a token figure, unless you measured it",
+    "# Principles",
+    "Conservative on tools, aggressive on dead weight",
+    "Never strip a tool the agent might need without flagging it; freely cut duplicated boilerplate and re-pasted global rules",
+    "Measure, don't guess, and say what was measured",
+    "The scanner counts definition text (chars/4): frontmatter plus body",
+    "It does not see tool schemas, inherited CLAUDE.md, loaded skills or memory, so never present its total as launch cost or its delta as savings",
+    "Rank with it, show before/after with it, label it",
+    "Preserve behaviour",
+    "The optimised agent must do the same job \u2014 just leaner",
+    "One agent, one job",
+    "If an agent does several jobs, say so and suggest splitting, but don't split without the user's go-ahead",
+    "Context budget \u2260 context window",
+    "Bloat isn't only token cost \u2014 focused context outperforms large context, and tool-selection accuracy degrades as the tool list grows",
+    "Keep an agent's standing instructions tight: if removing a section wouldn't change the agent's behaviour, cut it"
+  ],
+  "requirements": [
+    {
+      "id": "R1",
+      "protects": [
+        {
+          "key": "Audit Claude Code subagent files and propose token-economy + quality fixes, then apply the approved ones and bump each changed agent's version",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Audit subagent files, propose fixes, then apply approved ones and bump version."
+    },
+    {
+      "id": "R2",
+      "protects": [
+        {
+          "key": "Read `references/best-practices.md` for the rationale behind each flag and `references/tool-catalog.md` for the tool list and archetype \u2192 tools map \u2014 consult both before proposing tool changes",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Read both reference files before proposing tool changes."
+    },
+    {
+      "id": "R3",
+      "protects": [
+        {
+          "key": "All paths below are relative to this skill's directory: in Claude Code that is `${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from (`~/.agents/skills/subagent-optimizer/`, a project's `.agents/skills/subagent-optimizer/`, or the older `~/.codex/skills/`)",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Paths in this skill resolve relative to the skill's own directory, per harness."
+    },
+    {
+      "id": "R4",
+      "protects": [
+        {
+          "key": "An agent name (e.g. `solution-architect`) \u2192 `~/.claude/agents/<name>.md`; if absent, search `./.claude/agents/` and report what you found",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "An agent name target resolves to its file; if absent, search the project dir and report what was found."
+    },
+    {
+      "id": "R5",
+      "protects": [
+        {
+          "key": "A path (file or directory) \u2192 use it directly",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "A path target (file or directory) is used directly."
+    },
+    {
+      "id": "R6",
+      "protects": [
+        {
+          "key": "\"project\" / a project dir \u2192 that project's `.claude/agents/`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "\"project\" or a project dir target resolves to that project's .claude/agents/."
+    },
+    {
+      "id": "R7",
+      "protects": [
+        {
+          "key": "State the resolved target list in one line before scanning",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "State the resolved target list in one line before scanning."
+    },
+    {
+      "id": "R8",
+      "protects": [
+        {
+          "key": "Run the bundled scanner \u2014 it parses frontmatter, sizes everything, estimates tokens, raises flag codes, and finds boilerplate duplicated across agents",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Run the bundled scanner, which parses frontmatter, sizes everything, estimates tokens, raises flag codes, and finds duplicated boilerplate."
+    },
+    {
+      "id": "R9",
+      "protects": [
+        {
+          "key": "`NO_TOOLS_FIELD`, `WRITE_ON_READONLY`, `MEMORY_BOILERPLATE`) map to explanations in `references/best-practices.md`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Flag codes map to explanations in references/best-practices.md."
+    },
+    {
+      "id": "R10",
+      "protects": [
+        {
+          "key": "The scanner skips `SKILL.md` files when walking a directory, so pointing it at a whole `.claude/` tree is safe",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "The scanner skips SKILL.md files when walking a directory, so pointing it at a whole .claude/ tree is safe."
+    },
+    {
+      "id": "R11",
+      "protects": [
+        {
+          "key": "Read the full agent file",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Read the full agent file before analysing it."
+    },
+    {
+      "id": "R12",
+      "protects": [
+        {
+          "key": "Read the body and list every tool its instructions actually require",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Read the body and list every tool its instructions actually require."
+    },
+    {
+      "id": "R13",
+      "protects": [
+        {
+          "key": "Cross-check against the archetype floor in `tool-catalog.md`",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Cross-check the tool list against the archetype floor in tool-catalog.md."
+    },
+    {
+      "id": "R14",
+      "protects": [
+        {
+          "key": "Propose the minimal allowlist that covers everything the body does",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Propose the minimal allowlist that covers everything the body does."
+    },
+    {
+      "id": "R15",
+      "protects": [
+        {
+          "key": "Breaking an agent costs far more than a slightly wide list",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Breaking an agent costs far more than a slightly wide list (reason for keeping plausibly-used tools)."
+    },
+    {
+      "id": "R16",
+      "protects": [
+        {
+          "key": "Rename legacy names (`Task` \u2192 `Agent`)",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Rename legacy tool names (Task to Agent)."
+    },
+    {
+      "id": "R17",
+      "protects": [
+        {
+          "key": "Duplicated boilerplate across agents (the scanner lists it) \u2014 usually a hand-written \"Persistent Agent Memory\" section, redundant when `memory:` is set because the harness injects it",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Duplicated boilerplate across agents is usually a hand-written Persistent Agent Memory section, redundant when memory: is set."
+    },
+    {
+      "id": "R18",
+      "protects": [
+        {
+          "key": "Trim to one line",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Trim duplicated boilerplate to one line."
+    },
+    {
+      "id": "R19",
+      "protects": [
+        {
+          "key": "Before calling a passage a duplicate, find the matching rule in a CLAUDE.md that this agent actually loads (project or user level) and quote where it lives",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Before calling a passage a duplicate, find the matching rule in a loaded CLAUDE.md and quote where it lives."
+    },
+    {
+      "id": "R20",
+      "protects": [
+        {
+          "key": "Flag complex agents left on default `inherit` that could silently run on a weak session model",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Flag complex agents left on default inherit that could silently run on a weak session model."
+    },
+    {
+      "id": "R21",
+      "protects": [
+        {
+          "key": "Present one section per agent using the template below, then a portfolio summary",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Present one section per agent using the template, then a portfolio summary."
+    },
+    {
+      "id": "R22",
+      "protects": [
+        {
+          "key": "Stop and ask for approval",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Stop and ask for approval before applying anything."
+    },
+    {
+      "id": "R23",
+      "protects": [
+        {
+          "key": "If the user wants per-finding control, let them accept/reject individually",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "If the user wants per-finding control, let them accept or reject individually."
+    },
+    {
+      "id": "R24",
+      "protects": [
+        {
+          "key": "After a file's content edits are applied, bump its version",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "After a file's content edits are applied, bump its version with the script."
+    },
+    {
+      "id": "R25",
+      "protects": [
+        {
+          "key": "Re-run the scanner on the changed agents and report before/after token totals and the new version numbers",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Re-run the scanner on the changed agents and report before/after token totals and the new version numbers."
+    },
+    {
+      "id": "R26",
+      "protects": [
+        {
+          "key": "Use this exact structure per agent",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Use the exact report structure per agent."
+    },
+    {
+      "id": "R27",
+      "protects": [
+        {
+          "key": "The scanner counts definition text (chars/4): frontmatter plus body",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "The scanner counts definition text as chars/4 of frontmatter plus body (the figure the report uses)."
+    },
+    {
+      "id": "R28",
+      "protects": [
+        {
+          "key": "Rank with it, show before/after with it, label it",
+          "kind": "sentence"
+        }
+      ],
+      "requirement": "Rank findings with the definition-text figure, show before/after with it, and label it."
+    }
+  ],
+  "rule_headings": [],
+  "rules": [
+    {
+      "depth": 1,
+      "index": 2,
+      "key": "The biggest win is the `tools` field: an agent with no `tools` inherits every tool available to subagents, loading all schemas on every launch, and every extra schema costs tokens and selection accuracy",
+      "line": 7,
+      "strong": false,
+      "text": "The biggest win is the `tools` field: an agent with no `tools` inherits every tool available to subagents, loading all schemas on every launch, and every extra schema costs tokens and selection accuracy."
+    },
+    {
+      "depth": 1,
+      "index": 6,
+      "key": "Resolve scripts from that directory, not from a guessed home path",
+      "line": 14,
+      "strong": false,
+      "text": "Resolve scripts from that directory, not from a guessed home path."
+    },
+    {
+      "depth": 2,
+      "index": 8,
+      "key": "Default mode is report, then apply on approval \u2014 never edit agent files before the user approves the report",
+      "line": 22,
+      "strong": true,
+      "text": "Default mode is report, then apply on approval \u2014 never edit agent files before the user approves the report."
+    },
+    {
+      "depth": 3,
+      "index": 10,
+      "key": "No argument \u2192 audit all user agents: `~/.claude/agents/*.md`",
+      "line": 27,
+      "strong": false,
+      "text": "No argument \u2192 audit all user agents: `~/.claude/agents/*.md`."
+    },
+    {
+      "depth": 3,
+      "index": 17,
+      "key": "Use `--json` for structured data to reason over; run without `--json` for a readable view",
+      "line": 44,
+      "strong": false,
+      "text": "Use `--json` for structured data to reason over; run without `--json` for a readable view."
+    },
+    {
+      "depth": 3,
+      "index": 30,
+      "key": "Keep anything plausibly used \u2014 when in doubt, keep it and flag it as a question (\"body never edits files \u2014 drop `Edit`/`Write`? keep `Bash`?\") rather than removing silently",
+      "line": 57,
+      "strong": true,
+      "text": "Keep anything plausibly used \u2014 when in doubt, keep it and flag it as a question (\"body never edits files \u2014 drop `Edit`/`Write`? keep `Bash`?\") rather than removing silently."
+    },
+    {
+      "depth": 3,
+      "index": 32,
+      "key": "Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`, `ScheduleWakeup`, `EnterPlanMode`) outright \u2014 subagents can never use them",
+      "line": 60,
+      "strong": true,
+      "text": "Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`, `ScheduleWakeup`, `EnterPlanMode`) outright \u2014 subagents can never use them."
+    },
+    {
+      "depth": 3,
+      "index": 34,
+      "key": "Two tools are conditional, not dead: `ExitPlanMode` is valid when the agent sets `permissionMode: plan` (the scanner already honours this), and `Agent` is valid when the body delegates \u2014 nested subagents are on by default, so keep it in that case and ask otherwise",
+      "line": 60,
+      "strong": false,
+      "text": "Two tools are conditional, not dead: `ExitPlanMode` is valid when the agent sets `permissionMode: plan` (the scanner already honours this), and `Agent` is valid when the body delegates \u2014 nested subagents are on by default, so keep it in that case and ask otherwise."
+    },
+    {
+      "depth": 3,
+      "index": 35,
+      "key": "A parameterised form such as `Agent(worker, researcher)` is one tool that also restricts which subagents may be spawned; never split or drop its arguments",
+      "line": 60,
+      "strong": true,
+      "text": "A parameterised form such as `Agent(worker, researcher)` is one tool that also restricts which subagents may be spawned; never split or drop its arguments."
+    },
+    {
+      "depth": 3,
+      "index": 36,
+      "key": "Memory exception: if frontmatter sets `memory:`, the agent needs `Edit` + `Write` to maintain its memory files \u2014 keep them even on an otherwise read-only agent",
+      "line": 68,
+      "strong": false,
+      "text": "Memory exception: if frontmatter sets `memory:`, the agent needs `Edit` + `Write` to maintain its memory files \u2014 keep them even on an otherwise read-only agent."
+    },
+    {
+      "depth": 3,
+      "index": 37,
+      "key": "Never propose stripping them; it silently breaks memory upkeep. (`NotebookEdit` is still droppable.)",
+      "line": 68,
+      "strong": true,
+      "text": "Never propose stripping them; it silently breaks memory upkeep. (`NotebookEdit` is still droppable.)"
+    },
+    {
+      "depth": 3,
+      "index": 38,
+      "key": "Net check: a tool granted but never used \u2192 propose drop; an action the body requires but no tool covers \u2192 propose add (and note the body/tools mismatch)",
+      "line": 72,
+      "strong": true,
+      "text": "Net check: a tool granted but never used \u2192 propose drop; an action the body requires but no tool covers \u2192 propose add (and note the body/tools mismatch)."
+    },
+    {
+      "depth": 3,
+      "index": 44,
+      "key": "If the agent sets `omitClaudeMd: true` (the scanner reports `OMITS_CLAUDE_MD`), it inherits nothing and the body may hold the only copy: keep it",
+      "line": 79,
+      "strong": false,
+      "text": "If the agent sets `omitClaudeMd: true` (the scanner reports `OMITS_CLAUDE_MD`), it inherits nothing and the body may hold the only copy: keep it."
+    },
+    {
+      "depth": 3,
+      "index": 45,
+      "key": "A section merely titled \"global rules\" with no matching inherited source is not a duplicate",
+      "line": 79,
+      "strong": false,
+      "text": "A section merely titled \"global rules\" with no matching inherited source is not a duplicate."
+    },
+    {
+      "depth": 3,
+      "index": 46,
+      "key": "Over-long bodies (>~150 lines for a single-purpose agent), over-explaining, excessive ALL-CAPS MUST/NEVER, contradictions, signposting filler",
+      "line": 85,
+      "strong": true,
+      "text": "Over-long bodies (>~150 lines for a single-purpose agent), over-explaining, excessive ALL-CAPS MUST/NEVER, contradictions, signposting filler."
+    },
+    {
+      "depth": 3,
+      "index": 48,
+      "key": "Trimming must not drop a real instruction; if unsure whether a passage is load-bearing, flag it, don't cut it",
+      "line": 87,
+      "strong": true,
+      "text": "Trimming must not drop a real instruction; if unsure whether a passage is load-bearing, flag it, don't cut it."
+    },
+    {
+      "depth": 3,
+      "index": 50,
+      "key": "Ensure concrete triggers (\"use when\u2026/after\u2026\"), a proactive cue if it should auto-fire, and no runaway multi-example bloat (it loads session-wide)",
+      "line": 90,
+      "strong": false,
+      "text": "Ensure concrete triggers (\"use when\u2026/after\u2026\"), a proactive cue if it should auto-fire, and no runaway multi-example bloat (it loads session-wide)."
+    },
+    {
+      "depth": 3,
+      "index": 52,
+      "key": "Match to job. `haiku` suits mechanical work (formatting, mechanical checks, lookups); read-only is not by itself a reason to downgrade \u2014 a security review or an architecture analysis reads only and still needs a strong model",
+      "line": 93,
+      "strong": false,
+      "text": "Match to job. `haiku` suits mechanical work (formatting, mechanical checks, lookups); read-only is not by itself a reason to downgrade \u2014 a security review or an architecture analysis reads only and still needs a strong model."
+    },
+    {
+      "depth": 3,
+      "index": 54,
+      "key": "Present any model change as a candidate to verify on the agent's real task, not as a saving; without a before/after comparison on that task it is a guess",
+      "line": 93,
+      "strong": false,
+      "text": "Present any model change as a candidate to verify on the agent's real task, not as a saving; without a before/after comparison on that task it is a guess."
+    },
+    {
+      "depth": 3,
+      "index": 56,
+      "key": "Name lowercase-hyphenated; required fields present; tool names valid (treat unknown names as possibly MCP/plugin \u2014 verify, don't assume typo)",
+      "line": 100,
+      "strong": true,
+      "text": "Name lowercase-hyphenated; required fields present; tool names valid (treat unknown names as possibly MCP/plugin \u2014 verify, don't assume typo)."
+    },
+    {
+      "depth": 3,
+      "index": 60,
+      "key": "No agent file changes before that answer, even when the request sounds like \"make them cheaper\"; only an explicit \"apply\" (or a prompt that authorises edits up front) moves to step 5",
+      "line": 105,
+      "strong": false,
+      "text": "No agent file changes before that answer, even when the request sounds like \"make them cheaper\"; only an explicit \"apply\" (or a prompt that authorises edits up front) moves to step 5."
+    },
+    {
+      "depth": 3,
+      "index": 63,
+      "key": "Edit only the approved changes",
+      "line": 113,
+      "strong": false,
+      "text": "Edit only the approved changes."
+    },
+    {
+      "depth": 3,
+      "index": 64,
+      "key": "Keep edits surgical; don't reflow untouched prose",
+      "line": 113,
+      "strong": true,
+      "text": "Keep edits surgical; don't reflow untouched prose."
+    },
+    {
+      "depth": 3,
+      "index": 66,
+      "key": "No `version` field \u2192 becomes `1.1.0`; existing `X.Y.Z` \u2192 minor bump `X.(Y+1).0`",
+      "line": 118,
+      "strong": false,
+      "text": "No `version` field \u2192 becomes `1.1.0`; existing `X.Y.Z` \u2192 minor bump `X.(Y+1).0`."
+    },
+    {
+      "depth": 3,
+      "index": 67,
+      "key": "Only bump agents you actually changed",
+      "line": 118,
+      "strong": false,
+      "text": "Only bump agents you actually changed."
+    },
+    {
+      "depth": 2,
+      "index": 72,
+      "key": "The two numbers are different things: definition text is what the scanner measures (and an allowlist makes it slightly larger, since the `tools` line adds characters); the tool-schema reduction is the larger runtime effect and is reported as a policy change, not a token figure, unless you measured it",
+      "line": 156,
+      "strong": false,
+      "text": "The two numbers are different things: definition text is what the scanner measures (and an allowlist makes it slightly larger, since the `tools` line adds characters); the tool-schema reduction is the larger runtime effect and is reported as a policy change, not a token figure, unless you measured it."
+    },
+    {
+      "depth": 2,
+      "index": 75,
+      "key": "Never strip a tool the agent might need without flagging it; freely cut duplicated boilerplate and re-pasted global rules",
+      "line": 163,
+      "strong": true,
+      "text": "Never strip a tool the agent might need without flagging it; freely cut duplicated boilerplate and re-pasted global rules."
+    },
+    {
+      "depth": 2,
+      "index": 76,
+      "key": "Measure, don't guess, and say what was measured",
+      "line": 166,
+      "strong": true,
+      "text": "Measure, don't guess, and say what was measured."
+    },
+    {
+      "depth": 2,
+      "index": 78,
+      "key": "It does not see tool schemas, inherited CLAUDE.md, loaded skills or memory, so never present its total as launch cost or its delta as savings",
+      "line": 166,
+      "strong": true,
+      "text": "It does not see tool schemas, inherited CLAUDE.md, loaded skills or memory, so never present its total as launch cost or its delta as savings."
+    },
+    {
+      "depth": 2,
+      "index": 81,
+      "key": "The optimised agent must do the same job \u2014 just leaner",
+      "line": 170,
+      "strong": true,
+      "text": "The optimised agent must do the same job \u2014 just leaner."
+    },
+    {
+      "depth": 2,
+      "index": 83,
+      "key": "If an agent does several jobs, say so and suggest splitting, but don't split without the user's go-ahead",
+      "line": 171,
+      "strong": true,
+      "text": "If an agent does several jobs, say so and suggest splitting, but don't split without the user's go-ahead."
+    },
+    {
+      "depth": 2,
+      "index": 85,
+      "key": "Bloat isn't only token cost \u2014 focused context outperforms large context, and tool-selection accuracy degrades as the tool list grows",
+      "line": 173,
+      "strong": false,
+      "text": "Bloat isn't only token cost \u2014 focused context outperforms large context, and tool-selection accuracy degrades as the tool list grows."
+    },
+    {
+      "depth": 2,
+      "index": 86,
+      "key": "Keep an agent's standing instructions tight: if removing a section wouldn't change the agent's behaviour, cut it",
+      "line": 173,
+      "strong": false,
+      "text": "Keep an agent's standing instructions tight: if removing a section wouldn't change the agent's behaviour, cut it."
+    }
+  ],
+  "sentences": [
+    "\"project\" / a project dir \u2192 that project's `.claude/agents/`",
+    "A parameterised form such as `Agent(worker, researcher)` is one tool that also restricts which subagents may be spawned; never split or drop its arguments",
+    "A path (file or directory) \u2192 use it directly",
+    "A section merely titled \"global rules\" with no matching inherited source is not a duplicate",
+    "A tight allowlist is cheaper and more correct",
+    "After a file's content edits are applied, bump its version",
+    "All paths below are relative to this skill's directory: in Claude Code that is `${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from (`~/.agents/skills/subagent-optimizer/`, a project's `.agents/skills/subagent-optimizer/`, or the older `~/.codex/skills/`)",
+    "An agent name (e.g. `solution-architect`) \u2192 `~/.claude/agents/<name>.md`; if absent, search `./.claude/agents/` and report what you found",
+    "Audit Claude Code subagent files and propose token-economy + quality fixes, then apply the approved ones and bump each changed agent's version",
+    "Before calling a passage a duplicate, find the matching rule in a CLAUDE.md that this agent actually loads (project or user level) and quote where it lives",
+    "Bloat isn't only token cost \u2014 focused context outperforms large context, and tool-selection accuracy degrades as the tool list grows",
+    "Breaking an agent costs far more than a slightly wide list",
+    "CLAUDE.md / global rules re-pasted into the body",
+    "Conservative on tools, aggressive on dead weight",
+    "Context budget \u2260 context window",
+    "Cross-check against the archetype floor in `tool-catalog.md`",
+    "Default mode is report, then apply on approval \u2014 never edit agent files before the user approves the report",
+    "Description",
+    "Duplicated boilerplate across agents (the scanner lists it) \u2014 usually a hand-written \"Persistent Agent Memory\" section, redundant when `memory:` is set because the harness injects it",
+    "Edit only the approved changes",
+    "End with",
+    "Ensure concrete triggers (\"use when\u2026/after\u2026\"), a proactive cue if it should auto-fire, and no runaway multi-example bloat (it loads session-wide)",
+    "Flag complex agents left on default `inherit` that could silently run on a weak session model",
+    "Frontmatter hygiene",
+    "If an agent does several jobs, say so and suggest splitting, but don't split without the user's go-ahead",
+    "If the agent sets `omitClaudeMd: true` (the scanner reports `OMITS_CLAUDE_MD`), it inherits nothing and the body may hold the only copy: keep it",
+    "If the user wants per-finding control, let them accept/reject individually",
+    "It does not see tool schemas, inherited CLAUDE.md, loaded skills or memory, so never present its total as launch cost or its delta as savings",
+    "Keep an agent's standing instructions tight: if removing a section wouldn't change the agent's behaviour, cut it",
+    "Keep anything plausibly used \u2014 when in doubt, keep it and flag it as a question (\"body never edits files \u2014 drop `Edit`/`Write`? keep `Bash`?\") rather than removing silently",
+    "Keep edits surgical; don't reflow untouched prose",
+    "Match to job. `haiku` suits mechanical work (formatting, mechanical checks, lookups); read-only is not by itself a reason to downgrade \u2014 a security review or an architecture analysis reads only and still needs a strong model",
+    "Measure, don't guess, and say what was measured",
+    "Memory exception: if frontmatter sets `memory:`, the agent needs `Edit` + `Write` to maintain its memory files \u2014 keep them even on an otherwise read-only agent",
+    "Model",
+    "Name lowercase-hyphenated; required fields present; tool names valid (treat unknown names as possibly MCP/plugin \u2014 verify, don't assume typo)",
+    "Net check: a tool granted but never used \u2192 propose drop; an action the body requires but no tool covers \u2192 propose add (and note the body/tools mismatch)",
+    "Never propose stripping them; it silently breaks memory upkeep. (`NotebookEdit` is still droppable.)",
+    "Never strip a tool the agent might need without flagging it; freely cut duplicated boilerplate and re-pasted global rules",
+    "No `version` field \u2192 becomes `1.1.0`; existing `X.Y.Z` \u2192 minor bump `X.(Y+1).0`",
+    "No agent file changes before that answer, even when the request sounds like \"make them cheaper\"; only an explicit \"apply\" (or a prompt that authorises edits up front) moves to step 5",
+    "No argument \u2192 audit all user agents: `~/.claude/agents/*.md`",
+    "One agent, one job",
+    "Only bump agents you actually changed",
+    "Over-long bodies (>~150 lines for a single-purpose agent), over-explaining, excessive ALL-CAPS MUST/NEVER, contradictions, signposting filler",
+    "Present any model change as a candidate to verify on the agent's real task, not as a saving; without a before/after comparison on that task it is a guess",
+    "Present one section per agent using the template below, then a portfolio summary",
+    "Preserve behaviour",
+    "Preserve meaning",
+    "Propose the minimal allowlist that covers everything the body does",
+    "Rank with it, show before/after with it, label it",
+    "Re-run the scanner on the changed agents and report before/after token totals and the new version numbers",
+    "Read `references/best-practices.md` for the rationale behind each flag and `references/tool-catalog.md` for the tool list and archetype \u2192 tools map \u2014 consult both before proposing tool changes",
+    "Read the body and list every tool its instructions actually require",
+    "Read the full agent file",
+    "Remove dead entries (`AskUserQuestion`, `Workflow`, `EndConversation`, `ScheduleWakeup`, `EnterPlanMode`) outright \u2014 subagents can never use them",
+    "Rename legacy names (`Task` \u2192 `Agent`)",
+    "Resolve scripts from that directory, not from a guessed home path",
+    "Run the bundled scanner \u2014 it parses frontmatter, sizes everything, estimates tokens, raises flag codes, and finds boilerplate duplicated across agents",
+    "State the resolved target list in one line before scanning",
+    "Stop and ask for approval",
+    "The biggest win is the `tools` field: an agent with no `tools` inherits every tool available to subagents, loading all schemas on every launch, and every extra schema costs tokens and selection accuracy",
+    "The flag codes (e.g",
+    "The optimised agent must do the same job \u2014 just leaner",
+    "The scan tells you what is off; you decide the fix",
+    "The scanner counts definition text (chars/4): frontmatter plus body",
+    "The scanner skips `SKILL.md` files when walking a directory, so pointing it at a whole `.claude/` tree is safe",
+    "The two numbers are different things: definition text is what the scanner measures (and an allowlist makes it slightly larger, since the `tools` line adds characters); the tool-schema reduction is the larger runtime effect and is reported as a policy change, not a token figure, unless you measured it",
+    "Then",
+    "This is the priority",
+    "Token / prose trims",
+    "Tool allowlist (conservative + flag)",
+    "Trim to one line",
+    "Trimming must not drop a real instruction; if unsure whether a passage is load-bearing, flag it, don't cut it",
+    "Two tools are conditional, not dead: `ExitPlanMode` is valid when the agent sets `permissionMode: plan` (the scanner already honours this), and `Agent` is valid when the body delegates \u2014 nested subagents are on by default, so keep it in that case and ask otherwise",
+    "Use `--json` for structured data to reason over; run without `--json` for a readable view",
+    "Use this exact structure per agent",
+    "`NO_TOOLS_FIELD`, `WRITE_ON_READONLY`, `MEMORY_BOILERPLATE`) map to explanations in `references/best-practices.md`"
+  ],
+  "terminal": [],
+  "unprotected": [
+    "A tight allowlist is cheaper and more correct.",
+    "The flag codes (e.g.",
+    "The scan tells you what is off; you decide the fix.",
+    "Tool allowlist (conservative + flag).",
+    "This is the priority.",
+    "Then:",
+    "Token / prose trims.",
+    "CLAUDE.md / global rules re-pasted into the body.",
+    "Preserve meaning.",
+    "Description.",
+    "Model.",
+    "Frontmatter hygiene.",
+    "End with:",
+    "Preserve behaviour.",
+    "One agent, one job.",
+    "Context budget \u2260 context window."
+  ]
+}

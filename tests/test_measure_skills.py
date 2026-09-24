@@ -73,3 +73,13 @@ def test_cli_refuses_a_symlinked_skill_md(measure, make_skill, tmp_path, capsys)
     assert measure.main([str(d)]) == 2
     out = capsys.readouterr()
     assert "symlink" in out.err and out.out == "" and len(out.err.strip().splitlines()) == 1
+
+
+def test_single_quotes_and_literal_blocks_parse_to_their_text(measure, make_skill):
+    # Bug caught: leaving YAML's doubled single quote ('') as two characters, or
+    # joining a literal (|) block with spaces as if it were folded.
+    quoted = measure.measure(make_skill("x\n", where="a",
+                             frontmatter="---\nname: demo\ndescription: 'It''s quick'\n---\n"))
+    assert quoted["description_chars"] == len("It's quick")
+    # A newline and a space are one character each, so the text itself is compared.
+    assert measure.fields("---\nname: demo\ndescription: |\n  one\n  two\n---\n")["description"] == "one\ntwo"

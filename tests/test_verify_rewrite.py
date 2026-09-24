@@ -496,6 +496,58 @@ def test_freeze_from_an_older_version_is_refused(freezer, gate, make_skill, tmp_
     assert "format 2" in capsys.readouterr().err
 
 
+def test_cli_reads_approvals_one_per_line(freezer, gate, make_skill, tmp_path, capsys):
+    # Bug caught: main() never handing --approved to the gate, so an approval the
+    # user gave on the command line changes nothing.
+    orig = make_skill(ORIGINAL)
+    frozen_path = tmp_path / "frozen.json"
+    frozen_path.write_text(json.dumps(freezer.freeze(orig, REQS)), encoding="utf-8")
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    skill = cand / "SKILL.md"
+    skill.write_text(skill.read_text(encoding="utf-8").replace(EXPLANATION, "")
+                     .replace("NEVER force-push to `main`.\n\n", "")
+                     .replace("Do not edit `generated/`, unless the user asks.\n\n", ""), encoding="utf-8")
+    approved = tmp_path / "approved.txt"
+    approved.write_text("NEVER force-push to `main`.\n\nDo not edit `generated/`, unless the user asks.\n",
+                        encoding="utf-8")
+    args = ["--frozen", str(frozen_path), "--original", str(orig), "--candidate", str(cand)]
+    assert gate.main(args) == 1
+    capsys.readouterr()
+    assert gate.main(args + ["--approved", str(approved)]) == 0
+    out = capsys.readouterr().out
+    for d in ("NEVER force-push to `main`", "Do not edit `generated/`, unless the user asks"):
+        assert f"deleted with the user's approval: {d}\n" in out
+
+
+def test_deleted_existing_file_is_file_changed(freezer, gate, make_skill, tmp_path):
+    # Bug caught: checking only the files the candidate has, so deleting an existing
+    # reference passes.
+    orig = make_skill(ORIGINAL, files={"references/a.md": "Original.\n"})
+    frozen = freezer.freeze(orig, REQS)
+    cand = tmp_path / "candidate"
+    shutil.copytree(orig, cand)
+    (cand / "SKILL.md").write_text((orig / "SKILL.md").read_text(encoding="utf-8").replace(EXPLANATION, ""),
+                                   encoding="utf-8")
+    (cand / "references" / "a.md").unlink()
+    r = gate.verify(frozen, cand, orig)
+    assert [(f["code"], f["detail"]) for f in r["rejected"]] == [("FILE_CHANGED", "references/a.md is missing")]
+
+
+@pytest.mark.parametrize("where", ["body", "reference"])
+def test_invented_heading_is_new_text(run, where):
+    # Bug caught: checking sentences for invented words but not headings, so a
+    # heading such as "## Optional steps" can recast the rules under it.
+    body = ORIGINAL.replace(TROUBLESHOOTING, "Read `references/troubleshooting.md` when a build fails.\n\n")
+    ref = TROUBLESHOOTING
+    if where == "body":
+        body = body.replace("## Reminder\n", "## Optional reminder\n")
+    else:
+        ref = ref.replace("## Troubleshooting\n", "## Troubleshooting you may skip\n")
+    r = run(body=body, files={"references/troubleshooting.md": ref})
+    assert any(f["code"] == "NEW_TEXT" and "heading" in f["detail"] for f in r["rejected"]), r["rejected"]
+
+
 def test_a_literal_no_sentence_holds_is_never_approved(freezer, gate, make_skill, tmp_path):
     # Bug caught: approving a lost literal when all() runs over an empty list. The
     # path below keeps its underscores as a literal, but the sentence key loses

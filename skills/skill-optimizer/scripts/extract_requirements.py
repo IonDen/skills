@@ -12,7 +12,8 @@ Records, from the original skill directory:
     shallowest, for a heading that repeats), the heading it sits under, and
     whether it is a strong rule
   - every literal: inline code, runnable code lines, URLs, flags, versions,
-    pins, dates, paths, numbers with a unit or bound
+    pins, dates, paths, numbers with a unit or bound; for a literal that runs
+    across sentences (`under 20` / `GiB`), the consecutive sentences holding it
   - every code block, and every sentence and heading, so the gate can refuse
     text the original never had
   - the sentences nothing protects word for word (no rule word, no anchor),
@@ -48,6 +49,7 @@ import skillmd  # noqa: E402
 REQ_RE = re.compile(r"^R(\d+):[ \t]*(\S.*?)\s*$")
 ANCHOR_RE = re.compile(r"^[ \t]+anchor:[ \t]*(\S.*?)\s*$")
 TERMINAL_WINDOW = 3
+SPAN_MAX = 4   # the most consecutive sentences one literal is looked for across
 MIN_ANCHOR_WORDS = 3
 FORMAT = 3   # verify_rewrite.py refuses any other
 
@@ -127,6 +129,27 @@ def unprotected(body: str, reqs: list[dict]) -> list[dict]:
             if not skillmd.is_rule(s["key"]) and s["key"] not in anchored]
 
 
+def literal_spans(order: list[str], literals: list[str]) -> dict[str, list[list[str]]]:
+    """For each literal that runs across sentences, every run of consecutive
+    sentences that holds it where no shorter run does. A run with a heading in
+    it is left out: that literal has no sentences to approve it through."""
+    out: dict[str, list[list[str]]] = {}
+    for lit in literals:
+        runs: list[list[str]] = []
+        for size in range(2, SPAN_MAX + 1):
+            for i in range(len(order) - size + 1):
+                run = order[i:i + size]
+                if (run in runs or any(k.startswith("# ") for k in run)
+                        or not skillmd.contains_literal(" ".join(run), lit)
+                        or skillmd.contains_literal(" ".join(run[1:]), lit)
+                        or skillmd.contains_literal(" ".join(run[:-1]), lit)):
+                    continue
+                runs.append(run)
+        if runs:
+            out[lit] = runs
+    return out
+
+
 def freeze(skill_dir, requirements_text: str) -> dict:
     skill_dir = Path(skill_dir)
     fm, body = skillmd.split_frontmatter(skillmd.read_text(skill_dir / "SKILL.md"))
@@ -163,6 +186,7 @@ def freeze(skill_dir, requirements_text: str) -> dict:
     last_heading = max((u["line"] for u in skillmd.units(body) if u["kind"] == "heading"), default=0)
     closing = [s["key"] for s in sents if s["line"] > last_heading]
     tail = closing if 0 < len(closing) <= TERMINAL_WINDOW else []
+    literals = skillmd.literals(body)
     return {
         "format": FORMAT,
         "frontmatter": fm,
@@ -172,7 +196,8 @@ def freeze(skill_dir, requirements_text: str) -> dict:
         "rules": rules,
         "rule_headings": rule_headings,
         "terminal": sorted({k for k in tail if skillmd.is_rule(k)}),
-        "literals": skillmd.literals(body),
+        "literals": literals,
+        "literal_spans": literal_spans(order, literals),
         "order": order,
         "sentences": sorted({s["key"] for s in sents}),
         "headings": sorted({skillmd.normalise(u["text"]) for u in skillmd.units(body) if u["kind"] == "heading"}),

@@ -757,3 +757,71 @@ def test_a_literal_wrapped_inside_a_quote_is_found_and_protected(freezer, gate, 
     edited = QUOTED.replace(EXPLANATION, "").replace("> GiB", "> MiB")
     r = gate_on(freezer, gate, make_skill, tmp_path, QUOTED, TAG, edited)
     assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+MARGIN_A = "The safety margin is under 20"
+MARGIN_B = "GiB, and that is the budget."
+MARGIN = EXPLANATION + MARGIN_A + "\n\n" + MARGIN_B + "\n\nTag the release after the merge.\n"
+PAIR = MARGIN_A + "\n\n" + MARGIN_B + "\n\n"
+
+
+def test_a_literal_across_two_sentences_records_them(freezer, make_skill):
+    # Bug caught: freezing no contributing sentences for a literal no single
+    # sentence holds, so the gate has nothing to approve it through.
+    spans = freezer.freeze(make_skill(MARGIN), TAG)["literal_spans"]
+    assert spans["under 20 GiB"] == [["The safety margin is under 20", "GiB, and that is the budget"]]
+
+
+def test_a_literal_across_two_approved_sentences_is_approved(freezer, gate, make_skill, tmp_path):
+    # Bug caught: looking for one sentence holding the whole literal, so deleting
+    # both halves of `under 20` / `GiB` with the user's approval is still LITERAL_LOST.
+    candidate = MARGIN.replace(EXPLANATION, "").replace(PAIR, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, candidate, approved=[MARGIN_A, MARGIN_B])
+    assert r["status"] == "pass", r["rejected"]
+    assert "literal: under 20 GiB" in r["approved_deletions"]
+
+
+@pytest.mark.parametrize("gone,approved", [
+    (MARGIN_B + "\n\n", []),                  # one half deleted, nothing approved
+    (MARGIN_B + "\n\n", [MARGIN_B]),          # one half deleted with approval, the other kept
+    (PAIR, [MARGIN_B]),                       # both deleted, only one approved
+], ids=["unapproved", "half-approved-half-kept", "one-of-two-approved"])
+def test_a_literal_across_two_sentences_needs_both_approved(freezer, gate, make_skill, tmp_path, gone, approved):
+    # Bug caught: approving the literal once any contributing sentence is approved,
+    # so `under 20` is left without its unit, or goes with an unapproved sentence.
+    candidate = MARGIN.replace(EXPLANATION, "").replace(gone, "")
+    r = gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, candidate, approved=approved)
+    assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+def test_a_literal_across_two_sentences_moved_together_asks(freezer, gate, make_skill, tmp_path):
+    # Bug caught: rejecting a literal whose sentences moved together into one
+    # reference (here as two list items, so a "- " now sits inside it) instead of
+    # asking; or passing it silently.
+    body = MARGIN.replace(EXPLANATION, "").replace(PAIR, "Read `references/margin.md` when sizing.\n\n")
+    ref = "- " + MARGIN_A + "\n- " + MARGIN_B + "\n"
+    gate_on(freezer, gate, make_skill, tmp_path, MARGIN, TAG, body)   # writes the candidate
+    cand = tmp_path / "candidate"
+    (cand / "references").mkdir()
+    (cand / "references" / "margin.md").write_text(ref, encoding="utf-8")
+    r = gate.verify(freezer.freeze(tmp_path / "original", TAG), cand, tmp_path / "original")
+    assert r["status"] == "needs_confirmation", r["rejected"]
+    # `20 GiB` and `under 20 GiB` both run across the pair
+    assert sorted((c["code"], c["file"], c["detail"].split(" ran across")[0]) for c in r["confirm"]) == [
+        ("MOVED_TO_REFERENCE", "references/margin.md", "'20 GiB'"),
+        ("MOVED_TO_REFERENCE", "references/margin.md", "'under 20 GiB'")]
+    # split between the body and a reference, it is lost, not moved
+    split = MARGIN.replace(EXPLANATION, "").replace(MARGIN_B, "Read `references/margin.md` when sizing.")
+    (cand / "SKILL.md").write_text("---\nname: demo\ndescription: Use when testing.\n---\n" + split, encoding="utf-8")
+    (cand / "references" / "margin.md").write_text("- " + MARGIN_B + "\n", encoding="utf-8")
+    r = gate.verify(freezer.freeze(tmp_path / "original", TAG), cand, tmp_path / "original")
+    assert "'under 20 GiB' is gone or changed" in [f["detail"] for f in r["rejected"]], r["rejected"]
+
+
+def test_a_freeze_without_literal_spans_is_still_read(freezer, gate, make_skill, tmp_path):
+    # Bug caught: indexing frozen["literal_spans"], so a freeze written before the
+    # field existed fails with a KeyError instead of gating as it used to.
+    orig = make_skill(MARGIN)
+    frozen = freezer.freeze(orig, TAG)
+    del frozen["literal_spans"]
+    assert gate.verify(frozen, orig, orig)["status"] == "unchanged"

@@ -18,7 +18,8 @@ sentence, unless it is identical to another original sentence that survives
 unchanged. A
 literal lost with it passes only when every original sentence holding it was
 approved and truly deleted, and no heading or code block of the original held
-it. Each approved deletion is listed.
+it; a literal that runs across sentences (`under 20` / `GiB`) is held by each
+of them. Each approved deletion is listed.
 
 Rejects (exit 1):
   ORIGINAL_CHANGED     the skill on disk is not the one that was frozen
@@ -39,7 +40,9 @@ Rejects (exit 1):
   REFERENCE_UNLINKED   a new references/ file is not named in the body
   NOT_SMALLER          the body did not get smaller
 Needs the user's decision (exit 3):
-  MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file
+  MOVED_TO_REFERENCE   a rule or an anchored sentence now lives only in a new references/ file,
+                       or a literal that ran across sentences moved there with all of them
+                       and no longer reads as written
   SECTION_CHANGED      a rule or an anchored sentence now sits under a different heading
                        (a trimmed heading is the original heading it was cut from, when
                        exactly one fits and that original is not still in the body)
@@ -313,15 +316,25 @@ def verify(frozen: dict, candidate_dir, original_dir=None, approved=None) -> dic
 
     # A lost literal is approved only when every original sentence holding it was
     # approved and truly deleted (not trimmed), and no heading or code block of the
-    # original held it.
+    # original held it. A literal that runs across sentences (`under 20` / `GiB`)
+    # counts each of them as a holder. When those sentences all moved into the
+    # same new reference, where the literal no longer reads as written, the user
+    # decides. A freeze from before `literal_spans` has none.
     package = "\n".join(t for _, t in sources)
+    spans = frozen.get("literal_spans", {})
     for lit in frozen["literals"]:
         if skillmd.contains_literal(package, lit):
             continue
         holders = [k for k in frozen["sentences"] if skillmd.contains_literal(k, lit)]
+        across = sorted({k for run in spans.get(lit, ()) for k in run} - set(holders))
+        holders += across
         elsewhere = any(skillmd.contains_literal(t, lit) for t in frozen["headings"] + frozen["code_blocks"])
+        places = {locate("sentence", k) for k in holders}
         if holders and not elsewhere and all(deleted_with_approval("sentence", k) for k in holders):
             approve(f"literal: {lit}")
+        elif across and not elsewhere and len(places) == 1 and places.isdisjoint({None, "body"}):
+            ask(f"{lit!r} ran across sentences that moved together and no longer reads as written there: "
+                + ", ".join(repr(k) for k in holders), places.pop())
         else:
             reject("LITERAL_LOST", f"{lit!r} is gone or changed")
 

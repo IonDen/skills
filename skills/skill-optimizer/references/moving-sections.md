@@ -1,0 +1,45 @@
+# Moving a section into references/
+
+Moving is the largest saving available and the easiest way to lose an
+instruction: a moved section is read only when the line left behind sends the
+agent to it. Move a section only when you can say, in one line, the condition
+under which it is needed, and that condition does not hold on most runs.
+
+## Good candidates
+
+- Troubleshooting: what to do when a named step fails.
+- A mode most runs do not use: publishing, a second platform, a migration path.
+- Long reference material consulted for one step: a table of flags, error
+  codes, a field-by-field schema.
+- Worked examples beyond the first.
+
+## Keep in the body
+
+- The workflow itself, every step of it, and anything used on every run.
+- Rules that apply throughout the skill.
+- Anything the agent needs in order to recognise that it should open a
+  reference: the reference cannot tell the agent when to read itself.
+
+## When unsure, ask
+
+If you cannot tell whether a section is needed on every run, list it in the
+report under "Needs your decision" with what it contains and the condition you
+would use, and keep it in the body until the user answers. The gate also asks
+for every sentence with a rule word that ends up only in a reference.
+
+## The line left behind
+
+Write it where the section was, naming the file and the condition:
+
+```text
+Read `references/troubleshooting.md` when a release step fails.
+```
+
+The condition must be something the agent can observe at that moment ("when
+the build fails", "when publishing to PyPI"), not a judgement ("when it seems
+useful"). One reference per topic; do not move text into an existing reference
+file, since the gate freezes every file except SKILL.md.
+
+After moving, reverse reconstruction (step 6) is the check that matters: a
+fresh agent reading only the candidate must still find the moved instructions
+by following the line you left.

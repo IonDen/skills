@@ -1,0 +1,6 @@
+[
+  {"id": "d1-guard-removed", "file": "fixture_d_account.py",
+   "find": "if account.status == \"inactive\":", "replace": "if False:"},
+  {"id": "d2-wrong-status", "file": "fixture_d_account.py",
+   "find": "self._repo.set_status(user_id, \"inactive\")", "replace": "self._repo.set_status(user_id, \"active\")"}
+]

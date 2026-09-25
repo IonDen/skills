@@ -1,0 +1,3 @@
+{"binding": false,
+ "expected": {"baseline-haiku": 3, "skill-haiku": 3, "baseline-sonnet": 1},
+ "runs": []}

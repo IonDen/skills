@@ -1,0 +1,6 @@
+[
+  {"id": "d1-guard-removed", "file": "fixture_d_account.mjs",
+   "find": "if (account.status === \"inactive\") return;", "replace": "if (false) return;"},
+  {"id": "d2-wrong-status", "file": "fixture_d_account.mjs",
+   "find": "this.repo.setStatus(userId, \"inactive\");", "replace": "this.repo.setStatus(userId, \"active\");"}
+]

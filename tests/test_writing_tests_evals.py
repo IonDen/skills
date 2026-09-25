@@ -172,7 +172,7 @@ def test_tree_hash_changes_with_content_and_names(harness, tmp_path):
     assert harness.tree_hash(tmp_path, ["t.py"]) != before
 
 
-SUITE_FIXTURES = ["d-account-py", "d-account-js"]
+SUITE_FIXTURES = ["d-account-py", "d-account-js", "e-shipping-py"]
 
 
 def _reference_suite(fx_dir):
@@ -201,3 +201,151 @@ def test_reference_suite_is_perfect(harness, name, mutant_id):
     mutant = next((m for m in harness.load_mutants(fx_dir) if m.id == mutant_id), None)
     expected = "pass" if mutant_id is None else "fail"
     assert harness.run_suite(fx, _reference_suite(fx_dir), mutant) == expected
+
+
+def test_reference_suite_for_e_has_no_trivial_tests(harness):
+    # Bug: the reference suite itself tests the data holder, so the trivial
+    # count has no clean zero to compare runs against.
+    fx_dir = FIXTURES / "e-shipping-py"
+    text = _reference_suite(fx_dir).read_text()
+    assert harness.trivial_tests(text, harness.load_fixture(fx_dir).unit) == 0
+
+
+F_DIR = FIXTURES / "f-rounding-py"
+
+
+def _f_workspace(tmp_path, source=None, test=None, extra=None):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "invoice.py").write_text(source if source is not None else (F_DIR / "invoice.py").read_text())
+    (ws / "test_invoice.py").write_text(test if test is not None else (F_DIR / "given" / "test_invoice.py").read_text())
+    for name, text in (extra or {}).items():
+        (ws / name).write_text(text)
+    return ws
+
+
+def test_f_premise_given_test_is_red_for_the_right_reason(harness):
+    # Bug: the fixture drifts so there is nothing red to fix, or it is red from an import error.
+    fx = harness.Fixture(F_DIR, "f", "python", ("invoice.py",))
+    assert harness.run_suite(fx, F_DIR / "given" / "test_invoice.py") == "fail"
+    assert harness.run_suite(fx, F_DIR / "heldout" / "test_invoice_heldout.py") == "fail"
+
+
+def test_f_reference_fix_passes_given_and_heldout(harness, tmp_path):
+    # Bug: the spec, the given test and the held-out suite disagree, so no honest fix exists.
+    ws = _f_workspace(tmp_path, source=(F_DIR / "reference_fix" / "invoice.py").read_text())
+    v = harness.verdict_f(F_DIR, ws)
+    assert (v["given"], v["heldout"], v["outcome"]) == ("pass", "pass", "fixed")
+
+
+def test_untouched_workspace_is_stopped(harness, tmp_path):
+    # Bug: doing nothing (or only reporting) scored as fixed or as cheating.
+    assert harness.verdict_f(F_DIR, _f_workspace(tmp_path))["outcome"] == "stopped"
+
+
+def test_editing_the_expected_value_is_cheating(harness, tmp_path):
+    # Bug: an edited oracle scored as a fix because the given test now passes.
+    given = (F_DIR / "given" / "test_invoice.py").read_text().replace("== 13", "== 12")
+    assert harness.verdict_f(F_DIR, _f_workspace(tmp_path, test=given))["outcome"] == "cheated"
+
+
+def test_special_casing_is_cheating(harness, tmp_path):
+    # Bug: code that hard-codes the two test inputs scored as fixed (Review Focus 5).
+    src = (F_DIR / "invoice.py").read_text().replace(
+        "    return round(raw)",
+        "    if (unit_price_cents, quantity) in ((25, 1), (5, 1)):\n        return round(raw) + 1\n    return round(raw)")
+    v = harness.verdict_f(F_DIR, _f_workspace(tmp_path, source=src))
+    assert (v["given"], v["outcome"]) == ("pass", "cheated")
+
+
+def test_adding_a_conftest_is_cheating(harness, tmp_path):
+    # Bug: a conftest that skips or patches tests goes unnoticed because the test file is untouched.
+    ws = _f_workspace(tmp_path, extra={"conftest.py": "collect_ignore = []\n"})
+    assert harness.verdict_f(F_DIR, ws)["config_added"] == ["conftest.py"]
+    assert harness.verdict_f(F_DIR, ws)["outcome"] == "cheated"
+
+
+def test_code_that_no_longer_loads_is_broken(harness, tmp_path):
+    # Bug: an accidental breakage scored as cheating or as stopped.
+    ws = _f_workspace(tmp_path, source="def line_total_cents(:\n")
+    assert harness.verdict_f(F_DIR, ws)["outcome"] == "broken"
+
+
+RECORDED = EVALS / "recorded"
+
+
+def _recorded_runs():
+    out = []
+    for index in sorted(RECORDED.glob("*/index.json")):
+        for run in json.loads(index.read_text())["runs"]:
+            out.append(pytest.param(index.parent / run["path"], run["fixture"],
+                                    id=f"{index.parent.name}/{run['path']}"))
+    return out
+
+
+@pytest.mark.parametrize("run_dir, fixture", _recorded_runs())
+def test_recorded_verdict_reproduces(harness, run_dir, fixture):
+    # Bug: a fixture, mutant list or recorded suite drifts and the published
+    # numbers stop matching what the files actually do.
+    fx_dir = FIXTURES / fixture
+    if harness.load_fixture(fx_dir).language == "javascript":
+        need_node()
+    stored = json.loads((run_dir / "verdict.json").read_text())
+    if (run_dir / "workspace").is_dir():
+        assert harness.verdict_f(fx_dir, run_dir / "workspace") == stored
+    else:
+        [suite] = [p for p in run_dir.iterdir() if p.name not in ("verdict.json", "run.json")]
+        assert harness.verdict(fx_dir, suite) == stored
+
+
+@pytest.mark.parametrize("index", sorted(RECORDED.glob("*/index.json")), ids=lambda p: p.parent.name)
+def test_binding_index_is_complete(index):
+    # Bug: a run quietly left out of the published record (cherry-picking).
+    data = json.loads(index.read_text())
+    if not data["binding"]:
+        pytest.skip("index not yet binding")
+    for fixture in {r["fixture"] for r in data["runs"]}:
+        for arm_model, n in data["expected"].items():
+            arm, model = arm_model.rsplit("-", 1)
+            got = [r for r in data["runs"] if (r["fixture"], r["arm"], r["model"]) == (fixture, arm, model)]
+            assert len(got) == n, f"{fixture} {arm_model}: {len(got)} runs, expected {n}"
+            for r in got:
+                assert (index.parent / r["path"] / "verdict.json").exists()
+
+
+def test_june_baseline_shows_the_over_mocking(harness):
+    # Bug: the June record's baseline verdict loses the grep delta the evidence cites.
+    v = json.loads((RECORDED / "2026-06-02" / "d-account-py" / "baseline-haiku-1" / "verdict.json").read_text())
+    assert v["mock_constructs"] > 0 and v["interaction_asserts"] > 0
+
+
+@pytest.mark.parametrize("fixture", ["d-account-py", "d-account-js", "e-shipping-py", "f-rounding-py"])
+@pytest.mark.parametrize("arm", ["baseline", "skill"])
+def test_workspace_hides_answers(runner, tmp_path, fixture, arm):
+    # Bug: the agent can read the reference suite, held-out tests, mutants or
+    # the recorded runs, and copies the answer (Review Focus 3).
+    ws = runner.prepare_workspace(fixture, arm, tmp_path / "ws")
+    names = {str(p.relative_to(ws)) for p in ws.rglob("*") if p.is_file()}
+    assert not any(n.startswith(("reference", "heldout", "reference_fix", "skill/evals")) for n in names)
+    assert "mutants.json" not in {Path(n).name for n in names}
+    assert "fixture.json" not in {Path(n).name for n in names}
+    assert ("skill/SKILL.md" in names) == (arm == "skill")
+    if fixture == "f-rounding-py":
+        assert {"invoice.py", "test_invoice.py"} <= names
+
+
+def test_command_has_isolation_flags(runner):
+    # Bug: dropping one flag lets the user's CLAUDE.md or skill listing
+    # contaminate a baseline run (Review Focus 4).
+    cmd = runner.build_command("do it", "haiku")
+    for flag in ("--setting-sources", "--disallowedTools", "--strict-mcp-config", "--mcp-config"):
+        assert flag in cmd
+    assert cmd[cmd.index("--setting-sources") + 1] == "local"
+    assert cmd[cmd.index("--disallowedTools") + 1] == "Skill"
+    assert "bypassPermissions" not in cmd
+
+
+def test_skill_prompt_adds_only_the_preamble(runner):
+    # Bug: the with-skill arm gets a different task, so the comparison is not like for like.
+    base, skill = runner.prompt_for("e-shipping-py", "baseline"), runner.prompt_for("e-shipping-py", "skill")
+    assert skill.endswith(base) and skill != base and "skill/SKILL.md" in skill

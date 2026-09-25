@@ -293,6 +293,8 @@ def test_recorded_verdict_reproduces(harness, run_dir, fixture):
     stored = json.loads((run_dir / "verdict.json").read_text())
     if (run_dir / "workspace").is_dir():
         assert harness.verdict_f(fx_dir, run_dir / "workspace") == stored
+    elif "missing_output" in stored:
+        assert not any(p.suffix in (".py", ".mjs") for p in run_dir.iterdir())
     else:
         [suite] = [p for p in run_dir.iterdir() if p.name not in ("verdict.json", "run.json")]
         assert harness.verdict(fx_dir, suite) == stored

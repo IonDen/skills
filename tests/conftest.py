@@ -102,3 +102,8 @@ WTCF_EVALS = ROOT / "skills" / "writing-tests-that-can-fail" / "evals"
 @pytest.fixture(scope="session")
 def harness():
     return _load("harness", WTCF_EVALS)
+
+
+@pytest.fixture(scope="session")
+def runner():
+    return _load("run_eval", WTCF_EVALS)

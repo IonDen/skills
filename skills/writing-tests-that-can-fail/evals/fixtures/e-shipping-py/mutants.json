@@ -1,18 +1,12 @@
 [
-  {"id": "e1-total-strict", "file": "shipping.py",
-   "find": "order.total >= FREE_SHIPPING_TOTAL", "replace": "order.total > FREE_SHIPPING_TOTAL"},
-  {"id": "e2-threshold-49", "file": "shipping.py",
-   "find": "FREE_SHIPPING_TOTAL = 50.0", "replace": "FREE_SHIPPING_TOTAL = 49.0"},
-  {"id": "e3-and-to-or", "file": "shipping.py",
-   "find": "FREE_SHIPPING_TOTAL and order.member", "replace": "FREE_SHIPPING_TOTAL or order.member"},
-  {"id": "e4-total-dropped", "file": "shipping.py",
-   "find": "(order.total >= FREE_SHIPPING_TOTAL and", "replace": "(True and"},
-  {"id": "e5-member-dropped", "file": "shipping.py",
-   "find": "and order.member)", "replace": "and True)"},
-  {"id": "e6-promo-dropped", "file": "shipping.py",
-   "find": "or order.promo:", "replace": "or False:"},
-  {"id": "e7-weight-inclusive", "file": "shipping.py",
-   "find": "order.weight_kg > HEAVY_LIMIT_KG", "replace": "order.weight_kg >= HEAVY_LIMIT_KG"},
-  {"id": "e8-error-swallowed", "file": "shipping.py",
-   "find": "raise ValueError(\"weight_kg must not be negative\")", "replace": "return 0.0"}
+  {"id": "e1-total-strict", "file": "shipping.py", "find": "order.total >= FREE_SHIPPING_TOTAL", "replace": "order.total > FREE_SHIPPING_TOTAL"},
+  {"id": "e2-threshold-49", "file": "shipping.py", "find": "FREE_SHIPPING_TOTAL = 50.0", "replace": "FREE_SHIPPING_TOTAL = 49.0"},
+  {"id": "e3-and-to-or", "file": "shipping.py", "find": "FREE_SHIPPING_TOTAL and order.member", "replace": "FREE_SHIPPING_TOTAL or order.member"},
+  {"id": "e4-total-dropped", "file": "shipping.py", "find": "(order.total >= FREE_SHIPPING_TOTAL and", "replace": "(True and"},
+  {"id": "e5-member-dropped", "file": "shipping.py", "find": "and order.member)", "replace": "and True)"},
+  {"id": "e6-promo-dropped", "file": "shipping.py", "find": "or order.promo:", "replace": "or False:"},
+  {"id": "e7-weight-inclusive", "file": "shipping.py", "find": "order.weight_kg > HEAVY_LIMIT_KG", "replace": "order.weight_kg >= HEAVY_LIMIT_KG"},
+  {"id": "e8-error-swallowed", "file": "shipping.py", "find": "raise ValueError(\"weight_kg must not be negative\")", "replace": "return 0.0"},
+  {"id": "e9-base-fee", "file": "shipping.py", "find": "BASE_FEE = 4.99", "replace": "BASE_FEE = 5.99"},
+  {"id": "e10-surcharge", "file": "shipping.py", "find": "HEAVY_SURCHARGE = 10.0", "replace": "HEAVY_SURCHARGE = 1.0"}
 ]

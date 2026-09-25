@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-js",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 6,
+ "cost_usd": 0.043995700000000006,
+ "final_message": "Test suite created and verified. All 7 tests pass:\n\n- **Deactivate active account**: Verifies status is set to \"inactive\" and goodbye email is sent\n- **Already inactive account**: Confirms no status update or email is sent if account is already inactive\n- **Call order**: Ensures repository lookup happens before state change\n- **Email handling**: Tests with various email formats\n- **Return values**: Confirms `undefined` is returned in all cases\n\nThe tests use mocked dependencies to isolate the `AccountService` behavior and verify it calls its collaborators correctly without side effects."
+}

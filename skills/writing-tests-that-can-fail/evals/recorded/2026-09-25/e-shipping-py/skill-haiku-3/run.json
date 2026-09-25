@@ -1,0 +1,13 @@
+{
+ "fixture": "e-shipping-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 6,
+ "cost_usd": 0.06733220000000001,
+ "final_message": "I've written a comprehensive pytest test suite for `shipping.py` and saved it to `shipping_test.py`. The test suite follows the SKILL.md guidelines and includes:\n\n**Test Coverage:**\n- **TestFreeShippingPromo** (3 tests) - Verifies promo code overrides all other requirements\n- **TestFreeShippingMember** (5 tests) - Verifies member free shipping at $50+ threshold\n- **TestBaseFee** (4 tests) - Verifies 4.99 base fee for ineligible orders under weight limit\n- **TestHeavySurcharge** (6 tests) - Verifies 10.00 surcharge when weight > 20.0 kg\n- **TestWeightBoundary** (3 tests) - Boundary tests at exactly 20.0 kg, just below, just above\n- **TestTotalBoundary** (3 tests) - Boundary tests at exactly $50.0, just below, just above\n- **TestNegativeWeight** (3 tests) - Verifies ValueError is raised for negative weight\n- **TestConditionCombinations** (4 tests) - Ensures each condition variable matters independently\n- **TestLogicalOrders** (3 tests) - Verifies both member AND total are needed, promo overrides all\n\n**Design principles applied:**\n- Each test names the specific bug it would catch (flipped operators, removed logic, wrong constants, missing error handling)\n- All expected values come from the docstring spec, never from the code itself\n- Tests assert observable behavior (return value), not internal calls or structure\n- Boundary conditions use x-1, x, x+1 pattern to catch off-by-one errors\n- Condition pairs differ in one variable to ensure all parts of the logic matter\n\nThe suite will fail if anyone:\n- Changes `<` to `<=` or `>=` to `>` in comparisons\n- Removes the promo or member checks\n- Modifies fee values or the weight limit\n- Removes the ValueError for negative weight"
+}

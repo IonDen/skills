@@ -1,0 +1,6 @@
+interface:
+  display_name: "Writing Tests That Can Fail"
+  short_description: "Tests that exercise real behaviour and fail on the bug"
+  default_prompt: "Use $writing-tests-that-can-fail to write or review tests that fail on the bug they exist to catch."
+policy:
+  allow_implicit_invocation: true

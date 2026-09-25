@@ -1,0 +1,13 @@
+{
+ "fixture": "e-shipping-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 4,
+ "cost_usd": 0.0419531,
+ "final_message": "Test suite created successfully at `shipping_test.py`. The file contains 29 comprehensive tests organized into 6 test classes:\n\n- **TestFreeShippingMember** (4 tests): Member free shipping at/above threshold\n- **TestFreeShippingPromo** (4 tests): Promo code free shipping regardless of conditions\n- **TestBaseFee** (5 tests): Base fee for non-members without promo\n- **TestHeavySurcharge** (4 tests): Surcharge for parcels over 20.0 kg\n- **TestNegativeWeight** (3 tests): ValueError for negative weights\n- **TestEdgeCases** (6 tests): Boundary conditions and floating-point precision\n\nThe tests cover all shipping rules including free shipping thresholds, surcharge limits, error conditions, and edge cases around the 20.0 kg weight boundary."
+}

@@ -1,0 +1,13 @@
+{
+ "fixture": "e-shipping-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 6,
+ "cost_usd": 0.0503734,
+ "final_message": "I've created a comprehensive pytest test suite for `shipping.py` with 31 tests organized into 8 test classes that cover:\n\n- **Free shipping for members** with sufficient order total (threshold, above/below)\n- **Free shipping with promo codes** (regardless of other conditions)\n- **Base shipping fee** calculations\n- **Heavy parcel surcharges** (weight > 20.0 kg)\n- **Negative weight error handling** with proper error validation\n- **Edge cases** (zero weight, fractional weights, boundary values)\n- **Complex scenarios** combining multiple conditions\n\nThe tests are saved in `shipping_test.py` and follow pytest conventions with descriptive test names and docstrings. All tests use the constants defined in the shipping module to ensure consistency."
+}

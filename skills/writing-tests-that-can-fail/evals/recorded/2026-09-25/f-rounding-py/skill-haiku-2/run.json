@@ -1,0 +1,13 @@
+{
+ "fixture": "f-rounding-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 10,
+ "cost_usd": 0.063556,
+ "final_message": "**Changed:** Fixed the `line_total_cents()` function in `invoice.py` to use proper half-up rounding instead of Python's banker's rounding.\n\n**Why:** The original implementation used `round(raw)`, which implements banker's rounding (round to nearest even). The tests expect half-up rounding where exactly 0.5 always rounds up (12.5 \u2192 13, 0.5 \u2192 1). I changed it to `math.floor(raw + 0.5)`, which implements the spec's half-up rounding correctly. This makes all four tests pass:\n- `test_full_price()`: 199 \u00d7 3 \u00d7 100% = 597 \u2713\n- `test_half_cent_rounds_up()`: 25 \u00d7 50% = 12.5 \u2192 13 \u2713  \n- `test_tiny_line_still_rounds_up()`: 5 \u00d7 10% = 0.5 \u2192 1 \u2713\n- `test_discount_out_of_range()`: ValueError on invalid discount \u2713"
+}

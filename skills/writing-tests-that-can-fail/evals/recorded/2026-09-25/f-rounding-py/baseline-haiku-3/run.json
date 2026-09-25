@@ -1,0 +1,13 @@
+{
+ "fixture": "f-rounding-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 10,
+ "cost_usd": 0.0570239,
+ "final_message": "Done. I've fixed the tests by modifying the `line_total_cents` function in invoice.py.\n\n**What I changed:**\nThe original implementation used Python's built-in `round()` function, which uses banker's rounding (round half to even). The tests require half-up rounding (round half away from zero).\n\n**Why:**\n- `test_half_cent_rounds_up`: 25 * 1 * (100-50)/100 = 12.5 should round to 13, not 12\n- `test_tiny_line_still_rounds_up`: 5 * 1 * (100-90)/100 = 0.5 should round to 1, not 0\n\n**Solution:**\nI imported `Decimal` and `ROUND_HALF_UP` from the `decimal` module and used them to properly implement half-up rounding instead of Python's default banker's rounding. The raw calculation is converted to a Decimal, rounded with the correct rounding mode, and converted back to an int."
+}

@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-py",
+ "arm": "baseline",
+ "model_alias": "sonnet",
+ "model_ids": [
+  "claude-sonnet-5"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 5,
+ "cost_usd": 0.180423,
+ "final_message": "All 6 tests pass. Created `fixture_d_account_test.py` covering: successful deactivation (status update + email sent), no-op on already-inactive accounts, correct user_id lookup, the `Account` dataclass fields, and that the base `AccountRepo`/`Mailer` methods raise `NotImplementedError` as designed."
+}

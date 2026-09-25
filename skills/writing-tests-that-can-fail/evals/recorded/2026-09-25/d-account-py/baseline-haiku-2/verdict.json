@@ -1,0 +1,11 @@
+{
+ "fixture": "d-account-py",
+ "interaction_asserts": 17,
+ "mock_constructs": 18,
+ "mutants": {
+  "d1-guard-removed": "killed",
+  "d2-wrong-status": "killed"
+ },
+ "original": "pass",
+ "suite": "fixture_d_account_test.py"
+}

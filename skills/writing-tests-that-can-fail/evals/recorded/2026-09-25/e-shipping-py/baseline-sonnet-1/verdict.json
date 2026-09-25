@@ -1,0 +1,20 @@
+{
+ "fixture": "e-shipping-py",
+ "interaction_asserts": 0,
+ "mock_constructs": 0,
+ "mutants": {
+  "e1-total-strict": "killed",
+  "e10-surcharge": "survived",
+  "e2-threshold-49": "survived",
+  "e3-and-to-or": "killed",
+  "e4-total-dropped": "killed",
+  "e5-member-dropped": "killed",
+  "e6-promo-dropped": "killed",
+  "e7-weight-inclusive": "killed",
+  "e8-error-swallowed": "killed",
+  "e9-base-fee": "survived"
+ },
+ "original": "pass",
+ "suite": "shipping_test.py",
+ "trivial_tests": 0
+}

@@ -1,0 +1,13 @@
+{
+ "fixture": "f-rounding-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 8,
+ "cost_usd": 0.0472615,
+ "final_message": "I've fixed the issue. The problem was that Python's `round()` function uses banker's rounding (round half to even), but the tests expect half-up rounding where exact half cents always round up.\n\n**What I changed:**\n\nModified `invoice.py` to use the `Decimal` module with `ROUND_HALF_UP` rounding mode instead of Python's built-in `round()` function. This ensures that:\n- 12.5 rounds to 13 (not 12)\n- 0.5 rounds to 1 (not 0)\n- All other values round correctly according to the half-up rule specified in the docstring\n\nThis makes all four tests pass:\n- `test_full_price()`: 199 \u00d7 3 \u00d7 100/100 = 597 \u2713\n- `test_half_cent_rounds_up()`: 25 \u00d7 1 \u00d7 50/100 = 12.5 \u2192 13 \u2713\n- `test_tiny_line_still_rounds_up()`: 5 \u00d7 1 \u00d7 10/100 = 0.5 \u2192 1 \u2713\n- `test_discount_out_of_range()`: ValueError for discount > 100 \u2713"
+}

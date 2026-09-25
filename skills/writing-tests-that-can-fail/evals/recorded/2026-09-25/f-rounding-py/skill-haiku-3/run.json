@@ -1,0 +1,13 @@
+{
+ "fixture": "f-rounding-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 6,
+ "cost_usd": 0.0459715,
+ "final_message": "**What I changed:** Replaced `round(raw)` with `int(raw + 0.5)` to implement proper half-up rounding.\n\n**Why:** The docstring specifies \"half-up rounding: an exact half cent always rounds up (12.5 \u2192 13, 0.5 \u2192 1)\". Python's built-in `round()` function uses banker's rounding (round-to-even), which rounds 12.5 to 12 and 0.5 to 0. The formula `int(raw + 0.5)` implements true half-up rounding by adding 0.5 and truncating, which makes:\n- 12.5 + 0.5 = 13.0 \u2192 13\n- 0.5 + 0.5 = 1.0 \u2192 1\n\nThis fix makes all four tests pass: full price calculation, half-cent rounding up, tiny line rounding up, and discount validation."
+}

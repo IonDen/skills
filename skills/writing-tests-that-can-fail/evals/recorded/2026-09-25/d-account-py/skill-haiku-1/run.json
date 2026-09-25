@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 7,
+ "cost_usd": 0.0519521,
+ "final_message": "The pytest test suite has been written to `fixture_d_account_test.py`. It follows the SKILL.md guidelines:\n\n**Key design decisions:**\n\n1. **Fakes instead of mocks**: Created `FakeAccountRepo` and `FakeMailer` that are small in-memory implementations of the interfaces, following the real \u2192 fake \u2192 stub \u2192 mock preference.\n\n2. **Tests that can fail**: Each test catches a specific bug:\n   - `test_deactivate_active_account_sets_status_to_inactive` \u2014 catches if status isn't updated\n   - `test_deactivate_inactive_account_is_noop` \u2014 catches if early return is removed\n   - `test_deactivate_sends_email_to_correct_recipient` \u2014 catches if wrong email is used\n   - `test_deactivate_active_then_deactivate_again_no_second_email` \u2014 catches if the early return condition is broken\n\n3. **Covers all code paths**:\n   - Active account path (status changes, email sent)\n   - Inactive account path (early return, no changes)\n   - Boundary: already inactive, then deactivate again\n\n4. **Asserts observable behaviour**: Tests check the state of the fake repo and fake mailer, not internal call order.\n\n5. **Literal expected values**: Email addresses and statuses come from test setup, not derived from code constants."
+}

@@ -1,0 +1,13 @@
+{
+ "fixture": "e-shipping-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 5,
+ "cost_usd": 0.055279299999999996,
+ "final_message": "I've written a comprehensive pytest test suite for shipping.py in `shipping_test.py`. The test suite includes 28 tests organized into 6 test classes:\n\n**Coverage:**\n- **TestNegativeWeight**: Catches missing/wrong weight validation\n- **TestPromoCodeFreeShipping**: Catches promo logic errors (AND/OR mistakes)\n- **TestMemberFreeShippingBoundary**: Catches boundary errors at the 50.0 total threshold\n- **TestWeightSurchargeBoundary**: Catches boundary errors at the 20.0 kg threshold\n- **TestBaseFeeAndSurcharge**: Catches wrong fee/surcharge constants\n- **TestConditionCombinations**: Catches operator precedence and short-circuit logic errors\n- **TestEdgeCases**: Catches off-by-one and edge input errors\n\n**Key test design principles (from SKILL.md):**\n- Each test documents the specific bug it catches in its docstring\n- Tests use expected values from the spec (module docstring), not from the code\n- Tests are at the public behavior level, not internal structure\n- Boundaries are tested at x-1, x, and x+1 (e.g., 19.99, 20.0, 20.01 kg)\n- All conditions are covered: negative weight, promo override, member threshold, weight surcharge\n- Tests would fail if you flip comparisons (`<` to `<=`, `>` to `>=`) or change constants\n\nThe tests are ready to run with `pytest shipping_test.py`."
+}

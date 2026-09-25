@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 6,
+ "cost_usd": 0.047624700000000006,
+ "final_message": "Test suite created at `fixture_d_account_test.py`. The tests cover:\n\n- **Account dataclass**: creation, field access, and dataclass verification\n- **AccountRepo**: NotImplementedError for both methods\n- **Mailer**: NotImplementedError for send_goodbye\n- **AccountService**: \n  - Initialization\n  - Deactivating active accounts (calls set_status and send_goodbye)\n  - Deactivating inactive accounts (skips set_status and send_goodbye)\n  - Correct user_id passing\n  - Operation order (get \u2192 set_status \u2192 send_goodbye)\n  - Email preservation through the flow\n  - Multiple deactivation calls on the same user\n  - Deactivating different users\n\nThe tests use `unittest.mock` for dependency injection and verification, ensuring all code paths are covered."
+}

@@ -1,0 +1,13 @@
+{
+ "fixture": "e-shipping-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 7,
+ "cost_usd": 0.0512885,
+ "final_message": "Done! I've created a comprehensive pytest test suite in `shipping_test.py` with 25 test cases covering:\n\n- **Member free shipping**: Testing the 50.00 order threshold for members\n- **Promo codes**: Verifying free shipping with promo codes takes precedence\n- **Non-member standard shipping**: Testing base fee and surcharge logic\n- **Weight thresholds**: Validating that the 20.0 kg limit correctly applies the heavy surcharge\n- **Invalid inputs**: Ensuring negative weights raise `ValueError`\n- **Edge cases**: Boundary conditions like exact thresholds, fractional weights, and extreme values\n\nThe tests are organized into logical test classes and cover all code paths and business logic described in the module docstring."
+}

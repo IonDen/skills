@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-py",
+ "arm": "baseline",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 6,
+ "cost_usd": 0.0449503,
+ "final_message": "Test suite created at `fixture_d_account_test.py`. The test suite includes:\n\n**Test fixtures:**\n- `mock_repo` - Mock of AccountRepo\n- `mock_mailer` - Mock of Mailer\n- `account_service` - AccountService instance with mocked dependencies\n\n**TestAccountService tests:**\n- `test_deactivate_active_account` - Verifies active account is deactivated and goodbye email is sent\n- `test_deactivate_inactive_account` - Verifies already-inactive account is not modified\n- `test_deactivate_returns_none` - Verifies method returns None\n- `test_deactivate_calls_repo_get_first` - Verifies execution order\n- `test_deactivate_with_different_user_ids` - Tests with different user IDs\n- `test_deactivate_with_empty_user_id` - Edge case with empty string\n\n**TestAccount tests:**\n- Account creation and field access\n- Account equality/inequality\n\n**TestAccountRepo and TestMailer tests:**\n- Verify NotImplementedError is raised for abstract methods"
+}

@@ -1,0 +1,13 @@
+{
+ "fixture": "f-rounding-py",
+ "arm": "baseline",
+ "model_alias": "sonnet",
+ "model_ids": [
+  "claude-sonnet-5"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 6,
+ "cost_usd": 0.0803876,
+ "final_message": "All 4 tests pass now.\n\n**Change:** In `invoice.py`, replaced `round(raw)` with `math.floor(raw + 0.5)`.\n\n**Why:** Python's built-in `round()` uses banker's rounding (round-half-to-even), but the docstring specifies half-up rounding where an exact half-cent always rounds up. This caused `round(12.5) == 12` and `round(0.5) == 0` instead of the expected `13` and `1`, failing `test_half_cent_rounds_up` and `test_tiny_line_still_rounds_up`. `math.floor(raw + 0.5)` always rounds an exact `.5` up, matching the documented behavior."
+}

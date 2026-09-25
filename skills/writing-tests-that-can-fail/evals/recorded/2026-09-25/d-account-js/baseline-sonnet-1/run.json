@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-js",
+ "arm": "baseline",
+ "model_alias": "sonnet",
+ "model_ids": [
+  "claude-sonnet-5"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": null,
+ "num_turns": 5,
+ "cost_usd": 0.09458400000000002,
+ "final_message": "All 9 tests pass. The suite covers `AccountRepo`/`Mailer` default throw behavior, and `AccountService.deactivate` for the active/inactive paths, call ordering, and error propagation from each collaborator."
+}

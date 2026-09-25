@@ -1,3 +1,122 @@
-{"binding": false,
- "expected": {"baseline-haiku": 3, "skill-haiku": 3, "baseline-sonnet": 1},
- "runs": []}
+{
+ "binding": false,
+ "expected": {
+  "baseline-haiku": 3,
+  "skill-haiku": 3,
+  "baseline-sonnet": 1
+ },
+ "runs": [
+  {
+   "fixture": "d-account-js",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 1,
+   "path": "d-account-js/baseline-haiku-1"
+  },
+  {
+   "fixture": "d-account-js",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 2,
+   "path": "d-account-js/baseline-haiku-2"
+  },
+  {
+   "fixture": "d-account-js",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 3,
+   "path": "d-account-js/baseline-haiku-3"
+  },
+  {
+   "fixture": "d-account-js",
+   "arm": "baseline",
+   "model": "sonnet",
+   "n": 1,
+   "path": "d-account-js/baseline-sonnet-1"
+  },
+  {
+   "fixture": "d-account-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 1,
+   "path": "d-account-py/baseline-haiku-1"
+  },
+  {
+   "fixture": "d-account-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 2,
+   "path": "d-account-py/baseline-haiku-2"
+  },
+  {
+   "fixture": "d-account-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 3,
+   "path": "d-account-py/baseline-haiku-3"
+  },
+  {
+   "fixture": "d-account-py",
+   "arm": "baseline",
+   "model": "sonnet",
+   "n": 1,
+   "path": "d-account-py/baseline-sonnet-1"
+  },
+  {
+   "fixture": "e-shipping-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 1,
+   "path": "e-shipping-py/baseline-haiku-1"
+  },
+  {
+   "fixture": "e-shipping-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 2,
+   "path": "e-shipping-py/baseline-haiku-2"
+  },
+  {
+   "fixture": "e-shipping-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 3,
+   "path": "e-shipping-py/baseline-haiku-3"
+  },
+  {
+   "fixture": "e-shipping-py",
+   "arm": "baseline",
+   "model": "sonnet",
+   "n": 1,
+   "path": "e-shipping-py/baseline-sonnet-1"
+  },
+  {
+   "fixture": "f-rounding-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 1,
+   "path": "f-rounding-py/baseline-haiku-1"
+  },
+  {
+   "fixture": "f-rounding-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 2,
+   "path": "f-rounding-py/baseline-haiku-2"
+  },
+  {
+   "fixture": "f-rounding-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 3,
+   "path": "f-rounding-py/baseline-haiku-3"
+  },
+  {
+   "fixture": "f-rounding-py",
+   "arm": "baseline",
+   "model": "sonnet",
+   "n": 1,
+   "path": "f-rounding-py/baseline-sonnet-1"
+  }
+ ]
+}

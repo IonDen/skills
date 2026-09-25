@@ -1,6 +1,26 @@
-{"binding": true,
- "expected": {"baseline-haiku": 1, "skill-haiku": 1},
+{
+ "binding": true,
+ "fixtures": [
+  "d-account-py"
+ ],
+ "expected": {
+  "baseline-haiku": 1,
+  "skill-haiku": 1
+ },
  "runs": [
-  {"fixture": "d-account-py", "arm": "baseline", "model": "haiku", "n": 1, "path": "d-account-py/baseline-haiku-1"},
-  {"fixture": "d-account-py", "arm": "skill", "model": "haiku", "n": 1, "path": "d-account-py/skill-haiku-1"}
- ]}
+  {
+   "fixture": "d-account-py",
+   "arm": "baseline",
+   "model": "haiku",
+   "n": 1,
+   "path": "d-account-py/baseline-haiku-1"
+  },
+  {
+   "fixture": "d-account-py",
+   "arm": "skill",
+   "model": "haiku",
+   "n": 1,
+   "path": "d-account-py/skill-haiku-1"
+  }
+ ]
+}

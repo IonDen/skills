@@ -10,11 +10,13 @@ Coding agents are rewarded for green tests, and it shows. Across more than 1.2 m
 
 ## What it asks for
 
-- **Test what matters.** Name the bug a caller would see before writing the test. Logic gets thorough tests, glue a few, and trivia none: plain data holders, stubs, restated constants.
-- **Test real behaviour.** Keep the unit and its own collaborators real, and use fakes for slow or nondeterministic adapters. Mock only to verify an outgoing side effect you can't observe any other way. Assert on state and output, never mainly on calls. Expected values and boundary inputs are literals from the spec, never the code's own constants.
-- **Cover every condition** inside the units worth testing: partitions, three-value boundaries, a flip-one-part pair for each part of a compound condition, error paths asserted on what the caller sees.
-- **Prove each test can fail** by breaking the code on purpose, by hand or with the ecosystem's mutation tool.
-- **When a test goes red, fix the code or report.** Inside a fix, never change a test's expected value, tolerance, input or skip status. If the spec shows the test is wrong, stop and say so with the evidence. After three failed attempts, stop and report.
+Before writing a test, name the bug a caller would see. Logic gets thorough tests, glue a few, and trivia none: plain data holders, stubs, restated constants.
+
+Keep the unit and its own collaborators real, and use fakes for slow or nondeterministic adapters. Mock only to verify an outgoing side effect you can't observe any other way. Assert on state and output, never mainly on calls. Take expected values and boundary inputs from the spec as literals, never from the code's own constants.
+
+Inside the units worth testing, cover every condition: partitions, three-value boundaries, a pair of tests for each part of a compound condition that flips only that part, and error paths asserted on what the caller sees. Then prove each test can fail by breaking the code on purpose, by hand or with the ecosystem's mutation tool.
+
+When a test goes red, fix the code or report. Inside a fix, never change a test's expected value, tolerance, input or skip status. If the spec shows the test is wrong, stop and say so with the evidence. After three failed attempts, stop and report.
 
 The body of `SKILL.md` is written in language-neutral pseudo-code. `references/` holds the details: what is worth testing, edge-case techniques, the tricky ways to fake a green test and how to spot them, a smell catalogue, the sources, and one short file per ecosystem (Python, JavaScript and TypeScript, Go, Java and Kotlin, Rust, Swift, C#) naming its runner, fake idiom, mock library, property and mutation tools, and the markers to question in a diff.
 

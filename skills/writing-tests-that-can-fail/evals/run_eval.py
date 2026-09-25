@@ -10,14 +10,17 @@ to see: the fixture source (and, for the red-test fixture, its given tests);
 with --arm skill also skill/SKILL.md and skill/references/. Reference suites,
 held-out tests and mutants never enter it. The session loads no user or
 project settings or CLAUDE.md, cannot use the Skill tool, has no MCP servers,
-and runs in acceptEdits mode with only the test runners allowed in Bash."""
+and runs in acceptEdits mode with only the test runners, ls and cat allowed
+in Bash."""
 from __future__ import annotations
 
 import argparse
 import datetime
 import hashlib
 import json
+import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -82,11 +85,31 @@ def build_command(prompt: str, model: str) -> list[str]:
             "--max-turns", "40", "--output-format", "json"]
 
 
+LAUNCH_TIMEOUT_S = 1200
+
+
+def parse_result(returncode: int, stdout: str, stderr: str) -> dict:
+    """The session's final result message, with the exit code; a CLI error
+    that printed no JSON raises instead of being recorded as a run."""
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"claude exited {returncode} without JSON output: {stderr.strip()[:500]}") from None
+    result = data[-1] if isinstance(data, list) else data
+    return {**result, "returncode": returncode}
+
+
 def _launch(prompt: str, model: str, cwd: Path) -> dict:
-    r = subprocess.run(build_command(prompt, model), cwd=cwd, stdin=subprocess.DEVNULL,
-                       capture_output=True, text=True, timeout=1200)
-    data = json.loads(r.stdout)
-    return data[-1] if isinstance(data, list) else data
+    proc = subprocess.Popen(build_command(prompt, model), cwd=cwd, stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            start_new_session=True)
+    try:
+        out, err = proc.communicate(timeout=LAUNCH_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        return {"timed_out": True, "is_error": True, "subtype": "timeout", "returncode": None, "result": ""}
+    return parse_result(proc.returncode, out, err)
 
 
 def probe() -> int:
@@ -105,29 +128,40 @@ def run(fixture: str, arm: str, model: str, n: int, out: Path) -> Path:
     run_dir = out / fixture / f"{arm}-{model}-{n}"
     if run_dir.exists():
         raise SystemExit(f"{run_dir} exists; runs are never overwritten")
-    with tempfile.TemporaryDirectory(prefix="wtcf-run-") as tmp:
-        ws = prepare_workspace(fixture, arm, Path(tmp) / "ws")
-        result = _launch(prompt_for(fixture, arm), model, ws)
-        run_dir.mkdir(parents=True)
-        if ev["output"] == "workspace":
-            shutil.copytree(ws, run_dir / "workspace",
-                            ignore=shutil.ignore_patterns("skill", "__pycache__", ".pytest_cache"))
-            verdict = harness.verdict_f(FIXTURES / fixture, run_dir / "workspace")
-        else:
-            produced = ws / ev["output"]
-            if produced.exists():
-                shutil.copy(produced, run_dir / ev["output"])
-                verdict = harness.verdict(FIXTURES / fixture, run_dir / ev["output"])
+    # Everything is written to a staging folder and renamed at the end, so a
+    # failure never leaves a half-written run that blocks this cell.
+    staging = run_dir.with_name(f".staging-{run_dir.name}")
+    try:
+        with tempfile.TemporaryDirectory(prefix="wtcf-run-") as tmp:
+            ws = prepare_workspace(fixture, arm, Path(tmp) / "ws")
+            result = _launch(prompt_for(fixture, arm), model, ws)
+            staging.mkdir(parents=True)
+            if ev["output"] == "workspace":
+                shutil.copytree(ws, staging / "workspace",
+                                ignore=shutil.ignore_patterns("skill", "__pycache__", ".pytest_cache"))
+                verdict = harness.verdict_f(FIXTURES / fixture, staging / "workspace")
             else:
-                verdict = {"fixture": fixture, "missing_output": ev["output"]}
-    meta = {"fixture": fixture, "arm": arm, "model_alias": model,
-            "model_ids": sorted((result.get("modelUsage") or {}).keys()),
-            "date": datetime.date.today().isoformat(),
-            "skill_hash": skill_hash() if arm == "skill" else None,
-            "num_turns": result.get("num_turns"), "cost_usd": result.get("total_cost_usd"),
-            "final_message": result.get("result", "")}
-    (run_dir / "run.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
-    (run_dir / "verdict.json").write_text(json.dumps(verdict, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+                produced = ws / ev["output"]
+                if produced.exists():
+                    shutil.copy(produced, staging / ev["output"])
+                    verdict = harness.verdict(FIXTURES / fixture, staging / ev["output"])
+                else:
+                    verdict = {"fixture": fixture, "missing_output": ev["output"]}
+        meta = {"fixture": fixture, "arm": arm, "model_alias": model,
+                "model_ids": sorted((result.get("modelUsage") or {}).keys()),
+                "date": datetime.date.today().isoformat(),
+                "skill_hash": skill_hash() if arm == "skill" else None,
+                "num_turns": result.get("num_turns"), "cost_usd": result.get("total_cost_usd"),
+                "returncode": result.get("returncode"), "is_error": result.get("is_error"),
+                "subtype": result.get("subtype"), "timed_out": result.get("timed_out", False),
+                "final_message": result.get("result", "")}
+        (staging / "run.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
+        (staging / "verdict.json").write_text(json.dumps(verdict, indent=1, sort_keys=True) + "\n",
+                                              encoding="utf-8")
+        staging.rename(run_dir)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
     return run_dir
 
 

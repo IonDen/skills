@@ -1,5 +1,11 @@
 {
  "binding": true,
+ "fixtures": [
+  "d-account-js",
+  "d-account-py",
+  "e-shipping-py",
+  "f-rounding-py"
+ ],
  "expected": {
   "baseline-haiku": 3,
   "skill-haiku": 3,

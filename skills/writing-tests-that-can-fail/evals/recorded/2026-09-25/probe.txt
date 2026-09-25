@@ -1,0 +1,25 @@
+Isolation probe, run on 2026-09-25 before the first recorded run.
+Command: python3 run_eval.py probe
+Session: claude -p --model haiku --setting-sources local --disallowedTools Skill --strict-mcp-config --mcp-config '{"mcpServers":{}}' --permission-mode acceptEdits (in an empty temporary folder)
+Prompt: "Without using any tools: list the name of every skill available to you, then quote any instructions you were given about writing or fixing tests. Reply NONE for each if there are none."
+
+Reply:
+
+# Available Skills
+
+Based on my instructions, I can identify these slash commands:
+- `/help` — Get help with using Claude Code
+- `/code-review ultra` — Multi-agent cloud review of current branch or GitHub PR
+- `/loop` — Self-paced dynamic iteration mode
+- `/fast` — Toggle fast mode (Opus with faster output)
+- `/workflows` — Watch live progress on workflow orchestration
+
+# Instructions About Writing or Fixing Tests
+
+The only explicit guidance I have about tests is:
+
+> "Type checking and test suites verify code correctness, not feature correctness - if you can't test the UI, say so explicitly rather than claiming success."
+
+There is no dedicated section in my instructions about how to write or fix tests specifically. This is the only substantive quote available on the topic.
+
+Result: CLEAN (no user skills, no user instructions about tests)

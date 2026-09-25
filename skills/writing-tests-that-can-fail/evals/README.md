@@ -30,3 +30,22 @@ Each run folder holds what the agent wrote, `run.json` (model ID, date, the skil
 - the skill's own text never names a fixture's identifiers.
 
 It runs in CI with Node installed. A missing Node fails there instead of skipping.
+
+## Results, 2026-09-25
+
+Claude Haiku (`claude-haiku-4-5-20251001`) ran each fixture three times without the skill and three times with it, and Claude Sonnet (`claude-sonnet-5`) ran each fixture once without it as a spot check. Every with-skill run used the same skill text; its content hash is recorded in each `run.json`. The folders under [`recorded/2026-09-25/`](recorded/2026-09-25/) hold the suites, the agents' final messages and the verdicts.
+
+Two of the four fixtures didn't show the failure they target without the skill, so they prove nothing about the skill either way. In fixture D in JavaScript, no baseline run used a mock (Haiku 0/3, Sonnet 0/1). In fixture F, every baseline run fixed the rounding in the code and left the tests alone (Haiku 3/3, Sonnet 1/1). The difference shows in the two Python fixtures where the baseline did fail.
+
+| Fixture and criterion | Haiku, no skill | Haiku, with skill | Sonnet, no skill |
+|---|---|---|---|
+| D, Python: no mocks and no call checks | 0/3 | 3/3 | 1/1 |
+| D, JavaScript: no mocks and no call checks | 3/3 | 3/3 | 1/1 |
+| E: all ten mutants killed, no trivial tests | 1/3 | 3/3 | 0/1 |
+| F: fixed, tests untouched, held-out suite passes | 3/3 | 3/3 | 1/1 |
+
+In fixture D, Python, all three baseline suites built both collaborators from `Mock` or `MagicMock` and checked calls with `assert_called_once_with`: 10 to 17 call checks per suite. Their few other assertions checked the data class's own fields or the order the mocks were called in. Every with-skill suite used hand-written fakes, had no call checks, and asserted the account's status and the messages sent. All six suites, and the Sonnet one, killed both D mutants, as expected: that fixture's mutants are a floor, not a test of style.
+
+In fixture E, two of the three Haiku baselines imported the module's constants and asserted `== BASE_FEE` and `== BASE_FEE + HEAVY_SURCHARGE`, so the two mutants that change those constants survived. The Sonnet baseline did the same, and also built its boundary inputs from the threshold constant (`FREE_SHIPPING_TOTAL - 0.01`), so the mutant that moves the threshold survived as well. All three with-skill suites asserted the amounts the docstring states and killed all ten. No run, with or without the skill, wrote a test that only exercised the data class.
+
+Three runs per arm can show a consistent difference like 0/3 against 3/3, and not much more. Treat these as counts on small fixtures, not rates.

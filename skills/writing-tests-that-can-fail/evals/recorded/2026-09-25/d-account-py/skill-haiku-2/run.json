@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 8,
+ "cost_usd": 0.0728806,
+ "final_message": "Test suite is ready. I've created `fixture_d_account_test.py` with 8 tests that follow the SKILL guidelines:\n\n**Fakes, not mocks:**\n- `FakeAccountRepo`: In-memory implementation that stores accounts\n- `FakeMailer`: Collects sent emails in a list\n\n**Tests that can fail:**\n1. `test_deactivate_active_account_changes_status` \u2014 fails if `set_status` is removed\n2. `test_deactivate_active_account_sends_goodbye_email` \u2014 fails if `send_goodbye` is removed\n3. `test_deactivate_inactive_account_does_not_change_status` \u2014 fails if status check is inverted\n4. `test_deactivate_inactive_account_sends_no_goodbye_email` \u2014 fails if early return is removed\n5. `test_deactivate_nonexistent_user_raises_key_error` \u2014 fails if exception is swallowed\n6. `test_deactivate_twice_sends_email_only_once` \u2014 fails if status check is wrong\n7. `test_deactivate_twice_status_remains_inactive` \u2014 fails if idempotency is broken\n8. `test_deactivate_preserves_email_address` \u2014 fails if email is being modified\n\nAll tests assert observable behavior (account state in the repo, emails sent) rather than call order or internals. Expected values are literals from the spec."
+}

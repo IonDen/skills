@@ -1,0 +1,13 @@
+{
+ "fixture": "e-shipping-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 24,
+ "cost_usd": 0.1865863,
+ "final_message": "Done! I've created a comprehensive pytest test suite for `shipping.py` with 27 tests in `shipping_test.py`.\n\n**Test Coverage:**\n- **3 tests** for promo code free shipping\n- **7 tests** for member free shipping (including boundary conditions at $50.00)\n- **2 tests** for non-member scenarios\n- **2 tests** for base fee calculation\n- **6 tests** for heavy weight surcharge (boundary conditions at 20.0 kg)\n- **2 tests** for negative weight error handling\n- **5 tests** for complex scenarios combining multiple conditions\n\n**Key features following SKILL.md:**\n- Each test names the one-line bug it catches (e.g., \"catches if >= is changed to >\")\n- Tests behavior through public API, not internals\n- Expected values are literals from spec (50.0, 20.0, 4.99, 14.99)\n- Boundary conditions thoroughly covered (x-1, x, x+1 pattern)\n- All error paths tested (negative weight raises ValueError)\n- Tests proven to fail by verifying against 5 code mutations\n- All 27 tests pass with the current implementation"
+}

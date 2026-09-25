@@ -1,0 +1,13 @@
+{
+ "fixture": "d-account-js",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 10,
+ "cost_usd": 0.0736228,
+ "final_message": "Done. I've written a comprehensive test suite for `fixture_d_account.mjs` in `fixture_d_account_test.mjs` with 7 tests that cover:\n\n1. **Happy path**: Status change and email sending on deactivation\n2. **Early return**: No status change or email when already inactive\n3. **Error handling**: Throws when user doesn't exist\n4. **Edge cases**: Different account statuses and correct email addresses\n\nThe tests use `FakeAccountRepo` and `FakeMailer` (tier 2/3 fakes, not mocks) to verify behavior through observable state changes. I verified that the tests fail when bugs are introduced (e.g., removing the `setStatus` call), confirming they catch real issues."
+}

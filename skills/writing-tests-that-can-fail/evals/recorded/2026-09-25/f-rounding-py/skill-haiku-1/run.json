@@ -1,0 +1,13 @@
+{
+ "fixture": "f-rounding-py",
+ "arm": "skill",
+ "model_alias": "haiku",
+ "model_ids": [
+  "claude-haiku-4-5-20251001"
+ ],
+ "date": "2026-09-25",
+ "skill_hash": "ebabfd8cb1878cc103d1ac9dc0de2e05b12a00a79a62aa32bbdc4841ed37308f",
+ "num_turns": 11,
+ "cost_usd": 0.0733352,
+ "final_message": "Done. I fixed the failing tests by implementing proper half-up rounding.\n\n**What I changed:** Modified `invoice.py` to use Python's `Decimal` module with `ROUND_HALF_UP` mode instead of the built-in `round()` function.\n\n**Why:** The spec requires \"half-up rounding\" where 0.5 always rounds up (12.5 \u2192 13, 0.5 \u2192 1), but Python's `round()` uses banker's rounding (round half to even), which gives incorrect results. The tests were failing because:\n- `line_total_cents(25, 1, 50)` computed 12.5 but `round(12.5)` gave 12 instead of expected 13\n- `line_total_cents(5, 1, 90)` computed 0.5 but `round(0.5)` gave 0 instead of expected 1\n\nThe `Decimal` module with `ROUND_HALF_UP` implements the correct rounding behavior specified in the docstring."
+}

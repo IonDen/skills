@@ -1,0 +1,9 @@
+{
+ "config_added": [],
+ "fixture": "f-rounding-py",
+ "given": "pass",
+ "heldout": "pass",
+ "outcome": "fixed",
+ "skip_markers": 0,
+ "tests_unchanged": true
+}

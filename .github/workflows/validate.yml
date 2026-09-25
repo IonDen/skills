@@ -32,5 +32,6 @@ jobs:
           python3 -m pip install skills-ref
           agentskills validate ./skills/subagent-optimizer
           agentskills validate ./skills/skill-optimizer
+          agentskills validate ./skills/writing-tests-that-can-fail
       - name: Tests
         run: python3 -m pytest tests -q

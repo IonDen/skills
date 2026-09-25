@@ -130,18 +130,36 @@ def _compile_check(fx: Fixture, dest: Path) -> None:
                 raise HarnessError(f"{name} does not compile: {r.stderr.strip()[:300]}")
 
 
-def _run(cmd: list[str], cwd: Path, env: dict | None = None) -> tuple[int, str] | None:
-    """Run cmd in its own process group; on timeout kill the whole group (node
-    --test runs each file in a child process) and return None."""
-    proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, start_new_session=True)
+def _kill_group(proc: subprocess.Popen) -> None:
     try:
-        out, _ = proc.communicate(timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
+    except (ProcessLookupError, PermissionError):
+        pass  # the group is already gone
+    proc.communicate()
+
+
+def run_group(cmd: list[str], cwd: Path, env: dict | None = None,
+              timeout: float | None = None) -> tuple[int, str, str] | None:
+    """Run cmd in its own process group and return (code, stdout, stderr), or
+    None on timeout. The whole group is killed on a timeout and on any other
+    exception, Ctrl-C included, because node --test and claude spawn children
+    that a plain kill of the parent would leave running."""
+    proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_group(proc)
         return None
-    return proc.returncode, out
+    except BaseException:
+        _kill_group(proc)
+        raise
+    return proc.returncode, out, err
+
+
+def _run(cmd: list[str], cwd: Path, env: dict | None = None) -> tuple[int, str] | None:
+    r = run_group(cmd, cwd, env, timeout=TIMEOUT_S)
+    return None if r is None else (r[0], r[1])
 
 
 def _run_pytest(dest: Path, suite_name: str) -> str:

@@ -411,9 +411,10 @@ def test_run_leaves_no_partial_folder_when_grading_fails(runner, tmp_path, monke
         return {"result": "done", "num_turns": 1, "is_error": False, "subtype": "success"}
     monkeypatch.setattr(runner, "_launch", fake_launch)
     monkeypatch.setattr(runner.harness, "verdict", lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
-    with pytest.raises(RuntimeError):
-        runner.run("e-shipping-py", "baseline", "haiku", 1, tmp_path)
-    assert not any(tmp_path.rglob("baseline-haiku-1"))
+    for _ in range(2):  # a leftover staging folder would turn the retry into FileExistsError
+        with pytest.raises(RuntimeError, match="boom"):
+            runner.run("e-shipping-py", "baseline", "haiku", 1, tmp_path)
+    assert [p for p in tmp_path.rglob("*") if p.is_file() or "baseline-haiku-1" in p.name] == []
 
 
 def test_launch_result_parsing(runner):
@@ -461,7 +462,9 @@ def test_replay_of_missing_output_checks_the_stored_keys(harness, tmp_path):
     run.mkdir()
     (run / "verdict.json").write_text(json.dumps({"fixture": "e-shipping-py", "missing_output": "shipping_test.py",
                                                   "original": "pass"}))
-    assert harness.replay(FIXTURES / "e-shipping-py", run) != json.loads((run / "verdict.json").read_text())
+    honest = {"fixture": "e-shipping-py", "missing_output": "shipping_test.py"}
+    assert harness.replay(FIXTURES / "e-shipping-py", run) == honest
+    assert honest != json.loads((run / "verdict.json").read_text())
 
 
 def test_strip_js_keeps_code_after_slashes_in_strings(harness):
@@ -482,3 +485,35 @@ def test_trivial_tests_follows_aliases_and_nested_helpers(harness):
            "def test_nested():\n    assert outer(total=1, weight_kg=2, member=True, promo=False) == 4.99\n"
            "def test_trivial():\n    assert Order(1, 2, True, False).total == 1\n")
     assert harness.trivial_tests(src, "shipping_fee") == 1
+
+
+def test_interrupt_kills_the_process_group(harness, monkeypatch):
+    # Bug: children run in their own session, so Ctrl-C no longer reaches them;
+    # an interrupted grade or eval leaves them running.
+    import subprocess
+    marker = f"wtcf-int-{os.getpid()}"
+    real_popen = subprocess.Popen
+
+    class InterruptedPopen(real_popen):
+        def communicate(self, *a, **kw):
+            if kw.get("timeout") is not None:
+                raise KeyboardInterrupt
+            return super().communicate(*a, **kw)
+
+    monkeypatch.setattr(harness.subprocess, "Popen", InterruptedPopen)
+    with pytest.raises(KeyboardInterrupt):
+        harness.run_group(["sh", "-c", f"exec -a {marker} sleep 30"], Path("/tmp"), timeout=30)
+    left = subprocess.run(["pgrep", "-f", marker], capture_output=True, text=True).stdout.split()
+    assert left == [], f"left running: {left}"
+
+
+def test_run_eval_launch_uses_the_group_helper(runner, monkeypatch):
+    # Bug: the eval runner keeps its own Popen path, so an interrupted run
+    # leaves a paid claude session working in a deleted folder.
+    seen = {}
+    def fake(cmd, cwd, env=None, timeout=None):
+        seen["timeout"] = timeout
+        return 0, json.dumps({"type": "result", "subtype": "success", "is_error": False}), ""
+    monkeypatch.setattr(runner.harness, "run_group", fake)
+    assert runner._launch("p", "haiku", Path("/tmp"))["subtype"] == "success"
+    assert seen["timeout"] == runner.LAUNCH_TIMEOUT_S

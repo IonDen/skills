@@ -18,10 +18,7 @@ import argparse
 import datetime
 import hashlib
 import json
-import os
 import shutil
-import signal
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -100,16 +97,10 @@ def parse_result(returncode: int, stdout: str, stderr: str) -> dict:
 
 
 def _launch(prompt: str, model: str, cwd: Path) -> dict:
-    proc = subprocess.Popen(build_command(prompt, model), cwd=cwd, stdin=subprocess.DEVNULL,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                            start_new_session=True)
-    try:
-        out, err = proc.communicate(timeout=LAUNCH_TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
+    r = harness.run_group(build_command(prompt, model), cwd, timeout=LAUNCH_TIMEOUT_S)
+    if r is None:
         return {"timed_out": True, "is_error": True, "subtype": "timeout", "returncode": None, "result": ""}
-    return parse_result(proc.returncode, out, err)
+    return parse_result(*r)
 
 
 def probe() -> int:

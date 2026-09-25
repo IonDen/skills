@@ -351,3 +351,41 @@ def test_skill_prompt_adds_only_the_preamble(runner):
     # Bug: the with-skill arm gets a different task, so the comparison is not like for like.
     base, skill = runner.prompt_for("e-shipping-py", "baseline"), runner.prompt_for("e-shipping-py", "skill")
     assert skill.endswith(base) and skill != base and "skill/SKILL.md" in skill
+
+
+FIXTURE_IDENTIFIERS = ["AccountRepo", "AccountService", "shipping_fee", "FREE_SHIPPING_TOTAL", "BASE_FEE", "HEAVY_SURCHARGE",
+                       "line_total_cents", "invoice.py", "fixture_d_account"]
+
+
+def _skill_text():
+    return [(p, p.read_text()) for p in [SKILL / "SKILL.md", *sorted((SKILL / "references").rglob("*.md"))]]
+
+
+def test_skill_does_not_leak_fixture_answers():
+    # Bug: the skill names a fixture's identifiers, so with-skill runs are contaminated.
+    for path, text in _skill_text():
+        for ident in FIXTURE_IDENTIFIERS:
+            assert ident not in text, f"{path.name} mentions {ident}"
+
+
+def test_skill_has_no_hard_dependency_or_private_pointer():
+    # Bug: a public install breaks on a missing skill, or points at an unpublished one.
+    for path, text in _skill_text():
+        for word in ("REQUIRED BACKGROUND", "superpowers", "python-ml-testing", "/Users/"):
+            assert word not in text, f"{path.name} contains {word!r}"
+
+
+def test_skill_body_sections_and_budget():
+    # Bug: a section the spec requires is missing, or the body balloons past its budget.
+    body = (SKILL / "SKILL.md").read_text().split("\n---\n", 1)[1]
+    for heading in ("worth a test", "real behaviour", "every condition", "can fail",
+                    "test goes red", "Keep-or-kill"):
+        assert heading.lower() in body.lower(), heading
+    assert len(body.split()) <= 2000
+
+
+def test_excluded_figures_stay_out():
+    # Bug: an unverified figure reaches public text.
+    for path, text in _skill_text():
+        for bad in ("37%", "47.4%", "98%", "Myers"):
+            assert bad not in text, f"{path.name} contains {bad}"

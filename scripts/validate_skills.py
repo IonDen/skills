@@ -90,12 +90,17 @@ FENCE_RE = re.compile(r"^```.*?^```[^\n]*$", re.S | re.M)
 def _load_json(path: Path, root: Path, problems: list[str]):
     rel = path.relative_to(root)
     try:
-        return json.loads(path.read_text(encoding="utf-8-sig"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except FileNotFoundError:
         problems.append(f"{rel}: missing")
+        return None
     except json.JSONDecodeError as exc:
         problems.append(f"{rel}: not valid JSON ({exc.msg}, line {exc.lineno})")
-    return None
+        return None
+    if not isinstance(data, dict):
+        problems.append(f"{rel}: top level must be a JSON object")
+        return None
+    return data
 
 
 def check_plugin(root: Path) -> list[str]:
@@ -117,8 +122,15 @@ def check_plugin(root: Path) -> list[str]:
                             'Codex installs a plugin whose skills is "./" but loads none of its skills')
         elif sorted(got) != want:
             problems.append(f"skills/.codex-plugin/plugin.json: skills {sorted(got)} != skill folders {want}")
-    if isinstance(claude, dict) and isinstance(codex, dict) and claude.get("version") != codex.get("version"):
-        problems.append(f"plugin version differs: Claude {claude.get('version')!r}, Codex {codex.get('version')!r}")
+    versions = {}
+    for rel, manifest in (("skills/.claude-plugin/plugin.json", claude), ("skills/.codex-plugin/plugin.json", codex)):
+        if isinstance(manifest, dict):
+            if _nonempty_str(manifest.get("version")):
+                versions[rel] = manifest["version"]
+            else:
+                problems.append(f"{rel}: version missing or empty")
+    if len(set(versions.values())) > 1:
+        problems.append(f"plugin version differs: {versions}")
     if isinstance(market, dict):
         sources = [p.get("source") for p in market.get("plugins", []) if isinstance(p, dict)]
         if sources != ["./skills"]:
@@ -127,6 +139,12 @@ def check_plugin(root: Path) -> list[str]:
         if (root / stale).exists():
             problems.append(f"{stale}: a manifest at the repository root ships the whole repository; "
                             "the plugin lives in skills/")
+    if sk.is_dir():
+        stray = sorted(e.name for e in sk.iterdir()
+                       if not e.name.startswith(".") and e.name not in {"README.md", "LICENSE", *names})
+        if stray:
+            problems.append(f"skills/: ships {stray}; the plugin folder holds only the skill folders, "
+                            "README.md, LICENSE and the two manifest folders")
     for n in names:
         extra = sorted(e.name for e in (sk / n).iterdir()
                        if not e.name.startswith(".") and e.name not in ALLOWED_SKILL_ENTRIES)

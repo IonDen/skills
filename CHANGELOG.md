@@ -2,8 +2,8 @@
 
 ## 2026-09-26 (plugin 0.7.0)
 
-- Installs now carry only the skills. Each skill's evals, fixtures and recorded runs moved from `skills/<name>/evals/` to `evals/<name>/`, so `npx skills add` no longer copies them into your skills folder. The Claude Code and Codex plugin now lives in `skills/` instead of the repository root, so installing it copies the three skills, a README and the license (37 files) rather than the tests and evals as well (118). Install commands are unchanged, and so are the skills.
-- The layout check now also fails when a skill folder holds anything besides the skill, when the Codex manifest does not list every skill by path, or when the two plugin manifests disagree on the version. Codex installs a plugin whose manifest lists its skills as a bare `./` and then loads none of them, which is why the check wants each skill named.
+- Installs now carry only the skills. Each skill's evals, fixtures and recorded runs moved from `skills/<name>/evals/` to `evals/<name>/`, so `npx skills add` no longer copies them into your skills folder. The Claude Code and Codex plugin now lives in `skills/` instead of the repository root, so installing it copies the three skills, a README and the license: 37 files, where it used to copy all 273 in the repository, tests and evals included. Install commands are unchanged, and so are the skills.
+- The layout check now also fails when a skill folder, or the plugin folder itself, holds anything besides the skills, when a manifest is missing, is not a JSON object or has no version, when the Codex manifest does not list every skill by path, or when the two plugin manifests disagree on the version. Codex installs a plugin whose manifest lists its skills as a bare `./` and then loads none of them, which is why the check wants each skill named.
 - The plugin version goes to 0.7.0.
 
 ## 2026-09-25 (writing-tests-that-can-fail 1.0.0)

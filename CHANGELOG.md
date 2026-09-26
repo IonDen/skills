@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-26 (plugin 0.7.0)
+
+- Installs now carry only the skills. Each skill's evals, fixtures and recorded runs moved from `skills/<name>/evals/` to `evals/<name>/`, so `npx skills add` no longer copies them into your skills folder. The Claude Code and Codex plugin now lives in `skills/` instead of the repository root, so installing it copies the three skills, a README and the license (37 files) rather than the tests and evals as well (118). Install commands are unchanged, and so are the skills.
+- The layout check now also fails when a skill folder holds anything besides the skill, when the Codex manifest does not list every skill by path, or when the two plugin manifests disagree on the version. Codex installs a plugin whose manifest lists its skills as a bare `./` and then loads none of them, which is why the check wants each skill named.
+- The plugin version goes to 0.7.0.
+
 ## 2026-09-25 (writing-tests-that-can-fail 1.0.0)
 
 - Add `writing-tests-that-can-fail` 1.0.0, a skill for writing, reviewing and fixing tests in any language. It keeps an agent's tests real: each one has to fail on a bug you can name. The unit and its own collaborators stay real, with fakes for slow adapters and mocks only for unavoidable outgoing side effects. Assertions check state and output rather than calls, and expected values and boundary inputs come from the spec rather than the code's constants. Every condition in the logic worth testing gets covered, and each test is proved able to fail by breaking the code on purpose. When a test goes red, the agent fixes the code or reports that the test looks wrong; inside a fix it never edits the test, and after three failed attempts it stops. SKILL.md is written in language-neutral pseudo-code, and seven short reference files map the rules onto Python, JavaScript and TypeScript, Go, Java and Kotlin, Rust, Swift and C#.

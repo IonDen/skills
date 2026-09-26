@@ -85,7 +85,7 @@ Then the body: a 46-line "Persistent Agent Memory" section, which the harness in
 
 ![Claude Code subagent launch tokens before and after subagent-optimizer, measured on Claude Code 2.1.278: a no-tools-field agent against a three-tool allowlist on Haiku and Sonnet, and three real agents that dropped 31%, 13% and 3% with equivalent results](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/subagent-optimizer-workflow.svg)
 
-Full method, table and harness: [`evals/recorded/2026-09-19-launch-cost/`](evals/recorded/2026-09-19-launch-cost/).
+Full method, table and harness: [`evals/subagent-optimizer/recorded/2026-09-19-launch-cost/`](https://github.com/IonDen/skills/tree/main/evals/subagent-optimizer/recorded/2026-09-19-launch-cost/).
 
 ## Install
 
@@ -123,16 +123,12 @@ subagent-optimizer/
 ├── references/
 │   ├── best-practices.md        what each flag means and why
 │   └── tool-catalog.md          built-in tools, the subagent blacklist, archetype to tools
-├── scripts/
-│   ├── scan_agents.py           the scanner: flags, sizes, cross-agent duplicate blocks
-│   └── bump_version.py          bumps the version of an edited Claude agent (refuses Codex files)
-└── evals/
-    ├── evals.json               six prompts with expected outcomes
-    ├── fixtures/                the agents they run against
-    ├── fixtures-effort/         the read-only agent at effort max for eval 4
-    ├── fixtures-codex/          the Codex agent with copied Claude keys for eval 5
-    └── recorded/                measured runs, with the harness that produced them
+└── scripts/
+    ├── scan_agents.py           the scanner: flags, sizes, cross-agent duplicate blocks
+    └── bump_version.py          bumps the version of an edited Claude agent (refuses Codex files)
 ```
+
+The evals are in the repository under [`evals/subagent-optimizer/`](https://github.com/IonDen/skills/tree/main/evals/subagent-optimizer/): six prompts with expected outcomes, the agent fixtures they run against, and the measured runs with their harness. They don't install with the skill.
 
 ## Sources
 

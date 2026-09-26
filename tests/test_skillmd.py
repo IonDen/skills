@@ -142,7 +142,7 @@ def test_every_literal_is_found_in_its_own_body(skillmd, body):
 
 
 REPO = Path(__file__).resolve().parent.parent
-REAL_SKILLS = sorted(REPO.glob("skills/*/SKILL.md")) + sorted(REPO.glob("skills/*/evals/fixtures/*/SKILL.fixture.md"))
+REAL_SKILLS = sorted(REPO.glob("skills/*/SKILL.md")) + sorted(REPO.glob("evals/*/fixtures/*/SKILL.fixture.md"))
 
 
 @pytest.mark.parametrize("path", REAL_SKILLS, ids=lambda p: str(p.relative_to(REPO)))

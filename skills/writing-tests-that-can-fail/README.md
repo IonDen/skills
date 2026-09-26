@@ -22,7 +22,7 @@ The body of `SKILL.md` is written in language-neutral pseudo-code. `references/`
 
 ## Evidence
 
-Four small fixtures, run with Claude Haiku three times without the skill and three times with it. The full method and every run are in [`evals/`](evals/).
+Four small fixtures, run with Claude Haiku three times without the skill and three times with it. The full method and every run are in the repository under [`evals/writing-tests-that-can-fail/`](https://github.com/IonDen/skills/tree/main/evals/writing-tests-that-can-fail/); they don't install with the skill.
 
 | Fixture and criterion | Haiku, no skill | Haiku, with skill |
 |---|---|---|

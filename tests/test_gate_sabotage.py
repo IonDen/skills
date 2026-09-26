@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURE = ROOT / "skills" / "skill-optimizer" / "evals" / "fixtures" / "release-checklist" / "SKILL.fixture.md"
+FIXTURE = ROOT / "evals" / "skill-optimizer" / "fixtures" / "release-checklist" / "SKILL.fixture.md"
 SKILLS = {
     "fixture": FIXTURE,
     "subagent-optimizer": ROOT / "skills" / "subagent-optimizer" / "SKILL.md",

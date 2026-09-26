@@ -65,7 +65,7 @@ Five real skills, one run each by a fresh agent following `SKILL.md`: four from 
 
 The cuts are small because of what the skill refuses to guess about. Everything it cut was framing: a sentence restating its heading, a lead-in to a list that explains itself, a divider between sections that already have headings. Every cut it was unsure of went into the report as an optional cut instead: a subsection that repeats the structure template, a rule stated three times, a 2,788-character section that applies to one kind of project and could move into a reference file. The numbers above count only what was cut without asking.
 
-After each run, a fresh agent that saw only the shortened `SKILL.md` listed every instruction it could find, and a third agent checked that list against the original's requirements. Two skills came back complete. For the other two, every sentence the reader skipped was still in the file word for word, and a reader of the unchanged original skipped the same ones. The one exception turned up on a second read of the shortened skill. The personal skills' text is not published; their numbers, gate lines and checks are in [`evals/recorded/2026-09-24-real-skills/`](evals/recorded/2026-09-24-real-skills/).
+After each run, a fresh agent that saw only the shortened `SKILL.md` listed every instruction it could find, and a third agent checked that list against the original's requirements. Two skills came back complete. For the other two, every sentence the reader skipped was still in the file word for word, and a reader of the unchanged original skipped the same ones. The one exception turned up on a second read of the shortened skill. The personal skills' text is not published; their numbers, gate lines and checks are in [`evals/skill-optimizer/recorded/2026-09-24-real-skills/`](https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/recorded/2026-09-24-real-skills/).
 
 The `python-ml-testing` run also found a bug: 1.0.1 rejected even an unchanged copy of that skill, because it joined a number at the end of one table row with the first word of the next. 1.0.2 fixes it.
 
@@ -73,11 +73,11 @@ The `python-ml-testing` run also found a bug: 1.0.1 rejected even an unchanged c
 
 This is the one skill whose text is published, so its run can be checked line by line. Gate: pass, re-run independently against the frozen original. Two sentences were cut, both plain restatements with no rule word and no anchor: one cheered for a conclusion the sentence right before it already reached, the other restated the heading that followed it. Two more sentences that carry a rule word ("must", "isn't") were left in place and flagged as decisions instead, because the agent read both as the stated reason behind a rule rather than filler. Requirements extracted: 28 (16 sentences left unprotected on purpose: short bold lead-in labels, none of them cut). Coverage: 28/28. A separate fresh agent, given only the optimized `SKILL.md` and asked to reconstruct every instruction it could find, returned 81 items; every one of the 28 requirements mapped onto at least one, and neither cut sentence appeared.
 
-The skill was already tight. Run against a real document instead of a synthetic fixture, the optimizer found almost nothing it could cut without loss, and said so rather than forcing a number. (One of the evals' own fixtures is a deliberately padded test skill built to shrink by 29.7% (2,898 to 2,036 characters) under the same gate, keeping and listing every further cut it wasn't sure was safe instead of applying it; see `evals/README.md`. So the small real-skill number reflects the input, not a ceiling on what the skill will cut.)
+The skill was already tight. Run against a real document instead of a synthetic fixture, the optimizer found almost nothing it could cut without loss, and said so rather than forcing a number. (One of the evals' own fixtures is a deliberately padded test skill built to shrink by 29.7% (2,898 to 2,036 characters) under the same gate, keeping and listing every further cut it wasn't sure was safe instead of applying it; see [`evals/skill-optimizer/README.md`](https://github.com/IonDen/skills/blob/main/evals/skill-optimizer/README.md). So the small real-skill number reflects the input, not a ceiling on what the skill will cut.)
 
 Behaviour check: subagent-optimizer's own eval 1 and eval 3, each run once against the original `SKILL.md` and once against the optimized copy, each by a fresh agent on a fresh copy of the fixtures. All 13 of 13 expected clauses were met by both versions; none differed. One of the four runs noted, in its own report, that its target agent file matched a fixture behind one of this skill's own recorded eval records. That is a fact about that run's independence, not about any behaviour difference traceable to the two deleted sentences.
 
-Full method and report: [`evals/recorded/2026-09-24-subagent-optimizer/`](evals/recorded/2026-09-24-subagent-optimizer/).
+Full method and report: [`evals/skill-optimizer/recorded/2026-09-24-subagent-optimizer/`](https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/recorded/2026-09-24-subagent-optimizer/).
 
 ## Install
 
@@ -114,18 +114,15 @@ skill-optimizer/
 ├── references/
 │   ├── moving-sections.md         when a section belongs in references/, and how to move it
 │   └── what-not-to-cut.md         what looks safe to cut but isn't
-├── scripts/
-│   ├── measure_skills.py          listing vs. body size for a skill, in characters
-│   ├── snapshot.py                copies a skill into a work directory without following inner links
-│   ├── extract_requirements.py    turns requirements.md into the frozen inventory the gate checks against
-│   ├── verify_rewrite.py          the gate: exit 0 pass/unchanged, 1 rejected, 2 input error, 3 needs confirmation
-│   └── skillmd.py                 shared SKILL.md parsing the other scripts use
-└── evals/
-    ├── evals.json                 six prompts with expected outcomes
-    ├── fixtures/                  the three SKILL.md files they run against
-    ├── README.md                  what each eval checks, and the recorded results
-    └── recorded/                  measured runs, including five real skills before and after
+└── scripts/
+    ├── measure_skills.py          listing vs. body size for a skill, in characters
+    ├── snapshot.py                copies a skill into a work directory without following inner links
+    ├── extract_requirements.py    turns requirements.md into the frozen inventory the gate checks against
+    ├── verify_rewrite.py          the gate: exit 0 pass/unchanged, 1 rejected, 2 input error, 3 needs confirmation
+    └── skillmd.py                 shared SKILL.md parsing the other scripts use
 ```
+
+The evals are in the repository under [`evals/skill-optimizer/`](https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/): six prompts with expected outcomes, the fixtures they run against, and the recorded runs, five real skills among them. They don't install with the skill.
 
 ## Sources
 

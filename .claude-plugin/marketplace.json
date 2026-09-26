@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "ionden-skills",
-      "source": "./",
+      "source": "./skills",
       "license": "MIT",
       "description": "Agent skills for Claude Code and OpenAI Codex: subagent-optimizer, which cuts a subagent's launch token cost; skill-optimizer, which cuts a skill's own SKILL.md without losing an instruction; and writing-tests-that-can-fail, which keeps tests real in any language."
     }

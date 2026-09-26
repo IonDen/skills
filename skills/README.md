@@ -8,6 +8,6 @@ Three agent skills for Claude Code and OpenAI Codex. Each one loads only when a 
 
 ## What runs
 
-`subagent-optimizer` and `skill-optimizer` include Python scripts that the agent runs locally with `python3`. They read the agent and skill files you point them at, and they write only to a working copy of the skill or to an output file you name. Nothing changes in place until you approve it. Then the agent edits the file you asked about: a subagent definition, whose version one of the scripts bumps, or a skill's `SKILL.md`. The scripts make no network requests and install nothing. `writing-tests-that-can-fail` is instructions only.
+`subagent-optimizer` and `skill-optimizer` include Python scripts that the agent runs locally with `python3`. They read the agent and skill files you point them at. Before you approve anything, they write only to a working copy of the skill or to an output file you name. Once you approve a change, the agent edits the file you asked about in place: a subagent definition, whose version one of the scripts then bumps, or a skill's `SKILL.md`. The scripts make no network requests and install nothing. `writing-tests-that-can-fail` is instructions only.
 
 Source, evals and measured results: https://github.com/IonDen/skills

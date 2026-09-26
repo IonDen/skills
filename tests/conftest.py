@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPTS = ROOT / "skills" / "subagent-optimizer" / "scripts"
-OPTIMIZER_SCRIPTS = ROOT / "skills" / "skill-optimizer" / "scripts"
+SKILLS = ROOT / "plugins" / "ionden-skills" / "skills"
+SCRIPTS = SKILLS / "subagent-optimizer" / "scripts"
+OPTIMIZER_SCRIPTS = SKILLS / "skill-optimizer" / "scripts"
 
 
 def _load(name: str, scripts: Path = SCRIPTS):

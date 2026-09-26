@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parent.parent / "skills" / "skill-optimizer" / "scripts" / "extract_requirements.py"
+SCRIPT = Path(__file__).resolve().parent.parent / "plugins" / "ionden-skills" / "skills" / "skill-optimizer" / "scripts" / "extract_requirements.py"
 
 BODY = (
     "# Guide\n\n"

@@ -30,8 +30,6 @@ jobs:
         if: matrix.python-version == '3.12'
         run: |
           python3 -m pip install skills-ref
-          agentskills validate ./skills/subagent-optimizer
-          agentskills validate ./skills/skill-optimizer
-          agentskills validate ./skills/writing-tests-that-can-fail
+          for d in plugins/ionden-skills/skills/*/; do agentskills validate "$d"; done
       - name: Tests
         run: python3 -m pytest tests -q

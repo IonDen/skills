@@ -24,7 +24,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-SKILL_DIR = HERE.parents[1] / "skills" / HERE.name
+SKILL_DIR = HERE.parents[1] / "plugins" / "ionden-skills" / "skills" / HERE.name
 FIXTURES = HERE / "fixtures"
 sys.path.insert(0, str(HERE))
 import harness  # noqa: E402

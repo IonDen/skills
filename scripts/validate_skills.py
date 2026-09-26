@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Check every skills/<name>/SKILL.md: frontmatter is valid YAML, `name` equals
+"""Check every plugins/ionden-skills/skills/<name>/SKILL.md: frontmatter is valid YAML, `name` equals
 the directory name and follows the Agent Skills spec (lowercase a-z0-9 with
 single hyphens, at most 64 chars), `description` is a non-empty string of at
 most 1024 chars, and, when a skill ships agents/openai.yaml, that file parses
 and, if it carries an `interface` block, that `display_name` and
 `short_description` are both non-empty strings. With the packaging checks it also confirms that
-`skills/` is the plugin root for Claude Code and Codex and that skill folders ship nothing but the
-skill. Exit 1 on the first problem. Pass a repository root to check a different tree. Requires PyYAML."""
+plugins/ionden-skills/ is laid out as the Anthropic directory, claude.ai and Codex expect (skills
+under its own skills/ folder, no custom skills path) and that it ships nothing but the skills. Exit 1 on the first problem. Pass a repository root to check a different tree. Requires PyYAML."""
 import json
 import re
 import sys
@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
+PLUGIN_DIR = "plugins/ionden-skills"
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 NAME_MAX = 64
 DESCRIPTION_MAX = 1024
@@ -118,27 +119,29 @@ def _load_json(path: Path, root: Path, problems: list[str]):
     return data
 
 
+def _stray(folder: Path, allowed: set[str]) -> list[str]:
+    """Names in folder, dotfiles aside, that are not in allowed."""
+    return sorted(e.name for e in folder.iterdir() if not e.name.startswith(".") and e.name not in allowed)
+
+
 def check_plugin(root: Path) -> list[str]:
-    """Packaging checks: skills/ is the plugin root for both hosts, and each
-    skill folder holds only what users need."""
+    """Packaging checks: the plugin at PLUGIN_DIR uses the documented layout, and it
+    holds only what users need."""
     problems: list[str] = []
-    sk = root / "skills"
+    P = PLUGIN_DIR
+    pr = root / P
+    sk = pr / "skills"
     names = sorted(p.parent.name for p in sk.glob("*/SKILL.md"))
-    claude = _load_json(sk / ".claude-plugin" / "plugin.json", root, problems)
-    codex = _load_json(sk / ".codex-plugin" / "plugin.json", root, problems)
+    claude = _load_json(pr / ".claude-plugin" / "plugin.json", root, problems)
+    codex = _load_json(pr / ".codex-plugin" / "plugin.json", root, problems)
     market = _load_json(root / ".claude-plugin" / "marketplace.json", root, problems)
-    if isinstance(claude, dict) and claude.get("skills") != ["./"]:
-        problems.append('skills/.claude-plugin/plugin.json: skills must be ["./"], '
-                        "the plugin root that holds the skill folders")
-    if isinstance(codex, dict):
-        got, want = codex.get("skills"), [f"./{n}" for n in names]
-        if not isinstance(got, list):
-            problems.append('skills/.codex-plugin/plugin.json: skills must list each folder as "./<name>"; '
-                            'Codex installs a plugin whose skills is "./" but loads none of its skills')
-        elif sorted(got) != want:
-            problems.append(f"skills/.codex-plugin/plugin.json: skills {sorted(got)} != skill folders {want}")
+    if isinstance(claude, dict) and "skills" in claude:
+        problems.append(f"{P}/.claude-plugin/plugin.json: remove the skills key; the directory and claude.ai "
+                        "load skills only from skills/<name>/, and custom paths work in Claude Code alone")
+    if isinstance(codex, dict) and codex.get("skills") != "./skills/":
+        problems.append(f'{P}/.codex-plugin/plugin.json: skills must be "./skills/", not {codex.get("skills")!r}')
     versions = {}
-    for rel, manifest in (("skills/.claude-plugin/plugin.json", claude), ("skills/.codex-plugin/plugin.json", codex)):
+    for rel, manifest in ((f"{P}/.claude-plugin/plugin.json", claude), (f"{P}/.codex-plugin/plugin.json", codex)):
         if isinstance(manifest, dict):
             if _nonempty_str(manifest.get("version")):
                 versions[rel] = manifest["version"]
@@ -148,55 +151,56 @@ def check_plugin(root: Path) -> list[str]:
         problems.append(f"plugin version differs: {versions}")
     if isinstance(market, dict):
         sources = [p.get("source") for p in market.get("plugins", []) if isinstance(p, dict)]
-        if sources != ["./skills"]:
-            problems.append(f'.claude-plugin/marketplace.json: plugin source {sources} must be ["./skills"]')
-    for stale in (".claude-plugin/plugin.json", ".codex-plugin/plugin.json"):
+        if sources != [f"./{P}"]:
+            problems.append(f'.claude-plugin/marketplace.json: plugin source {sources} must be ["./{P}"]')
+    for stale in (".claude-plugin/plugin.json", ".codex-plugin", "skills"):
         if (root / stale).exists():
-            problems.append(f"{stale}: a manifest at the repository root ships the whole repository; "
-                            "the plugin lives in skills/")
-    if sk.is_dir():
-        stray = sorted(e.name for e in sk.iterdir()
-                       if not e.name.startswith(".") and e.name not in {"README.md", "LICENSE", *names})
+            problems.append(f"{stale}: left over from an earlier layout; the plugin lives in {P}/")
+    if pr.is_dir():
+        stray = _stray(pr, {"README.md", "LICENSE", "skills"})
         if stray:
-            problems.append(f"skills/: ships {stray}; the plugin folder holds only the skill folders, "
-                            "README.md, LICENSE and the two manifest folders")
+            problems.append(f"{P}/: ships {stray}; the plugin folder holds only skills/, README.md, LICENSE "
+                            "and the two manifest folders")
+    if sk.is_dir():
+        stray = _stray(sk, set(names))
+        if stray:
+            problems.append(f"{P}/skills/: ships {stray}; it holds only skill folders, each with a SKILL.md")
     for n in names:
-        extra = sorted(e.name for e in (sk / n).iterdir()
-                       if not e.name.startswith(".") and e.name not in ALLOWED_SKILL_ENTRIES)
+        extra = _stray(sk / n, ALLOWED_SKILL_ENTRIES)
         if extra:
             problems.append(f"{n}: ships {extra}; a skill folder holds only "
                             f"{sorted(ALLOWED_SKILL_ENTRIES)} (evals go under evals/{n}/)")
-    readme = sk / "README.md"
+    readme = pr / "README.md"
     if not readme.is_file():
-        problems.append("skills/README.md: missing (it is the plugin listing's description)")
+        problems.append(f"{P}/README.md: missing (it is the plugin listing's description)")
     else:
         words = len(FENCE_RE.sub("", readme.read_text(encoding="utf-8-sig")).split())
         if words < LISTING_MIN_WORDS:
-            problems.append(f"skills/README.md: {words} words outside code blocks "
+            problems.append(f"{P}/README.md: {words} words outside code blocks "
                             f"(the listing needs at least {LISTING_MIN_WORDS})")
-    if not (sk / "LICENSE").is_file():
-        problems.append("skills/LICENSE: missing (the plugin folder must carry its own license)")
-    icon = sk / ".claude-plugin" / "icon.svg"
+    if not (pr / "LICENSE").is_file():
+        problems.append(f"{P}/LICENSE: missing (the plugin folder must carry its own license)")
+    icon = pr / ".claude-plugin" / "icon.svg"
     if not icon.is_file():
-        problems.append("skills/.claude-plugin/icon.svg: missing")
+        problems.append(f"{P}/.claude-plugin/icon.svg: missing")
     else:
         size = _icon_size(icon.read_text(encoding="utf-8-sig"))
         if size is None:
-            problems.append("skills/.claude-plugin/icon.svg: no readable viewBox on the root <svg>, "
+            problems.append(f"{P}/.claude-plugin/icon.svg: no readable viewBox on the root <svg>, "
                             "so its size can't be checked")
         else:
             w, h = size
             if w != h or w < ICON_MIN_PX:
-                problems.append(f"skills/.claude-plugin/icon.svg: viewBox is {w:g}x{h:g}; "
+                problems.append(f"{P}/.claude-plugin/icon.svg: viewBox is {w:g}x{h:g}; "
                                 f"the listing icon must be square and at least {ICON_MIN_PX} px")
     return problems
 
 
 def main(root: Path = ROOT) -> int:
-    skills = sorted((root / "skills").glob("*/SKILL.md"))
+    skills = sorted((root / PLUGIN_DIR / "skills").glob("*/SKILL.md"))
     problems = [p for s in skills for p in check_skill(s)]
     if not skills:
-        problems.append(f"no skills found under {root / 'skills'}")
+        problems.append(f"no skills found under {root / PLUGIN_DIR / 'skills'}")
     for p in problems:
         print("FAIL", p)
     if not problems:

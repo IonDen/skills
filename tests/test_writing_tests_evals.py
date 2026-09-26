@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL = ROOT / "skills" / "writing-tests-that-can-fail"
+SKILL = ROOT / "plugins" / "ionden-skills" / "skills" / "writing-tests-that-can-fail"
 EVALS = ROOT / "evals" / "writing-tests-that-can-fail"
 FIXTURES = EVALS / "fixtures"
 
@@ -521,5 +521,5 @@ def test_run_eval_launch_uses_the_group_helper(runner, monkeypatch):
 
 def test_runner_reads_the_skill_from_its_own_folder(runner):
     # Bug caught: SKILL_DIR left at HERE.parent after the evals moved, so the skill arm copies and hashes the evals folder.
-    assert runner.SKILL_DIR == ROOT / "skills" / "writing-tests-that-can-fail"
+    assert runner.SKILL_DIR == ROOT / "plugins" / "ionden-skills" / "skills" / "writing-tests-that-can-fail"
     assert (runner.SKILL_DIR / "SKILL.md").is_file()

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-26 (plugin 0.8.0)
+
+- The plugin moved to the layout that Anthropic's plugin directory, claude.ai and Cowork document: a plugin folder, `plugins/ionden-skills/`, with its manifest, README, license and icon, and the skills in its own `skills/` folder. The 0.7 layout used `skills/` itself as the plugin folder and pointed the manifest at it with a custom path. Claude Code and Codex accept that, but the directory built its listing the way claude.ai installs a plugin and found no skills, no README and no manifest. Install commands are unchanged, and so are the skills. The skill folders now live at `plugins/ionden-skills/skills/<name>/`.
+- The layout check follows the move. It fails when the Claude manifest sets its own `skills` path, when the Codex manifest's `skills` is anything but `./skills/`, when a root `skills/` folder or a root manifest is left over from an earlier layout, and when the plugin folder or its `skills/` folder holds anything besides the skills. CI now validates every skill folder it finds instead of a fixed list.
+- The plugin version goes to 0.8.0.
+
 ## 2026-09-26 (plugin 0.7.1, writing-tests-that-can-fail 1.0.1)
 
 - The plugin has an icon: three lines, each with its red end snipped off, in the same colours as the charts in this repository. The layout check now requires it and checks that it is square and at least 128 px.

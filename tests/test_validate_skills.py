@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 VALIDATOR = Path(__file__).resolve().parent.parent / "scripts" / "validate_skills.py"
+PLUGIN = "plugins/ionden-skills"
 
 
 @pytest.fixture(scope="session")
@@ -21,7 +22,7 @@ def validate():
 def make_skill(root: Path, dirname: str, name: str | None = None, description: str = "Use when x",
                openai: str | None = "interface:\n  display_name: X\n  short_description: Y\n",
                bom: bool = False):
-    d = root / "skills" / dirname
+    d = root / PLUGIN / "skills" / dirname
     d.mkdir(parents=True)
     text = f"---\nname: {name or dirname}\ndescription: {description}\n---\nbody\n"
     (d / "SKILL.md").write_bytes(text.encode("utf-8-sig" if bom else "utf-8"))
@@ -72,7 +73,7 @@ def test_spec_length_limits(validate, tmp_path):
 
 def test_empty_skills_tree_fails(validate, tmp_path):
     # Bug caught: returning 0 when the glob finds nothing lets a moved directory pass CI.
-    (tmp_path / "skills").mkdir()
+    (tmp_path / PLUGIN / "skills").mkdir(parents=True)
     assert validate.main(tmp_path) == 1
 
 
@@ -107,19 +108,24 @@ LISTING = " ".join(["word"] * 45)
 ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128"/></svg>'
 
 
-def make_plugin(root: Path, names: list[str], *, codex_skills=None, claude_skills=None,
-                source="./skills", claude_version="0.7.0", codex_version="0.7.0",
+def make_plugin(root: Path, names: list[str], *, codex_skills="./skills/", claude_skills=None,
+                source=f"./{PLUGIN}", claude_version="0.8.0", codex_version="0.8.0",
                 readme=LISTING, license=True, icon=ICON):
+    """A valid plugin at PLUGIN. claude_skills=None leaves the Claude `skills` key out (the valid
+    form); codex_skills=None leaves the Codex `skills` key out."""
     for n in names:
         make_skill(root, n)
-    sk = root / "skills"
+    sk = root / PLUGIN
     (sk / ".claude-plugin").mkdir(parents=True)
     (sk / ".codex-plugin").mkdir(parents=True)
-    (sk / ".claude-plugin" / "plugin.json").write_text(json.dumps(
-        {"name": "p", "version": claude_version, "skills": claude_skills if claude_skills is not None else ["./"]}))
-    (sk / ".codex-plugin" / "plugin.json").write_text(json.dumps(
-        {"name": "p", "version": codex_version,
-         "skills": codex_skills if codex_skills is not None else [f"./{n}" for n in names]}))
+    claude = {"name": "p", "version": claude_version}
+    if claude_skills is not None:
+        claude["skills"] = claude_skills
+    codex = {"name": "p", "version": codex_version}
+    if codex_skills is not None:
+        codex["skills"] = codex_skills
+    (sk / ".claude-plugin" / "plugin.json").write_text(json.dumps(claude))
+    (sk / ".codex-plugin" / "plugin.json").write_text(json.dumps(codex))
     (root / ".claude-plugin").mkdir()
     (root / ".claude-plugin" / "marketplace.json").write_text(json.dumps(
         {"name": "m", "plugins": [{"name": "p", "source": source}]}))
@@ -140,7 +146,7 @@ def test_check_plugin_accepts_a_correct_layout(validate, tmp_path):
 def test_check_plugin_rejects_evals_inside_a_skill_folder(validate, tmp_path):
     # Bug caught: the allowlist check skipped, so evals ship to every user again.
     root = make_plugin(tmp_path, ["a-skill"])
-    (root / "skills" / "a-skill" / "evals").mkdir()
+    (root / PLUGIN / "skills" / "a-skill" / "evals").mkdir()
     problems = validate.check_plugin(root)
     assert any("evals" in p and "evals/a-skill/" in p for p in problems)
 
@@ -148,26 +154,24 @@ def test_check_plugin_rejects_evals_inside_a_skill_folder(validate, tmp_path):
 def test_check_plugin_ignores_dotfiles_in_a_skill_folder(validate, tmp_path):
     # Bug caught: an untracked Finder .DS_Store failing local validation.
     root = make_plugin(tmp_path, ["a-skill"])
-    (root / "skills" / "a-skill" / ".DS_Store").write_text("")
+    (root / PLUGIN / "skills" / "a-skill" / ".DS_Store").write_text("")
     assert validate.check_plugin(root) == []
 
 
-def test_check_plugin_rejects_a_single_dot_path_for_codex(validate, tmp_path):
-    # Bug caught: accepting "./", which Codex 0.147 installs but loads no skills from.
-    root = make_plugin(tmp_path, ["a-skill"], codex_skills="./")
-    assert any("Codex" in p and "./<name>" in p for p in validate.check_plugin(root))
+@pytest.mark.parametrize("codex_skills", ["./", ["./skills/"], ["./a-skill"], "./skills", None])
+def test_check_plugin_wants_codex_skills_to_be_the_skills_folder(validate, tmp_path, codex_skills):
+    # Bug caught: accepting another Codex skills form; a bare "./" installs but loads no skills (Codex 0.147).
+    root = make_plugin(tmp_path, ["a-skill"], codex_skills=codex_skills)
+    assert any(p.startswith(f'{PLUGIN}/.codex-plugin/plugin.json: skills must be "./skills/"')
+               for p in validate.check_plugin(root))
 
 
-def test_check_plugin_rejects_a_codex_list_missing_a_skill(validate, tmp_path):
-    # Bug caught: comparing only list types, not contents, so a new skill never loads in Codex.
-    root = make_plugin(tmp_path, ["a-skill", "b-skill"], codex_skills=["./a-skill"])
-    assert any("b-skill" in p for p in validate.check_plugin(root))
-
-
-def test_check_plugin_rejects_claude_skills_other_than_plugin_root(validate, tmp_path):
-    # Bug caught: pointing Claude at "./skills/", a folder that does not exist inside the plugin root.
-    root = make_plugin(tmp_path, ["a-skill"], claude_skills=["./skills/"])
-    assert any(".claude-plugin" in p and "skills" in p for p in validate.check_plugin(root))
+@pytest.mark.parametrize("claude_skills", [["./"], ["./skills/"], "./skills/", ["./a-skill"]])
+def test_check_plugin_rejects_a_custom_claude_skills_path(validate, tmp_path, claude_skills):
+    # Bug caught: allowing a custom skills path, which only Claude Code honours; the directory then lists no skills.
+    root = make_plugin(tmp_path, ["a-skill"], claude_skills=claude_skills)
+    assert any(p.startswith(f"{PLUGIN}/.claude-plugin/plugin.json: remove the skills key")
+               for p in validate.check_plugin(root))
 
 
 def test_check_plugin_rejects_version_drift(validate, tmp_path):
@@ -182,13 +186,13 @@ def test_check_plugin_rejects_marketplace_source_at_repo_root(validate, tmp_path
     assert any("marketplace" in p for p in validate.check_plugin(root))
 
 
-@pytest.mark.parametrize("stale", [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"])
-def test_check_plugin_rejects_a_manifest_at_repo_root(validate, tmp_path, stale):
-    # Bug caught: a leftover root manifest making the repo root a plugin again.
+@pytest.mark.parametrize("stale", [".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "skills/README.md"])
+def test_check_plugin_rejects_old_layout_leftovers(validate, tmp_path, stale):
+    # Bug caught: a leftover root manifest or root skills/ folder from an earlier layout staying unnoticed.
     root = make_plugin(tmp_path, ["a-skill"])
-    (root / stale).parent.mkdir(exist_ok=True)
+    (root / stale).parent.mkdir(parents=True, exist_ok=True)
     (root / stale).write_text("{}")
-    assert any(stale.split("/")[0] in p for p in validate.check_plugin(root))
+    assert any(p.startswith(stale.split("/")[0]) and "left over" in p for p in validate.check_plugin(root))
 
 
 def test_check_plugin_counts_listing_words_outside_code_blocks(validate, tmp_path):
@@ -208,7 +212,7 @@ def test_check_plugin_requires_listing_readme_and_license(validate, tmp_path):
 def test_check_plugin_reports_unparseable_manifest(validate, tmp_path):
     # Bug caught: a JSON error crashing the validator instead of a FAIL line.
     root = make_plugin(tmp_path, ["a-skill"])
-    (root / "skills" / ".codex-plugin" / "plugin.json").write_text("{not json")
+    (root / PLUGIN / ".codex-plugin" / "plugin.json").write_text("{not json")
     assert any("not valid JSON" in p for p in validate.check_plugin(root))
 
 
@@ -235,12 +239,12 @@ def test_script_entry_point_runs_the_packaging_checks(tmp_path):
 def test_validate_all_fails_on_a_skill_problem_alone(validate, tmp_path):
     # Bug caught: validate_all returning only the packaging result, so a broken SKILL.md passes CI.
     root = make_plugin(tmp_path, ["a-skill"])
-    (root / "skills" / "a-skill" / "SKILL.md").write_text("---\nname: other-name\ndescription: Use when x\n---\nbody\n")
+    (root / PLUGIN / "skills" / "a-skill" / "SKILL.md").write_text("---\nname: other-name\ndescription: Use when x\n---\nbody\n")
     assert validate.check_plugin(root) == []
     assert validate.validate_all(root) == 1
 
 
-@pytest.mark.parametrize("rel", [".claude-plugin/marketplace.json", "skills/.claude-plugin/plugin.json", "skills/.codex-plugin/plugin.json"])
+@pytest.mark.parametrize("rel", [".claude-plugin/marketplace.json", f"{PLUGIN}/.claude-plugin/plugin.json", f"{PLUGIN}/.codex-plugin/plugin.json"])
 def test_check_plugin_reports_a_missing_manifest(validate, tmp_path, rel):
     # Bug caught: the missing-file branch recording nothing, so a tree without that manifest validates clean.
     root = make_plugin(tmp_path, ["a-skill"])
@@ -248,7 +252,7 @@ def test_check_plugin_reports_a_missing_manifest(validate, tmp_path, rel):
     assert f"{rel}: missing" in validate.check_plugin(root)
 
 
-@pytest.mark.parametrize("rel", [".claude-plugin/marketplace.json", "skills/.claude-plugin/plugin.json", "skills/.codex-plugin/plugin.json"])
+@pytest.mark.parametrize("rel", [".claude-plugin/marketplace.json", f"{PLUGIN}/.claude-plugin/plugin.json", f"{PLUGIN}/.codex-plugin/plugin.json"])
 def test_check_plugin_rejects_a_manifest_that_is_not_an_object(validate, tmp_path, rel):
     # Bug caught: the dict guards skipping every check on a list-valued manifest, so `[]` passes.
     root = make_plugin(tmp_path, ["a-skill"])
@@ -265,11 +269,20 @@ def test_check_plugin_listing_word_boundary(validate, tmp_path, words, accepted)
 
 @pytest.mark.parametrize("entry, is_dir", [("evals", True), ("notes.md", False)])
 def test_check_plugin_rejects_stray_entries_at_the_plugin_root(validate, tmp_path, entry, is_dir):
-    # Bug caught: only folders holding a SKILL.md get checked, so anything else at the top of skills/ ships.
+    # Bug caught: only folders holding a SKILL.md get checked, so anything else in the plugin folder ships.
     root = make_plugin(tmp_path, ["a-skill"])
-    target = root / "skills" / entry
+    target = root / PLUGIN / entry
     target.mkdir() if is_dir else target.write_text("x")
-    assert any(p.startswith("skills/: ships") and entry in p for p in validate.check_plugin(root))
+    assert any(p.startswith(f"{PLUGIN}/: ships") and entry in p for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("entry, is_dir", [("notes", True), ("notes.md", False)])
+def test_check_plugin_rejects_stray_entries_in_the_skills_folder(validate, tmp_path, entry, is_dir):
+    # Bug caught: not checking skills/ itself, so a folder without a SKILL.md or a loose file ships to users.
+    root = make_plugin(tmp_path, ["a-skill"])
+    target = root / PLUGIN / "skills" / entry
+    target.mkdir() if is_dir else target.write_text("x")
+    assert any(p.startswith(f"{PLUGIN}/skills/: ships") and entry in p for p in validate.check_plugin(root))
 
 
 @pytest.mark.parametrize("version", [None, ""])
@@ -277,14 +290,14 @@ def test_check_plugin_requires_a_version_in_both_manifests(validate, tmp_path, v
     # Bug caught: comparing the two versions only, so two manifests with no version pass as equal.
     root = make_plugin(tmp_path, ["a-skill"], claude_version=version, codex_version=version)
     problems = validate.check_plugin(root)
-    assert any(p.startswith("skills/.claude-plugin/plugin.json:") and "version" in p for p in problems)
-    assert any(p.startswith("skills/.codex-plugin/plugin.json:") and "version" in p for p in problems)
+    assert any(p.startswith(f"{PLUGIN}/.claude-plugin/plugin.json:") and "version" in p for p in problems)
+    assert any(p.startswith(f"{PLUGIN}/.codex-plugin/plugin.json:") and "version" in p for p in problems)
 
 
 def test_check_plugin_requires_the_listing_icon(validate, tmp_path):
     # Bug caught: no icon check, so a deleted icon falls back to the GitHub avatar in the directory unnoticed.
     root = make_plugin(tmp_path, ["a-skill"], icon=None)
-    assert "skills/.claude-plugin/icon.svg: missing" in validate.check_plugin(root)
+    assert f"{PLUGIN}/.claude-plugin/icon.svg: missing" in validate.check_plugin(root)
 
 
 @pytest.mark.parametrize("view_box, accepted", [
@@ -305,13 +318,13 @@ def test_check_plugin_wants_a_square_icon_of_at_least_128(validate, tmp_path, vi
         assert problems == []
     else:
         w, h = view_box.split()[2:]
-        assert f"skills/.claude-plugin/icon.svg: viewBox is {w}x{h}; the listing icon must be square and at least 128 px" in problems
+        assert f"{PLUGIN}/.claude-plugin/icon.svg: viewBox is {w}x{h}; the listing icon must be square and at least 128 px" in problems
 
 
 def test_check_plugin_rejects_an_icon_without_a_view_box(validate, tmp_path):
     # Bug caught: treating a missing viewBox as fine, so the size can't be checked at all.
     root = make_plugin(tmp_path, ["a-skill"], icon='<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-    assert any(p.startswith("skills/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
+    assert any(p.startswith(f"{PLUGIN}/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
 
 
 @pytest.mark.parametrize("attr", ["viewBox='0 0 128 128'", 'viewBox = "0 0 128 128"', 'viewBox="0,0,128,128"',
@@ -325,7 +338,7 @@ def test_check_plugin_reads_other_valid_viewbox_spellings(validate, tmp_path, at
 def test_check_plugin_reports_a_malformed_viewbox_instead_of_crashing(validate, tmp_path):
     # Bug caught: float() on a matched but malformed number raising ValueError out of the validator.
     root = make_plugin(tmp_path, ["a-skill"], icon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 . ."></svg>')
-    assert any(p.startswith("skills/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
+    assert any(p.startswith(f"{PLUGIN}/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
 
 
 @pytest.mark.parametrize("icon", [
@@ -335,11 +348,11 @@ def test_check_plugin_reports_a_malformed_viewbox_instead_of_crashing(validate, 
 def test_check_plugin_reads_the_root_svg_viewbox_only(validate, tmp_path, icon):
     # Bug caught: taking the first viewBox anywhere in the file, so a comment or a nested element vouches for a small icon.
     root = make_plugin(tmp_path, ["a-skill"], icon=icon)
-    assert any(p.startswith("skills/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
+    assert any(p.startswith(f"{PLUGIN}/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
 
 
 @pytest.mark.parametrize("view_box", ["0 0 128", "0 0 128 128 9"])
 def test_check_plugin_wants_exactly_four_viewbox_numbers(validate, tmp_path, view_box):
     # Bug caught: accepting a viewBox with a missing or extra number instead of reporting it unreadable.
     root = make_plugin(tmp_path, ["a-skill"], icon=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}"></svg>')
-    assert any(p.startswith("skills/.claude-plugin/icon.svg: no readable viewBox") for p in validate.check_plugin(root))
+    assert any(p.startswith(f"{PLUGIN}/.claude-plugin/icon.svg: no readable viewBox") for p in validate.check_plugin(root))

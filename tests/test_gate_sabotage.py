@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "evals" / "skill-optimizer" / "fixtures" / "release-checklist" / "SKILL.fixture.md"
 SKILLS = {
     "fixture": FIXTURE,
-    "subagent-optimizer": ROOT / "skills" / "subagent-optimizer" / "SKILL.md",
-    "skill-optimizer": ROOT / "skills" / "skill-optimizer" / "SKILL.md",
+    "subagent-optimizer": ROOT / "plugins" / "ionden-skills" / "skills" / "subagent-optimizer" / "SKILL.md",
+    "skill-optimizer": ROOT / "plugins" / "ionden-skills" / "skills" / "skill-optimizer" / "SKILL.md",
 }
 
 

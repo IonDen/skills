@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-26 (plugin 0.8.1)
+
+- The plugin README, which is also its listing text in Anthropic's plugin directory, has a Privacy section: no personal data, no telemetry, no server of its own, and scripts that run locally on the files you point them at. The plugin version goes to 0.8.1.
+
 ## 2026-09-26 (plugin 0.8.0)
 
 - The plugin moved to the layout that Anthropic's plugin directory, claude.ai and Cowork document: a plugin folder, `plugins/ionden-skills/`, with its manifest, README, license and icon, and the skills in its own `skills/` folder. The 0.7 layout used `skills/` itself as the plugin folder and pointed the manifest at it with a custom path. Claude Code and Codex accept that, but the directory built its listing the way claude.ai installs a plugin and showed no skills, no README, and no description, author or links. Install commands are unchanged, and so are the skills. The skill folders now live at `plugins/ionden-skills/skills/<name>/`.

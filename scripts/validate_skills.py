@@ -110,6 +110,9 @@ def _load_json(path: Path, root: Path, problems: list[str]):
     except FileNotFoundError:
         problems.append(f"{rel}: missing")
         return None
+    except (OSError, UnicodeDecodeError) as exc:
+        problems.append(f"{rel}: cannot be read ({type(exc).__name__})")
+        return None
     except json.JSONDecodeError as exc:
         problems.append(f"{rel}: not valid JSON ({exc.msg}, line {exc.lineno})")
         return None
@@ -119,9 +122,13 @@ def _load_json(path: Path, root: Path, problems: list[str]):
     return data
 
 
+JUNK = {".DS_Store"}
+
+
 def _stray(folder: Path, allowed: set[str]) -> list[str]:
-    """Names in folder, dotfiles aside, that are not in allowed."""
-    return sorted(e.name for e in folder.iterdir() if not e.name.startswith(".") and e.name not in allowed)
+    """Names in folder that are neither allowed nor Finder junk. Hidden entries count: a stray
+    .mcp.json or .evals/ would ship to every user like any other file."""
+    return sorted(e.name for e in folder.iterdir() if e.name not in allowed and e.name not in JUNK)
 
 
 def check_plugin(root: Path) -> list[str]:
@@ -138,6 +145,9 @@ def check_plugin(root: Path) -> list[str]:
     if isinstance(claude, dict) and "skills" in claude:
         problems.append(f"{P}/.claude-plugin/plugin.json: remove the skills key; the directory and claude.ai "
                         "load skills only from skills/<name>/, and custom paths work in Claude Code alone")
+    # "./skills/" is the form Codex's plugin docs scaffold; verified 2026-09-26 on Codex CLI 0.147
+    # (installed from the branch into a fresh CODEX_HOME, all three skills in the prompt). A bare "./"
+    # installs but loads nothing on that version.
     if isinstance(codex, dict) and codex.get("skills") != "./skills/":
         problems.append(f'{P}/.codex-plugin/plugin.json: skills must be "./skills/", not {codex.get("skills")!r}')
     versions = {}
@@ -157,10 +167,15 @@ def check_plugin(root: Path) -> list[str]:
         if (root / stale).exists():
             problems.append(f"{stale}: left over from an earlier layout; the plugin lives in {P}/")
     if pr.is_dir():
-        stray = _stray(pr, {"README.md", "LICENSE", "skills"})
+        stray = _stray(pr, {"README.md", "LICENSE", "skills", ".claude-plugin", ".codex-plugin"})
         if stray:
             problems.append(f"{P}/: ships {stray}; the plugin folder holds only skills/, README.md, LICENSE "
                             "and the two manifest folders")
+    for folder, allowed in ((".claude-plugin", {"plugin.json", "icon.svg"}), (".codex-plugin", {"plugin.json"})):
+        if (pr / folder).is_dir():
+            stray = _stray(pr / folder, allowed)
+            if stray:
+                problems.append(f"{P}/{folder}/: ships {stray}; it holds only {sorted(allowed)}")
     if sk.is_dir():
         stray = _stray(sk, set(names))
         if stray:

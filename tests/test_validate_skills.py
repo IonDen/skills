@@ -105,21 +105,22 @@ def test_openai_yaml_values_must_be_non_empty_strings(validate, tmp_path):
 
 REPO = VALIDATOR.parent.parent
 LISTING = " ".join(["word"] * 45)
+OMIT = object()
 ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128"/></svg>'
 
 
-def make_plugin(root: Path, names: list[str], *, codex_skills="./skills/", claude_skills=None,
+def make_plugin(root: Path, names: list[str], *, codex_skills="./skills/", claude_skills=OMIT,
                 source=f"./{PLUGIN}", claude_version="0.8.0", codex_version="0.8.0",
                 readme=LISTING, license=True, icon=ICON):
-    """A valid plugin at PLUGIN. claude_skills=None leaves the Claude `skills` key out (the valid
-    form); codex_skills=None leaves the Codex `skills` key out."""
+    """A valid plugin at PLUGIN. claude_skills=OMIT leaves the Claude `skills` key out (the valid
+    form; None writes an explicit null); codex_skills=None leaves the Codex `skills` key out."""
     for n in names:
         make_skill(root, n)
     sk = root / PLUGIN
     (sk / ".claude-plugin").mkdir(parents=True)
     (sk / ".codex-plugin").mkdir(parents=True)
     claude = {"name": "p", "version": claude_version}
-    if claude_skills is not None:
+    if claude_skills is not OMIT:
         claude["skills"] = claude_skills
     codex = {"name": "p", "version": codex_version}
     if codex_skills is not None:
@@ -166,7 +167,7 @@ def test_check_plugin_wants_codex_skills_to_be_the_skills_folder(validate, tmp_p
                for p in validate.check_plugin(root))
 
 
-@pytest.mark.parametrize("claude_skills", [["./"], ["./skills/"], "./skills/", ["./a-skill"]])
+@pytest.mark.parametrize("claude_skills", [["./"], ["./skills/"], "./skills/", ["./a-skill"], [], None])
 def test_check_plugin_rejects_a_custom_claude_skills_path(validate, tmp_path, claude_skills):
     # Bug caught: allowing a custom skills path, which only Claude Code honours; the directory then lists no skills.
     root = make_plugin(tmp_path, ["a-skill"], claude_skills=claude_skills)
@@ -236,12 +237,13 @@ def test_script_entry_point_runs_the_packaging_checks(tmp_path):
     assert "marketplace" in r.stdout
 
 
-def test_validate_all_fails_on_a_skill_problem_alone(validate, tmp_path):
+def test_validate_all_fails_on_a_skill_problem_alone(validate, tmp_path, capsys):
     # Bug caught: validate_all returning only the packaging result, so a broken SKILL.md passes CI.
     root = make_plugin(tmp_path, ["a-skill"])
     (root / PLUGIN / "skills" / "a-skill" / "SKILL.md").write_text("---\nname: other-name\ndescription: Use when x\n---\nbody\n")
     assert validate.check_plugin(root) == []
     assert validate.validate_all(root) == 1
+    assert "a-skill: frontmatter name 'other-name' != directory name" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("rel", [".claude-plugin/marketplace.json", f"{PLUGIN}/.claude-plugin/plugin.json", f"{PLUGIN}/.codex-plugin/plugin.json"])
@@ -356,3 +358,44 @@ def test_check_plugin_wants_exactly_four_viewbox_numbers(validate, tmp_path, vie
     # Bug caught: accepting a viewBox with a missing or extra number instead of reporting it unreadable.
     root = make_plugin(tmp_path, ["a-skill"], icon=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}"></svg>')
     assert any(p.startswith(f"{PLUGIN}/.claude-plugin/icon.svg: no readable viewBox") for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("entry, is_dir", [(".evals", True), (".mcp.json", False)])
+def test_check_plugin_rejects_hidden_entries_at_the_plugin_root(validate, tmp_path, entry, is_dir):
+    # Bug caught: skipping every dot-entry, so a hidden folder or a live .mcp.json ships to users unnoticed.
+    root = make_plugin(tmp_path, ["a-skill"])
+    target = root / PLUGIN / entry
+    target.mkdir() if is_dir else target.write_text("{}")
+    assert any(p.startswith(f"{PLUGIN}/: ships") and entry in p for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("folder, entry", [(".claude-plugin", "notes.md"), (".codex-plugin", "icon.svg")])
+def test_check_plugin_rejects_extra_files_in_the_manifest_folders(validate, tmp_path, folder, entry):
+    # Bug caught: never looking inside the manifest folders, so anything dropped there ships.
+    root = make_plugin(tmp_path, ["a-skill"])
+    (root / PLUGIN / folder / entry).write_text("x")
+    assert any(p.startswith(f"{PLUGIN}/{folder}/: ships") and entry in p for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("where", ["", "skills", "skills/a-skill", ".claude-plugin", ".codex-plugin"])
+def test_check_plugin_ignores_finder_junk_everywhere(validate, tmp_path, where):
+    # Bug caught: counting a local .DS_Store as a stray, so validation fails on a Mac for nothing.
+    root = make_plugin(tmp_path, ["a-skill"])
+    (root / PLUGIN / where / ".DS_Store").write_text("")
+    assert validate.check_plugin(root) == []
+
+
+def test_check_plugin_rejects_a_hidden_file_in_a_skill_folder(validate, tmp_path):
+    # Bug caught: skipping dot-entries inside a skill folder, so a hidden eval file ships with the skill.
+    root = make_plugin(tmp_path, ["a-skill"])
+    (root / PLUGIN / "skills" / "a-skill" / ".evals.json").write_text("{}")
+    assert any(p.startswith("a-skill: ships") and ".evals.json" in p for p in validate.check_plugin(root))
+
+
+def test_check_plugin_reports_a_manifest_it_cannot_read(validate, tmp_path):
+    # Bug caught: catching only a missing file, so a manifest path that is a folder crashes with a traceback.
+    root = make_plugin(tmp_path, ["a-skill"])
+    manifest = root / PLUGIN / ".codex-plugin" / "plugin.json"
+    manifest.unlink()
+    manifest.mkdir()
+    assert any(p.startswith(f"{PLUGIN}/.codex-plugin/plugin.json: cannot be read") for p in validate.check_plugin(root))

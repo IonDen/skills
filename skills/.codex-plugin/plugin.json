@@ -1,26 +1,16 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "ionden-skills",
   "description": "Agent skills for Claude Code and OpenAI Codex. subagent-optimizer audits Claude Code subagents and Codex custom agents for tool allowlists, keys Codex rejects, prompt bloat, model and effort, and launch token cost; skill-optimizer cuts a skill's own SKILL.md without losing an instruction; writing-tests-that-can-fail keeps tests real, in any language: real behaviour, every condition, and a failure on the bug they exist to catch.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": {
     "name": "Denis Ineshin",
     "url": "https://github.com/IonDen"
   },
   "homepage": "https://github.com/IonDen/skills",
-  "repository": "https://github.com/IonDen/skills",
   "license": "MIT",
-  "keywords": [
-    "agent-skills",
-    "claude-code",
-    "claude-skills",
-    "skills",
-    "codex",
-    "subagents",
-    "token-optimization",
-    "context-window",
-    "prompt-engineering",
-    "developer-tools",
-    "testing"
+  "skills": [
+    "./subagent-optimizer",
+    "./skill-optimizer",
+    "./writing-tests-that-can-fail"
   ]
 }

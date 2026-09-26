@@ -85,7 +85,20 @@ def check_skill(skill_md: Path) -> list[str]:
 ALLOWED_SKILL_ENTRIES = {"SKILL.md", "README.md", "LICENSE", "agents", "references", "scripts", "assets"}
 LISTING_MIN_WORDS = 40
 ICON_MIN_PX = 128
-VIEWBOX_RE = re.compile(r'viewBox="\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"')
+SVG_TAG_RE = re.compile(r"<svg\b[^>]*>", re.I)
+VIEWBOX_ATTR_RE = re.compile(r"""\bviewBox\s*=\s*(["'])(.*?)\1""")
+
+
+def _icon_size(svg: str):
+    """Width and height from the root <svg> tag's viewBox, or None if it has none we can read."""
+    tag = SVG_TAG_RE.search(svg)
+    attr = VIEWBOX_ATTR_RE.search(tag.group(0)) if tag else None
+    parts = attr.group(2).replace(",", " ").split() if attr else []
+    try:
+        numbers = [float(x) for x in parts]
+    except ValueError:
+        return None
+    return (numbers[2], numbers[3]) if len(numbers) == 4 else None
 FENCE_RE = re.compile(r"^```.*?^```[^\n]*$", re.S | re.M)
 
 
@@ -167,13 +180,14 @@ def check_plugin(root: Path) -> list[str]:
     if not icon.is_file():
         problems.append("skills/.claude-plugin/icon.svg: missing")
     else:
-        m = VIEWBOX_RE.search(icon.read_text(encoding="utf-8-sig"))
-        if not m:
-            problems.append("skills/.claude-plugin/icon.svg: no viewBox, so its size can't be checked")
+        size = _icon_size(icon.read_text(encoding="utf-8-sig"))
+        if size is None:
+            problems.append("skills/.claude-plugin/icon.svg: no readable viewBox on the root <svg>, "
+                            "so its size can't be checked")
         else:
-            w, h = float(m.group(1)), float(m.group(2))
+            w, h = size
             if w != h or w < ICON_MIN_PX:
-                problems.append(f"skills/.claude-plugin/icon.svg: viewBox is {m.group(1)}x{m.group(2)}; "
+                problems.append(f"skills/.claude-plugin/icon.svg: viewBox is {w:g}x{h:g}; "
                                 f"the listing icon must be square and at least {ICON_MIN_PX} px")
     return problems
 

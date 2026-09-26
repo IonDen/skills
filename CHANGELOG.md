@@ -3,7 +3,7 @@
 ## 2026-09-26 (plugin 0.7.1, writing-tests-that-can-fail 1.0.1)
 
 - The plugin has an icon: three lines, each with its red end snipped off, in the same colours as the charts in this repository. The layout check now requires it and checks that it is square and at least 128 px.
-- `writing-tests-that-can-fail` 1.0.1: the Swift fake example declares its in-memory store as a plain `var` instead of `private(set) var`. Anthropic's plugin directory scanner read `set` there as the shell command that prints environment variables and held the plugin for review. A test fake is fine with a plain `var`, and nothing else in the skill changed.
+- `writing-tests-that-can-fail` 1.0.1: the Swift fake example declares its in-memory store as a plain `var` instead of `private(set) var`. The security scan in Anthropic's plugin directory flagged that line as reading environment variables and held the plugin for review. A test fake is fine with a plain `var`, and nothing else in the skill changed.
 - The plugin version goes to 0.7.1.
 
 ## 2026-09-26 (plugin 0.7.0)

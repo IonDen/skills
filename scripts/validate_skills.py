@@ -84,6 +84,8 @@ def check_skill(skill_md: Path) -> list[str]:
 
 ALLOWED_SKILL_ENTRIES = {"SKILL.md", "README.md", "LICENSE", "agents", "references", "scripts", "assets"}
 LISTING_MIN_WORDS = 40
+ICON_MIN_PX = 128
+VIEWBOX_RE = re.compile(r'viewBox="\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"')
 FENCE_RE = re.compile(r"^```.*?^```[^\n]*$", re.S | re.M)
 
 
@@ -161,6 +163,18 @@ def check_plugin(root: Path) -> list[str]:
                             f"(the listing needs at least {LISTING_MIN_WORDS})")
     if not (sk / "LICENSE").is_file():
         problems.append("skills/LICENSE: missing (the plugin folder must carry its own license)")
+    icon = sk / ".claude-plugin" / "icon.svg"
+    if not icon.is_file():
+        problems.append("skills/.claude-plugin/icon.svg: missing")
+    else:
+        m = VIEWBOX_RE.search(icon.read_text(encoding="utf-8-sig"))
+        if not m:
+            problems.append("skills/.claude-plugin/icon.svg: no viewBox, so its size can't be checked")
+        else:
+            w, h = float(m.group(1)), float(m.group(2))
+            if w != h or w < ICON_MIN_PX:
+                problems.append(f"skills/.claude-plugin/icon.svg: viewBox is {m.group(1)}x{m.group(2)}; "
+                                f"the listing icon must be square and at least {ICON_MIN_PX} px")
     return problems
 
 

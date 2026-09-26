@@ -10,7 +10,7 @@ description: >-
   tests pass", "fix the failing test", "increase coverage", "mock this".
 license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
   author: IonDen
 ---
 

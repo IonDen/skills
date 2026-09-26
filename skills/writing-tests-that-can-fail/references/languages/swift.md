@@ -20,7 +20,7 @@ protocol UserStore {
 }
 
 final class InMemoryUserStore: UserStore {
-    private(set) var users: [String: User] = [:]
+    var users: [String: User] = [:]
     func save(_ user: User) throws { users[user.id] = user }
     func find(id: String) -> User? { users[id] }
 }

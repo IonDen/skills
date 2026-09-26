@@ -12,6 +12,6 @@ Three agent skills for Claude Code and OpenAI Codex. Each one loads only when a 
 
 ## Privacy
 
-The plugin collects no personal data and has no telemetry or analytics. It contacts no server of its own: the skills are instructions Claude reads in your session, and the scripts run on your machine, only when a skill's steps call for them, on the files you point them at. Nothing they read or write is sent anywhere.
+The plugin collects no personal data and has no telemetry or analytics. It contacts no server of its own: the skills are instructions the agent reads in your session, and the scripts run on your machine, only when a skill's steps call for them. They read the files you point them at, or, if you name none, the default agent folders and the `[agents]` tables of your Codex config. Nothing they read or write is sent anywhere. `writing-tests-that-can-fail` may suggest installing a testing tool, such as a mutation tester, from its public package registry; that happens only if you run the command.
 
 Source, evals and measured results: https://github.com/IonDen/skills

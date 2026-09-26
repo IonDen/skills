@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-26 (plugin 0.7.1, writing-tests-that-can-fail 1.0.1)
+
+- The plugin has an icon: three lines, each with its red end snipped off, in the same colours as the charts in this repository. The layout check now requires it and checks that it is square and at least 128 px.
+- `writing-tests-that-can-fail` 1.0.1: the Swift fake example declares its in-memory store as a plain `var` instead of `private(set) var`. The security scan in Anthropic's plugin directory flagged that line as reading environment variables and held the plugin for review. A test fake is fine with a plain `var`, and nothing else in the skill changed.
+- The plugin version goes to 0.7.1.
+
 ## 2026-09-26 (plugin 0.7.0)
 
 - Installs now carry only the skills. Each skill's evals, fixtures and recorded runs moved from `skills/<name>/evals/` to `evals/<name>/`, so `npx skills add` no longer copies them into your skills folder. The Claude Code and Codex plugin now lives in `skills/` instead of the repository root, so installing it copies the three skills, a README and the license: 37 files, where it used to copy all 273 in the repository, tests and evals included. Install commands are unchanged, and so are the skills.

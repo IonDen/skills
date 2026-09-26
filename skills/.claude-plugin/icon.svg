@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="ionden-skills">
+  <rect width="128" height="128" rx="28" fill="#0f172a"/>
+  <g stroke-linecap="round" stroke-width="14">
+    <line x1="24" y1="38" x2="72" y2="38" stroke="#0d9488"/>
+    <line x1="24" y1="64" x2="54" y2="64" stroke="#0d9488"/>
+    <line x1="24" y1="90" x2="82" y2="90" stroke="#0d9488"/>
+  </g>
+  <g stroke-linecap="round" stroke-width="14" stroke="#dc2626">
+    <line x1="88" y1="42" x2="100" y2="48"/>
+    <line x1="71" y1="69" x2="97" y2="81"/>
+    <line x1="98" y1="95" x2="102" y2="97"/>
+  </g>
+</svg>

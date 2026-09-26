@@ -44,4 +44,5 @@ npx skills add IonDen/skills --skill writing-tests-that-can-fail -g -a codex -y
 
 ## Version history
 
+- 1.0.1 (2026-09-26): the Swift fake example declares its store as a plain `var`.
 - 1.0.0 (2026-09-25): first public release.

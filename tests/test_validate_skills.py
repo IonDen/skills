@@ -104,11 +104,12 @@ def test_openai_yaml_values_must_be_non_empty_strings(validate, tmp_path):
 
 REPO = VALIDATOR.parent.parent
 LISTING = " ".join(["word"] * 45)
+ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128"/></svg>'
 
 
 def make_plugin(root: Path, names: list[str], *, codex_skills=None, claude_skills=None,
                 source="./skills", claude_version="0.7.0", codex_version="0.7.0",
-                readme=LISTING, license=True):
+                readme=LISTING, license=True, icon=ICON):
     for n in names:
         make_skill(root, n)
     sk = root / "skills"
@@ -126,6 +127,8 @@ def make_plugin(root: Path, names: list[str], *, codex_skills=None, claude_skill
         (sk / "README.md").write_text(readme)
     if license:
         (sk / "LICENSE").write_text("MIT")
+    if icon is not None:
+        (sk / ".claude-plugin" / "icon.svg").write_text(icon)
     return root
 
 
@@ -276,3 +279,67 @@ def test_check_plugin_requires_a_version_in_both_manifests(validate, tmp_path, v
     problems = validate.check_plugin(root)
     assert any(p.startswith("skills/.claude-plugin/plugin.json:") and "version" in p for p in problems)
     assert any(p.startswith("skills/.codex-plugin/plugin.json:") and "version" in p for p in problems)
+
+
+def test_check_plugin_requires_the_listing_icon(validate, tmp_path):
+    # Bug caught: no icon check, so a deleted icon falls back to the GitHub avatar in the directory unnoticed.
+    root = make_plugin(tmp_path, ["a-skill"], icon=None)
+    assert "skills/.claude-plugin/icon.svg: missing" in validate.check_plugin(root)
+
+
+@pytest.mark.parametrize("view_box, accepted", [
+    ("0 0 128 128", True),
+    ("0 0 256 256", True),
+    ("0 0 127 127", False),
+    ("0 0 128 96", False),
+    ("0 0 256 128", False),
+    ("0 0 128 256", False),
+])
+def test_check_plugin_wants_a_square_icon_of_at_least_128(validate, tmp_path, view_box, accepted):
+    # Bug caught: accepting a non-square or sub-128 icon, which the directory asks to be square and 128 px or more.
+    # 256x128 and 128x256 clear the size bar on both sides, so only the squareness check can reject them.
+    icon = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}"></svg>'
+    root = make_plugin(tmp_path, ["a-skill"], icon=icon)
+    problems = validate.check_plugin(root)
+    if accepted:
+        assert problems == []
+    else:
+        w, h = view_box.split()[2:]
+        assert f"skills/.claude-plugin/icon.svg: viewBox is {w}x{h}; the listing icon must be square and at least 128 px" in problems
+
+
+def test_check_plugin_rejects_an_icon_without_a_view_box(validate, tmp_path):
+    # Bug caught: treating a missing viewBox as fine, so the size can't be checked at all.
+    root = make_plugin(tmp_path, ["a-skill"], icon='<svg xmlns="http://www.w3.org/2000/svg"></svg>')
+    assert any(p.startswith("skills/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("attr", ["viewBox='0 0 128 128'", 'viewBox = "0 0 128 128"', 'viewBox="0,0,128,128"',
+                                  'viewBox="-64 -64 128 128"'])
+def test_check_plugin_reads_other_valid_viewbox_spellings(validate, tmp_path, attr):
+    # Bug caught: a pattern that only knows double quotes and spaces, failing a valid icon as "no viewBox".
+    root = make_plugin(tmp_path, ["a-skill"], icon=f'<svg xmlns="http://www.w3.org/2000/svg" {attr}></svg>')
+    assert validate.check_plugin(root) == []
+
+
+def test_check_plugin_reports_a_malformed_viewbox_instead_of_crashing(validate, tmp_path):
+    # Bug caught: float() on a matched but malformed number raising ValueError out of the validator.
+    root = make_plugin(tmp_path, ["a-skill"], icon='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 . ."></svg>')
+    assert any(p.startswith("skills/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("icon", [
+    '<!-- viewBox="0 0 512 512" --><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><symbol viewBox="0 0 128 128"/></svg>',
+])
+def test_check_plugin_reads_the_root_svg_viewbox_only(validate, tmp_path, icon):
+    # Bug caught: taking the first viewBox anywhere in the file, so a comment or a nested element vouches for a small icon.
+    root = make_plugin(tmp_path, ["a-skill"], icon=icon)
+    assert any(p.startswith("skills/.claude-plugin/icon.svg:") for p in validate.check_plugin(root))
+
+
+@pytest.mark.parametrize("view_box", ["0 0 128", "0 0 128 128 9"])
+def test_check_plugin_wants_exactly_four_viewbox_numbers(validate, tmp_path, view_box):
+    # Bug caught: accepting a viewBox with a missing or extra number instead of reporting it unreadable.
+    root = make_plugin(tmp_path, ["a-skill"], icon=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box}"></svg>')
+    assert any(p.startswith("skills/.claude-plugin/icon.svg: no readable viewBox") for p in validate.check_plugin(root))

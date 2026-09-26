@@ -5,7 +5,7 @@ These never launch an agent: every case fails validation before `claude` runs.
 import subprocess
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parent.parent / "skills" / "subagent-optimizer" / "evals" / "measure" / "measure.sh"
+SCRIPT = Path(__file__).resolve().parent.parent / "evals" / "subagent-optimizer" / "measure" / "measure.sh"
 
 
 def run(*args, **kw):

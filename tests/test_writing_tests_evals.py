@@ -9,7 +9,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL = ROOT / "skills" / "writing-tests-that-can-fail"
-EVALS = SKILL / "evals"
+EVALS = ROOT / "evals" / "writing-tests-that-can-fail"
 FIXTURES = EVALS / "fixtures"
 
 

@@ -96,7 +96,7 @@ def make_skill(tmp_path):
     return _make
 
 
-WTCF_EVALS = ROOT / "skills" / "writing-tests-that-can-fail" / "evals"
+WTCF_EVALS = ROOT / "evals" / "writing-tests-that-can-fail"
 
 
 @pytest.fixture(scope="session")

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-29 (plugin 0.8.2)
+
+- Add OpenAI listing text, starter prompts and icon paths to the Codex manifest. The plugin layout and the three skills are unchanged.
+- Add a ZIP builder for directory uploads. It validates the plugin, excludes repository material and caches, rejects symlinks and hidden supporting files, and prints a checksum. Repeated builds with the same inputs and toolchain produce the same archive bytes.
+- Add publishing instructions and a release checklist for the shared ChatGPT/Codex directory. The plugin is prepared for submission; it is not yet listed there.
+- Clarify privacy wording: the bundled scripts do not transmit files, and the assistant can use script output in the host's session.
+
 ## 2026-09-26 (plugin 0.8.1)
 
 - The plugin README, which is also its listing text in Anthropic's plugin directory, has a Privacy section: no personal data, no telemetry, no server of its own, and scripts that run locally on the files you point them at. The plugin version goes to 0.8.1.

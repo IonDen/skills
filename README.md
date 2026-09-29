@@ -39,6 +39,8 @@ Claude Code, as a plugin:
 
 ## Development
 
+Maintaining a plugin release? See [publishing instructions](docs/publishing.md) for the upload ZIP and the OpenAI directory steps.
+
 ```bash
 python3 -m pytest tests -q
 ```

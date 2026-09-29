@@ -50,6 +50,8 @@ codex plugin add ionden-skills@ionden
 
 ## Development
 
+Maintaining a plugin release? See [publishing instructions](docs/publishing.md) for the upload ZIP and the OpenAI directory steps.
+
 ```bash
 python3 -m pytest tests -q
 ```

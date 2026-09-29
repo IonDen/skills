@@ -3,6 +3,7 @@
 [![validate](https://github.com/IonDen/skills/actions/workflows/validate.yml/badge.svg)](https://github.com/IonDen/skills/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![skills.sh](https://skills.sh/b/IonDen/skills)](https://skills.sh/IonDen/skills)
+[![Claude plugin directory: listed](https://img.shields.io/badge/Claude_plugin_directory-listed-0d9488)](https://claude.ai/customize/plugins/id/ca97a97b-2635-413b-8e0e-e7fa82076699%40anthropic-plugin-directory)
 
 A small catalogue of agent skills I use day to day. Each skill is a folder with a `SKILL.md` that Claude Code and Codex load only when a task needs it. A skill lands here when I could not find a good public equivalent.
 
@@ -30,6 +31,8 @@ npx skills update
 ```
 
 Most agents share `.agents/skills`, so the CLI installs there by default. Claude Code reads `.claude/skills` instead, which is why `-a claude-code` is on the lines above: without it the CLI asks which agents you want and Claude Code is not pre-selected. Pass `--copy` if you would rather have real files than symlinks.
+
+Claude apps (claude.ai, the desktop and mobile apps, Cowork): the plugin is [listed in Claude's plugin directory](https://claude.ai/customize/plugins/id/ca97a97b-2635-413b-8e0e-e7fa82076699%40anthropic-plugin-directory). Add it there, and it also becomes available in your Claude Code sessions.
 
 Claude Code, as a plugin:
 

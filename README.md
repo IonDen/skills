@@ -2,6 +2,7 @@
 
 [![validate](https://github.com/IonDen/skills/actions/workflows/validate.yml/badge.svg)](https://github.com/IonDen/skills/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![skills.sh](https://skills.sh/b/IonDen/skills)](https://skills.sh/IonDen/skills)
 
 A small catalogue of agent skills I use day to day. Each skill is a folder with a `SKILL.md` that Claude Code and Codex load only when a task needs it. A skill lands here when I could not find a good public equivalent.
 
@@ -35,6 +36,13 @@ Claude Code, as a plugin:
 ```text
 /plugin marketplace add IonDen/skills
 /plugin install ionden-skills@ionden
+```
+
+Codex, as a plugin:
+
+```bash
+codex plugin marketplace add IonDen/skills
+codex plugin add ionden-skills@ionden
 ```
 
 ## Development

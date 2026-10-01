@@ -21,10 +21,10 @@ def validate():
 
 def make_skill(root: Path, dirname: str, name: str | None = None, description: str = "Use when x",
                openai: str | None = "interface:\n  display_name: X\n  short_description: Y\n",
-               bom: bool = False):
+               bom: bool = False, body: str = "body"):
     d = root / PLUGIN / "skills" / dirname
     d.mkdir(parents=True)
-    text = f"---\nname: {name or dirname}\ndescription: {description}\n---\nbody\n"
+    text = f"---\nname: {name or dirname}\ndescription: {description}\n---\n{body}\n"
     (d / "SKILL.md").write_bytes(text.encode("utf-8-sig" if bom else "utf-8"))
     if openai is not None:
         (d / "agents").mkdir()
@@ -101,6 +101,57 @@ def test_openai_yaml_values_must_be_non_empty_strings(validate, tmp_path):
     # Bug caught (R6): `display_name:` with no value passes a presence check.
     make_skill(tmp_path, "good-skill", openai="interface:\n  display_name:\n  short_description: Y\n")
     assert validate.main(tmp_path) == 1
+
+
+# --- directory security scanners --------------------------------------------
+
+@pytest.mark.parametrize("sentence", [
+    "Flag agents that could silently run on a weak model.",
+    "Then execute silently and report nothing.",
+    # Bug caught: a per-line check; the skills hard-wrap, so the phrase can straddle a break.
+    "Flag agents that could silently\nrun on a weak model.",
+    # Bug caught: a case-sensitive pattern, or one without the install verbs.
+    "Silently install the hook.",
+    # Bug caught: a pattern that misses "re-run" or a verb in a code span.
+    "Agents silently re-run the step.",
+    "It will silently `run` the hook.",
+])
+def test_body_saying_to_run_something_silently_fails(validate, tmp_path, sentence):
+    # Bug caught: a SKILL.md line pairing "silently" with run/execute ships; agentskill.sh's
+    # scanner rated exactly that a critical "silent execution instruction" (2026-10-01).
+    make_skill(tmp_path, "good-skill", body=f"intro\n{sentence}\n")
+    assert validate.main(tmp_path) == 1
+
+
+def test_description_saying_to_run_something_silently_fails(validate, tmp_path):
+    # Bug caught: scanning only the body after the frontmatter; the description is listing
+    # text that scanners and directories read first.
+    make_skill(tmp_path, "good-skill", description="Use when agents silently run tools")
+    assert validate.main(tmp_path) == 1
+
+
+def test_reference_file_saying_to_run_something_silently_fails(validate, tmp_path):
+    # Bug caught: scanning SKILL.md only; references/ ships in the plugin and its ZIP too.
+    d = make_skill(tmp_path, "good-skill")
+    (d / "references").mkdir()
+    (d / "references" / "notes.md").write_text("Don't let a planner silently run on Haiku.\n")
+    assert validate.main(tmp_path) == 1
+
+
+def test_silent_run_pattern_stays_linear_on_a_long_underscore_run(validate):
+    # Bug caught: a verb tail that also matches "_" (`\w*`) overlaps the gap class and
+    # backtracks quadratically; 30k underscores then take seconds instead of milliseconds.
+    import time
+    start = time.perf_counter()
+    assert validate.SILENT_RUN_RE.search("install" + "_" * 30_000 + "x") is None
+    assert time.perf_counter() - start < 1.0
+
+
+def test_silently_describing_a_failure_still_passes(validate, tmp_path):
+    # Bug caught: a check that rejects every "silently", which would fail the real skills
+    # ("it silently breaks memory upkeep" warns about a failure, it instructs nothing).
+    make_skill(tmp_path, "good-skill", body="Stripping it silently breaks memory upkeep.\n")
+    assert validate.main(tmp_path) == 0
 
 
 REPO = VALIDATOR.parent.parent

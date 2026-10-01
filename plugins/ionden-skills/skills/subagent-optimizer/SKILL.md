@@ -136,8 +136,9 @@ hardest work, and only if the user confirms the job needs it. Levels depend on t
 model (see `best-practices.md`). When the pinned model does not support effort
 (Haiku), say that the field has no effect while that model runs the agent; a
 per-invocation model override can still change the model, so this is a note, not
-a rule, and don't press for removing the field. Flag complex agents left on default `inherit`: they
-run on whatever model the session uses, which can be too weak for the job. Present any model or effort change as a
+a rule, and don't press for removing the field. Flag complex agents left on
+default `inherit`: they run on whatever model the session uses, which can be too
+weak for the job. Present any model or effort change as a
 candidate to verify on the agent's real task, not as a saving; without a
 before/after comparison on that task it is a guess.
 

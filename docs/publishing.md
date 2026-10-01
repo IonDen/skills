@@ -9,7 +9,7 @@ From the repository root, with Python 3.10 or later, PyYAML and pytest installed
 ```bash
 python3 scripts/validate_skills.py
 python3 -m pytest tests -q
-python3 scripts/build_plugin_zip.py --output /tmp/ionden-skills-0.8.2.zip
+python3 scripts/build_plugin_zip.py --output /tmp/ionden-skills-0.8.3.zip
 ```
 
 Choose a new output path for each build. The builder will not overwrite a file or write inside the plugin. It prints a SHA-256 checksum, which identifies the archive's exact contents.

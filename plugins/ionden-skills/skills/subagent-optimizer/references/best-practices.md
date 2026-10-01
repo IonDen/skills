@@ -73,7 +73,7 @@ skill fills.
 **model** (defaults to `inherit` when omitted)
 - `[low] MODEL_INHERIT` — fine if intentional. But pin `haiku` for mechanical
   agents, and pin `sonnet`/`opus`/`fable` for agents whose competence requirement is
-  fixed regardless of session model (don't let a planner silently run on Haiku).
+  fixed regardless of session model (don't let a planner end up on Haiku).
 - A mechanical agent on `opus` is a downgrade candidate; a read-only agent is not
   automatically one (security review, architecture analysis). Any model change is a
   candidate until compared on the agent's real task.

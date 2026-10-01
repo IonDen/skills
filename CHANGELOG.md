@@ -2,9 +2,9 @@
 
 ## 2026-10-01 (plugin 0.8.3, subagent-optimizer 1.4.2, skill-optimizer 1.1.1)
 
-- `subagent-optimizer` 1.4.2: the note on agents left at the default `inherit` model now says they run on whatever model the session uses, which can be too weak for the job. It used to say they "could silently run" on a weak model, and the security scan on agentskill.sh read that phrase as a critical "silent execution instruction". The advice is unchanged.
+- `subagent-optimizer` 1.4.2: the note on agents left at the default `inherit` model now says they run on whatever model the session uses, which can be too weak for the job. It used to say they "could silently run" on a weak model, and the security scan on agentskill.sh read that phrase as a critical "silent execution instruction". The same phrase in `references/best-practices.md` is reworded too. The advice is unchanged.
 - `subagent-optimizer` 1.4.2 and `skill-optimizer` 1.1.1: the sentence about where Codex loads the skill from no longer spells out home-folder paths. The same scan counted each one as access to dotfiles in your home folder, although the sentence only says where the skill's own scripts are. `subagent-optimizer` still names `~/.claude/agents/` and the Codex agent folders, because reading those files is its job; the plugin README's Privacy section says so.
-- The validator now fails any `SKILL.md` line that puts "silently" next to run, execute or install, so that wording can't come back.
+- The validator now reads every Markdown file a skill ships, frontmatter and references included, and fails text that puts "silently" next to run, execute or install, also when a line break or Markdown formatting falls between the two words.
 - The plugin version goes to 0.8.3.
 
 ## 2026-09-29 (plugin 0.8.2)

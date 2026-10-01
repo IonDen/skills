@@ -4,7 +4,8 @@ the directory name and follows the Agent Skills spec (lowercase a-z0-9 with
 single hyphens, at most 64 chars), `description` is a non-empty string of at
 most 1024 chars, and, when a skill ships agents/openai.yaml, that file parses
 and, if it carries an `interface` block, that `display_name` and
-`short_description` are both non-empty strings. With the packaging checks it also confirms that
+`short_description` are both non-empty strings, and that no Markdown file in a skill pairs
+"silently" with run/execute/install (security scanners read that as a hidden-execution instruction). With the packaging checks it also confirms that
 plugins/ionden-skills/ is laid out as the Anthropic directory, claude.ai and Codex expect (skills
 under its own skills/ folder, no custom skills path) and that it ships nothing but the skills. Exit 1 on the first problem. Pass a repository root to check a different tree. Requires PyYAML."""
 import json
@@ -20,6 +21,29 @@ NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 NAME_MAX = 64
 DESCRIPTION_MAX = 1024
 FRONTMATTER_RE = re.compile(r"^---\r?\n(.*?)\r?\n---\r?\n", re.S)
+# Directory security scanners (agentskill.sh, 2026-10-01) rate "silently run" as a critical
+# "silent execution instruction", even when the sentence only warns about a risk. Their rule
+# is not published: run and execute are what was flagged, the other verb forms are a guess.
+# Whitespace includes line breaks (the skills hard-wrap) and Markdown punctuation may sit
+# between the words (`run`, **run**, "run, silently").
+# Verb tails are [a-z]*, not \w*: "_" is also in _GAP, and the overlap backtracks quadratically.
+_RUN_VERB = r"(?:re-?)?(?:run|runs|running|ran|execut[a-z]*|install[a-z]*)"
+_GAP = r"[\s`*_,-]+"
+SILENT_RUN_RE = re.compile(rf"\bsilently{_GAP}{_RUN_VERB}\b|\b{_RUN_VERB}{_GAP}silently\b", re.I)
+
+
+def silent_run_problems(skill_dir: Path) -> list[str]:
+    """Every Markdown file a skill ships, checked as whole text for 'silently' + run verb."""
+    problems = []
+    for md in sorted(skill_dir.rglob("*.md")):
+        text = md.read_text(encoding="utf-8-sig")
+        for m in SILENT_RUN_RE.finditer(text):
+            lineno = text.count("\n", 0, m.start()) + 1
+            rel = md.relative_to(skill_dir).as_posix()
+            problems.append(f"{skill_dir.name}: {rel} line {lineno} pairs 'silently' with "
+                            "run/execute/install; directory security scanners rate that a critical "
+                            "silent-execution instruction. Reword it.")
+    return problems
 
 
 def frontmatter(text: str):
@@ -41,7 +65,8 @@ def _nonempty_str(value) -> bool:
 def check_skill(skill_md: Path) -> list[str]:
     d = skill_md.parent
     problems = []
-    fm = frontmatter(skill_md.read_text(encoding="utf-8-sig"))
+    text = skill_md.read_text(encoding="utf-8-sig")
+    fm = frontmatter(text)
     if fm is None:
         return [f"{d.name}: no frontmatter"]
     if isinstance(fm, str):
@@ -60,6 +85,7 @@ def check_skill(skill_md: Path) -> list[str]:
         problems.append(f"{d.name}: description missing or empty")
     elif len(" ".join(desc.split())) > DESCRIPTION_MAX:
         problems.append(f"{d.name}: description is {len(desc)} chars (max {DESCRIPTION_MAX})")
+    problems += silent_run_problems(d)
     sidecar = d / "agents" / "openai.yaml"
     if sidecar.exists():
         try:

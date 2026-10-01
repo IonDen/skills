@@ -13,7 +13,7 @@ description: >-
   "trim SKILL.md", "my skills eat my context", "skill optimizer".
 license: MIT
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
   author: IonDen
 ---
 
@@ -24,10 +24,9 @@ large or small. There is no size target: a rewrite that drops a rule to reach a
 number is worse than no rewrite.
 
 All paths below are relative to this skill's directory: in Claude Code that is
-`${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from
-(`~/.agents/skills/skill-optimizer/`, a project's `.agents/skills/skill-optimizer/`,
-or the older `~/.codex/skills/`). Resolve scripts from that directory, not from
-a guessed home path.
+`${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from (the
+user's or a project's `.agents/skills/skill-optimizer/`, or the older Codex skills
+folder). Resolve scripts from that directory, not from a guessed home path.
 
 Double-quote every path you put into a command, and if a path contains a shell
 metacharacter such as `$`, `;`, `|` or a backtick, stop and ask the user first.

@@ -14,7 +14,7 @@ description: >-
   .codex/agents", "make my agents cheaper".
 license: MIT
 metadata:
-  version: "1.4.1"
+  version: "1.4.2"
   author: IonDen
 ---
 
@@ -31,10 +31,9 @@ the rationale behind each flag and `references/tool-catalog.md` for the tool lis
 and archetype → tools map — consult both before proposing tool changes.
 
 All paths below are relative to this skill's directory: in Claude Code that is
-`${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from
-(`~/.agents/skills/subagent-optimizer/`, a project's `.agents/skills/subagent-optimizer/`,
-or the older `~/.codex/skills/`). Resolve scripts from that directory, not from a
-guessed home path.
+`${CLAUDE_SKILL_DIR}`; in Codex it is wherever this SKILL.md was loaded from (the
+user's or a project's `.agents/skills/subagent-optimizer/`, or the older Codex skills
+folder). Resolve scripts from that directory, not from a guessed home path.
 
 ## Workflow
 
@@ -137,8 +136,8 @@ hardest work, and only if the user confirms the job needs it. Levels depend on t
 model (see `best-practices.md`). When the pinned model does not support effort
 (Haiku), say that the field has no effect while that model runs the agent; a
 per-invocation model override can still change the model, so this is a note, not
-a rule, and don't press for removing the field. Flag complex agents left on default `inherit` that
-could silently run on a weak session model. Present any model or effort change as a
+a rule, and don't press for removing the field. Flag complex agents left on default `inherit`: they
+run on whatever model the session uses, which can be too weak for the job. Present any model or effort change as a
 candidate to verify on the agent's real task, not as a saving; without a
 before/after comparison on that task it is a guess.
 

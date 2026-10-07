@@ -46,6 +46,24 @@ def silent_run_problems(skill_dir: Path) -> list[str]:
     return problems
 
 
+# A link destination written as a bare absolute URL, `[x](https://…)`. Some tool that pulls URLs
+# out of the raw Markdown keeps the closing `)` and any punctuation after it, and the visitor gets
+# a 404 (repo traffic, 2026-10-07). The angle-bracket form `[x](<https://…>)` renders the same and
+# should stop that extraction at `>`, which no URL may contain. Matched over the whole text (a
+# hard-wrapped link can break after `(`). Code blocks are not skipped: no shipped file shows this
+# syntax as an example, and CHANGELOG.md, which does, is not checked.
+BARE_URL_LINK_RE = re.compile(r"\]\(\s*https?://", re.I)
+
+
+def bare_link_problems(md: Path, label: str) -> list[str]:
+    """Each place a Markdown file links a bare absolute URL, by line."""
+    text = md.read_text(encoding="utf-8-sig")
+    return [f"{label} line {text.count(chr(10), 0, m.start()) + 1} links a bare absolute URL; tools "
+            "that read the raw Markdown copy the closing ')' into it and land on a 404. "
+            "Write [text](<https://...>)."
+            for m in BARE_URL_LINK_RE.finditer(text)]
+
+
 def frontmatter(text: str):
     """Return the parsed frontmatter mapping, None if absent, or a str error."""
     m = FRONTMATTER_RE.match(text)
@@ -86,6 +104,8 @@ def check_skill(skill_md: Path) -> list[str]:
     elif len(" ".join(desc.split())) > DESCRIPTION_MAX:
         problems.append(f"{d.name}: description is {len(desc)} chars (max {DESCRIPTION_MAX})")
     problems += silent_run_problems(d)
+    for md in sorted(d.rglob("*.md")):
+        problems += bare_link_problems(md, f"{d.name}: {md.relative_to(d).as_posix()}")
     sidecar = d / "agents" / "openai.yaml"
     if sidecar.exists():
         try:
@@ -219,6 +239,11 @@ def check_plugin(root: Path) -> list[str]:
         if words < LISTING_MIN_WORDS:
             problems.append(f"{P}/README.md: {words} words outside code blocks "
                             f"(the listing needs at least {LISTING_MIN_WORDS})")
+        problems += bare_link_problems(readme, f"{P}/README.md")
+    # The repository landing page and the docs it links to: what browsing agents read first.
+    for md in [root / "README.md", *sorted((root / "docs").rglob("*.md"))]:
+        if md.is_file():
+            problems += bare_link_problems(md, md.relative_to(root).as_posix())
     if not (pr / "LICENSE").is_file():
         problems.append(f"{P}/LICENSE: missing (the plugin folder must carry its own license)")
     icon = pr / ".claude-plugin" / "icon.svg"

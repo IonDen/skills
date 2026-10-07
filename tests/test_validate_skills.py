@@ -154,6 +154,72 @@ def test_silently_describing_a_failure_still_passes(validate, tmp_path):
     assert validate.main(tmp_path) == 0
 
 
+# --- absolute links that raw-text readers break ------------------------------
+
+BARE = "bare absolute URL"
+
+
+@pytest.mark.parametrize("body, line", [
+    # Bug caught: a shipped `[x](https://…).` link; tools that pull URLs out of the raw Markdown
+    # keep the `).` and send visitors to a 404 (seen in the repo traffic, 2026-10-07).
+    ("See [the evals](https://example.com/evals/).", 5),
+    # Bug caught: a case-sensitive pattern lets an uppercase scheme through.
+    ("See [the evals](HTTPS://example.com/evals/).", 5),
+    # Bug caught: a per-line check; a hard-wrapped link can break right after `(`.
+    ("See [the evals](\nhttps://example.com/evals/).", 5),
+])
+def test_bare_absolute_link_in_a_skill_body_fails(validate, tmp_path, body, line):
+    d = make_skill(tmp_path, "good-skill", body=body)
+    assert any(BARE in p and f"SKILL.md line {line} " in p for p in validate.check_skill(d / "SKILL.md"))
+
+
+def test_bare_absolute_link_in_a_reference_file_fails(validate, tmp_path):
+    # Bug caught: checking SKILL.md only, or only links followed by punctuation; the closing
+    # `)` alone already ends up in the extracted URL.
+    d = make_skill(tmp_path, "good-skill")
+    (d / "references").mkdir()
+    (d / "references" / "notes.md").write_text("Results: [runs](https://example.com/runs/) here\n")
+    assert any(BARE in p and "references/notes.md line 1 " in p
+               for p in validate.check_skill(d / "SKILL.md"))
+
+
+def test_angle_bracket_and_relative_links_pass(validate, tmp_path):
+    # Bug caught: a check that flags every link instead of only bare absolute destinations.
+    make_skill(tmp_path, "good-skill",
+               body="See [the evals](<https://example.com/evals/>). Also [notes](references/a.md).\n")
+    assert validate.main(tmp_path) == 0
+
+
+@pytest.mark.parametrize("line", [
+    "Source: [repo](https://example.com/repo).",
+    "[![badge](https://img.example.com/b.svg)](<https://example.com/>)",
+])
+def test_bare_absolute_link_in_the_plugin_readme_fails(validate, tmp_path, line):
+    # Bug caught: the plugin README (the directory listing text) left out of the check,
+    # or a badge image URL not counted as a link destination.
+    root = make_plugin(tmp_path, ["a-skill"], readme=LISTING + "\n\n" + line + "\n")
+    assert any(p.startswith(f"{PLUGIN}/README.md line 3 ") and BARE in p
+               for p in validate.check_plugin(root))
+
+
+def test_bare_absolute_link_in_the_root_readme_fails(validate, tmp_path):
+    # Bug caught: the repository landing page, the README browsing agents read first, left out.
+    root = make_plugin(tmp_path, ["a-skill"])
+    (root / "README.md").write_text("Listed at [skills.sh](https://skills.sh/x/y):\n")
+    assert any(p.startswith("README.md line 1 ") and BARE in p for p in validate.check_plugin(root))
+    (root / "README.md").write_text("Listed at [skills.sh](<https://skills.sh/x/y>):\n")
+    assert validate.check_plugin(root) == []
+
+
+def test_bare_absolute_link_in_a_repo_doc_fails(validate, tmp_path):
+    # Bug caught: docs/ left out; the root README links its pages, so readers follow them too.
+    root = make_plugin(tmp_path, ["a-skill"])
+    (root / "docs").mkdir()
+    (root / "docs" / "publishing.md").write_text("Intro\n\nSee [the portal](https://example.com/p).\n")
+    assert any(p.startswith("docs/publishing.md line 3 ") and BARE in p
+               for p in validate.check_plugin(root))
+
+
 REPO = VALIDATOR.parent.parent
 LISTING = " ".join(["word"] * 45)
 OMIT = object()

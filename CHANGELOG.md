@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-07 (plugin 0.8.4)
+
+- Links to absolute URLs in the three skill READMEs, the repository README and the publishing guide are now written as `[text](<https://...>)`. Some tool that reads the raw Markdown and pulls out the URL kept the closing `)` and the punctuation after it, so a link followed by punctuation, such as the ones to the eval results, became a GitHub page that doesn't exist. The angle brackets should end the address before the `)`. On GitHub the links look and work the same. The `SKILL.md` files are unchanged; the skill READMEs change only their link syntax.
+- The validator now fails a bare absolute link, `[text](https://...)`, in any Markdown file a skill ships, in the plugin README, in the repository README and under `docs/`.
+- The plugin version goes to 0.8.4.
+
 ## 2026-10-01 (plugin 0.8.3, subagent-optimizer 1.4.2, skill-optimizer 1.1.1)
 
 - `subagent-optimizer` 1.4.2: the note on agents left at the default `inherit` model now says they run on whatever model the session uses, which can be too weak for the job. It used to say they "could silently run" on a weak model, and the security scan on agentskill.sh read that phrase as a critical "silent execution instruction". The same phrase in `references/best-practices.md` is reworded too. The advice is unchanged.

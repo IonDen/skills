@@ -6,7 +6,7 @@ Triggers: "write tests", "add unit tests", "review these tests", "make the tests
 
 ## Why this exists
 
-Coding agents are rewarded for green tests, and it shows. Across more than 1.2 million commits, 36% of the commits coding agents made added mocks to tests, against 26% of other commits ([Hora and Robbes, 2026](https://arxiv.org/abs/2602.00409)). Generated tests tend to take their expected values from whatever the code returns now, bugs included ([Konstantinou et al.](https://arxiv.org/abs/2410.21136)). When a test won't pass, models return the expected value directly or edit the test to match the output ([Claude 3.7 Sonnet system card](https://assets.anthropic.com/m/785e231869ea8b3b/original/claude-3-7-sonnet-system-card.pdf); [ImpossibleBench](https://arxiv.org/abs/2510.20270)). A suite built that way is green and catches little. One study found suites with 100% line coverage and a 4% mutation score ([MUTGEN](https://arxiv.org/abs/2506.02954)).
+Coding agents are rewarded for green tests, and it shows. Across more than 1.2 million commits, 36% of the commits coding agents made added mocks to tests, against 26% of other commits ([Hora and Robbes, 2026](<https://arxiv.org/abs/2602.00409>)). Generated tests tend to take their expected values from whatever the code returns now, bugs included ([Konstantinou et al.](<https://arxiv.org/abs/2410.21136>)). When a test won't pass, models return the expected value directly or edit the test to match the output ([Claude 3.7 Sonnet system card](<https://assets.anthropic.com/m/785e231869ea8b3b/original/claude-3-7-sonnet-system-card.pdf>); [ImpossibleBench](<https://arxiv.org/abs/2510.20270>)). A suite built that way is green and catches little. One study found suites with 100% line coverage and a 4% mutation score ([MUTGEN](<https://arxiv.org/abs/2506.02954>)).
 
 ## What it asks for
 
@@ -22,7 +22,7 @@ The body of `SKILL.md` is written in language-neutral pseudo-code. `references/`
 
 ## Evidence
 
-Four small fixtures, run with Claude Haiku three times without the skill and three times with it. The full method and every run are in the repository under [`evals/writing-tests-that-can-fail/`](https://github.com/IonDen/skills/tree/main/evals/writing-tests-that-can-fail/); they don't install with the skill.
+Four small fixtures, run with Claude Haiku three times without the skill and three times with it. The full method and every run are in the repository under [`evals/writing-tests-that-can-fail/`](<https://github.com/IonDen/skills/tree/main/evals/writing-tests-that-can-fail/>); they don't install with the skill.
 
 | Fixture and criterion | Haiku, no skill | Haiku, with skill |
 |---|---|---|

@@ -83,9 +83,9 @@ Then the body: a 46-line "Persistent Agent Memory" section, which the harness in
 
 145 lines became 102. `Edit` and `Write` stayed, because `memory: user` needs them and stripping them silently breaks memory upkeep. Launched on the same task, before and after, the agent returned the same answer and its first request went from 20,122 to 13,962 input tokens.
 
-![Claude Code subagent launch tokens before and after subagent-optimizer, measured on Claude Code 2.1.278: a no-tools-field agent against a three-tool allowlist on Haiku and Sonnet, and three real agents that dropped 31%, 13% and 3% with equivalent results](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/subagent-optimizer-workflow.svg)
+![Claude Code subagent launch tokens before and after subagent-optimizer, measured on Claude Code 2.1.278: a no-tools-field agent against a three-tool allowlist on Haiku and Sonnet, and three real agents that dropped 31%, 13% and 3% with equivalent results](<https://raw.githubusercontent.com/IonDen/skills/main/docs/images/subagent-optimizer-workflow.svg>)
 
-Full method, table and harness: [`evals/subagent-optimizer/recorded/2026-09-19-launch-cost/`](https://github.com/IonDen/skills/tree/main/evals/subagent-optimizer/recorded/2026-09-19-launch-cost/).
+Full method, table and harness: [`evals/subagent-optimizer/recorded/2026-09-19-launch-cost/`](<https://github.com/IonDen/skills/tree/main/evals/subagent-optimizer/recorded/2026-09-19-launch-cost/>).
 
 ## Install
 
@@ -128,11 +128,11 @@ subagent-optimizer/
     └── bump_version.py          bumps the version of an edited Claude agent (refuses Codex files)
 ```
 
-The evals are in the repository under [`evals/subagent-optimizer/`](https://github.com/IonDen/skills/tree/main/evals/subagent-optimizer/): six prompts with expected outcomes, the agent fixtures they run against, and the measured runs with their harness. They don't install with the skill.
+The evals are in the repository under [`evals/subagent-optimizer/`](<https://github.com/IonDen/skills/tree/main/evals/subagent-optimizer/>): six prompts with expected outcomes, the agent fixtures they run against, and the measured runs with their harness. They don't install with the skill.
 
 ## Sources
 
-The flag list follows Anthropic's own documentation: [subagents](https://code.claude.com/docs/en/sub-agents) for the frontmatter fields, the tool blacklist and nested-subagent rules, [tools reference](https://code.claude.com/docs/en/tools-reference) for current tool names, [costs](https://code.claude.com/docs/en/costs) for what is deferred, and the API [tool-search documentation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool) for the 55k-token and 85% figures, which were measured for MCP tool definitions.
+The flag list follows Anthropic's own documentation: [subagents](<https://code.claude.com/docs/en/sub-agents>) for the frontmatter fields, the tool blacklist and nested-subagent rules, [tools reference](<https://code.claude.com/docs/en/tools-reference>) for current tool names, [costs](<https://code.claude.com/docs/en/costs>) for what is deferred, and the API [tool-search documentation](<https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool>) for the 55k-token and 85% figures, which were measured for MCP tool definitions.
 
 ## Version history
 
@@ -155,4 +155,4 @@ The flag list follows Anthropic's own documentation: [subagents](https://code.cl
 
 ## Author and license
 
-By [Denis Ineshin](https://github.com/IonDen). MIT.
+By [Denis Ineshin](<https://github.com/IonDen>). MIT.

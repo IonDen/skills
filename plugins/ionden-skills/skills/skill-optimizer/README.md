@@ -50,7 +50,7 @@ A sentence with no rule word and no anchor is protected only through the literal
 
 ## Before and after on real skills
 
-![SKILL.md body size before and after skill-optimizer on five real skills: python-ml-testing 28,081 to 27,558 characters (-1.9%), paper-writing 12,486 to 12,253 (-1.9%), user-mlx-developer 11,619 to 11,233 (-3.3%), content-translator 10,221 to 9,864 (-3.5%), subagent-optimizer 8,863 to 8,758 (-1.2%); every requirement kept and every gate passed](https://raw.githubusercontent.com/IonDen/skills/main/docs/images/skill-optimizer-results.svg)
+![SKILL.md body size before and after skill-optimizer on five real skills: python-ml-testing 28,081 to 27,558 characters (-1.9%), paper-writing 12,486 to 12,253 (-1.9%), user-mlx-developer 11,619 to 11,233 (-3.3%), content-translator 10,221 to 9,864 (-3.5%), subagent-optimizer 8,863 to 8,758 (-1.2%); every requirement kept and every gate passed](<https://raw.githubusercontent.com/IonDen/skills/main/docs/images/skill-optimizer-results.svg>)
 
 Five real skills, one run each by a fresh agent following `SKILL.md`: four from the author's own setup and this repository's `subagent-optimizer`. Every run passed the gate and kept every requirement it extracted.
 
@@ -65,7 +65,7 @@ Five real skills, one run each by a fresh agent following `SKILL.md`: four from 
 
 The cuts are small because of what the skill refuses to guess about. Everything it cut was framing: a sentence restating its heading, a lead-in to a list that explains itself, a divider between sections that already have headings. Every cut it was unsure of went into the report as an optional cut instead: a subsection that repeats the structure template, a rule stated three times, a 2,788-character section that applies to one kind of project and could move into a reference file. The numbers above count only what was cut without asking.
 
-After each run, a fresh agent that saw only the shortened `SKILL.md` listed every instruction it could find, and a third agent checked that list against the original's requirements. Two skills came back complete. For the other two, every sentence the reader skipped was still in the file word for word, and a reader of the unchanged original skipped the same ones. The one exception turned up on a second read of the shortened skill. The personal skills' text is not published; their numbers, gate lines and checks are in [`evals/skill-optimizer/recorded/2026-09-24-real-skills/`](https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/recorded/2026-09-24-real-skills/).
+After each run, a fresh agent that saw only the shortened `SKILL.md` listed every instruction it could find, and a third agent checked that list against the original's requirements. Two skills came back complete. For the other two, every sentence the reader skipped was still in the file word for word, and a reader of the unchanged original skipped the same ones. The one exception turned up on a second read of the shortened skill. The personal skills' text is not published; their numbers, gate lines and checks are in [`evals/skill-optimizer/recorded/2026-09-24-real-skills/`](<https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/recorded/2026-09-24-real-skills/>).
 
 The `python-ml-testing` run also found a bug: 1.0.1 rejected even an unchanged copy of that skill, because it joined a number at the end of one table row with the first word of the next. 1.0.2 fixes it.
 
@@ -73,11 +73,11 @@ The `python-ml-testing` run also found a bug: 1.0.1 rejected even an unchanged c
 
 This is the one skill whose text is published, so its run can be checked line by line. Gate: pass, re-run independently against the frozen original. Two sentences were cut, both plain restatements with no rule word and no anchor: one cheered for a conclusion the sentence right before it already reached, the other restated the heading that followed it. Two more sentences that carry a rule word ("must", "isn't") were left in place and flagged as decisions instead, because the agent read both as the stated reason behind a rule rather than filler. Requirements extracted: 28 (16 sentences left unprotected on purpose: short bold lead-in labels, none of them cut). Coverage: 28/28. A separate fresh agent, given only the optimized `SKILL.md` and asked to reconstruct every instruction it could find, returned 81 items; every one of the 28 requirements mapped onto at least one, and neither cut sentence appeared.
 
-The skill was already tight. Run against a real document instead of a synthetic fixture, the optimizer found almost nothing it could cut without loss, and said so rather than forcing a number. (One of the evals' own fixtures is a deliberately padded test skill built to shrink by 29.7% (2,898 to 2,036 characters) under the same gate, keeping and listing every further cut it wasn't sure was safe instead of applying it; see [`evals/skill-optimizer/README.md`](https://github.com/IonDen/skills/blob/main/evals/skill-optimizer/README.md). So the small real-skill number reflects the input, not a ceiling on what the skill will cut.)
+The skill was already tight. Run against a real document instead of a synthetic fixture, the optimizer found almost nothing it could cut without loss, and said so rather than forcing a number. (One of the evals' own fixtures is a deliberately padded test skill built to shrink by 29.7% (2,898 to 2,036 characters) under the same gate, keeping and listing every further cut it wasn't sure was safe instead of applying it; see [`evals/skill-optimizer/README.md`](<https://github.com/IonDen/skills/blob/main/evals/skill-optimizer/README.md>). So the small real-skill number reflects the input, not a ceiling on what the skill will cut.)
 
 Behaviour check: subagent-optimizer's own eval 1 and eval 3, each run once against the original `SKILL.md` and once against the optimized copy, each by a fresh agent on a fresh copy of the fixtures. All 13 of 13 expected clauses were met by both versions; none differed. One of the four runs noted, in its own report, that its target agent file matched a fixture behind one of this skill's own recorded eval records. That is a fact about that run's independence, not about any behaviour difference traceable to the two deleted sentences.
 
-Full method and report: [`evals/skill-optimizer/recorded/2026-09-24-subagent-optimizer/`](https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/recorded/2026-09-24-subagent-optimizer/).
+Full method and report: [`evals/skill-optimizer/recorded/2026-09-24-subagent-optimizer/`](<https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/recorded/2026-09-24-subagent-optimizer/>).
 
 ## Install
 
@@ -122,14 +122,14 @@ skill-optimizer/
     └── skillmd.py                 shared SKILL.md parsing the other scripts use
 ```
 
-The evals are in the repository under [`evals/skill-optimizer/`](https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/): six prompts with expected outcomes, the fixtures they run against, and the recorded runs, five real skills among them. They don't install with the skill.
+The evals are in the repository under [`evals/skill-optimizer/`](<https://github.com/IonDen/skills/tree/main/evals/skill-optimizer/>): six prompts with expected outcomes, the fixtures they run against, and the recorded runs, five real skills among them. They don't install with the skill.
 
 ## Sources
 
-- [Agent Skills specification](https://agentskills.io/specification): the 1,024-character description limit, the under-500-line guidance for `SKILL.md`, and the under-5,000-token guidance for instructions. `when_to_use` is not part of the spec.
-- [Claude Code skills docs](https://code.claude.com/docs/en/skills): `/skill-doctor` needs Claude Code v2.1.252+.
-- [anthropics/claude-code#47627](https://github.com/anthropics/claude-code/issues/47627): the 1,536-character per-skill listing cap, a default and configurable, not stated in Anthropic's own docs.
-- [openai/codex#24299](https://github.com/openai/codex/issues/24299): Codex's skill listing reported to use at most 2% of the context window, or 8,000 characters when that figure is unknown.
+- [Agent Skills specification](<https://agentskills.io/specification>): the 1,024-character description limit, the under-500-line guidance for `SKILL.md`, and the under-5,000-token guidance for instructions. `when_to_use` is not part of the spec.
+- [Claude Code skills docs](<https://code.claude.com/docs/en/skills>): `/skill-doctor` needs Claude Code v2.1.252+.
+- [anthropics/claude-code#47627](<https://github.com/anthropics/claude-code/issues/47627>): the 1,536-character per-skill listing cap, a default and configurable, not stated in Anthropic's own docs.
+- [openai/codex#24299](<https://github.com/openai/codex/issues/24299>): Codex's skill listing reported to use at most 2% of the context window, or 8,000 characters when that figure is unknown.
 
 ## Version history
 
@@ -143,4 +143,4 @@ The evals are in the repository under [`evals/skill-optimizer/`](https://github.
 
 ## Author and license
 
-By [Denis Ineshin](https://github.com/IonDen). MIT.
+By [Denis Ineshin](<https://github.com/IonDen>). MIT.

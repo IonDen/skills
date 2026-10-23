@@ -1,0 +1,4 @@
+[
+  {"phase": 1, "folder": "2026-10-22", "decision": "decision.json", "gaps": []},
+  {"phase": 2, "folder": "2026-10-23", "decision": "decision-phase2.json", "gaps": ["writing-tests-that-can-fail"]}
+]

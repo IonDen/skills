@@ -1,0 +1,1 @@
+When you write, change or review tests, including the failing-test step of TDD, use the writing-tests-that-can-fail skill and follow it. When you hand test work to a subagent, tell it to use that skill too.

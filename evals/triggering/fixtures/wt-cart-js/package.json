@@ -1,0 +1,6 @@
+{
+  "name": "cart",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "test": "node --test" }
+}

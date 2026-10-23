@@ -108,3 +108,21 @@ def harness():
 @pytest.fixture(scope="session")
 def runner():
     return _load("run_eval", WTCF_EVALS)
+
+
+TRIGGER_EVALS = ROOT / "evals" / "triggering"
+
+
+@pytest.fixture(scope="session")
+def trigger():
+    return _load("trigger", TRIGGER_EVALS)
+
+
+@pytest.fixture(scope="session")
+def decide():
+    return _load("decide", TRIGGER_EVALS)
+
+
+@pytest.fixture(scope="session")
+def trigger_runner():
+    return _load("run_trigger", TRIGGER_EVALS)

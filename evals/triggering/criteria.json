@@ -1,0 +1,11 @@
+{
+  "reps": 3,
+  "near_reps_candidate": 5,
+  "gap_min_prompts": 3,
+  "gap_miss_reps": 2,
+  "ship_net_improved": 3,
+  "ship_pooled_hits": 6,
+  "near_false_opus": 0,
+  "near_false_total": 1,
+  "decision_model": "opus"
+}

@@ -1,0 +1,6 @@
+{"type": "system", "subtype": "init", "cwd": "/WS", "tools": ["Bash", "Read", "Write", "Edit", "Skill", "Agent"], "model": "claude-opus-5-5", "session_id": "s"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "/WS/pricing.py"}}]}, "parent_tool_use_id": null, "session_id": "s"}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t0", "content": "ok"}]}, "parent_tool_use_id": null, "session_id": "s"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t2", "name": "Edit", "input": {"file_path": "/WS/pricing.py", "old_string": "a", "new_string": "b"}}]}, "parent_tool_use_id": null, "session_id": "s"}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t0", "content": "ok"}]}, "parent_tool_use_id": null, "session_id": "s"}
+{"type": "result", "subtype": "success", "is_error": false, "total_cost_usd": 0.1, "num_turns": 3, "result": "done", "session_id": "s"}

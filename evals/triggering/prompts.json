@@ -1,0 +1,457 @@
+{
+  "prompts": [
+    {
+      "id": "wt-s01",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Add a rule to pricing.py: orders with 10 or more items in total get 5% off the subtotal.",
+      "control": false
+    },
+    {
+      "id": "wt-s02",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Customers say an order of exactly 100.00 still pays shipping. Fix it.",
+      "control": false
+    },
+    {
+      "id": "wt-s03",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-cart-js",
+      "text": "Write a failing test first for a coupon code SAVE10 in cartTotal that takes 10% off before tax, then implement it.",
+      "control": false
+    },
+    {
+      "id": "wt-s04",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "tests/test_pricing.py::test_tags is flaky: it fails on some CI runs and passes on others. Make it reliable.",
+      "control": false
+    },
+    {
+      "id": "wt-s05",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Explain what the tests in tests/test_pricing.py actually check, and whether they would catch a wrong free-shipping threshold.",
+      "control": false
+    },
+    {
+      "id": "wt-s06",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-cart-js",
+      "text": "The cart tests call the real tax service and fail without network. Mock it out so the tests run offline.",
+      "control": false
+    },
+    {
+      "id": "wt-s07",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "delegate",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Use a subagent to add tests for the shipping rules in pricing.py while you check the rest of the module for problems.",
+      "control": false
+    },
+    {
+      "id": "wt-s08",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "My AI coding agent writes over-mocked tests that can never fail. Fix what is wrong with the tests in tests/test_pricing.py.",
+      "control": true
+    },
+    {
+      "id": "wt-s09",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-cart-js",
+      "text": "Add free delivery to cart.js: carts whose net total is over 50 get a delivery fee of 0 instead of 3.99.",
+      "control": false
+    },
+    {
+      "id": "wt-s10",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "A quantity of 0 slips through subtotal() without an error. Fix that.",
+      "control": false
+    },
+    {
+      "id": "wt-s11",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Using TDD, add a member flag to total(): members never pay shipping.",
+      "control": false
+    },
+    {
+      "id": "wt-s12",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-cart-js",
+      "text": "test/cart.test.js fails on CI about one run in ten. Find out why and fix it.",
+      "control": false
+    },
+    {
+      "id": "wt-s13",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Look at tests/test_pricing.py: which of these tests would still pass if shipping() always returned 0?",
+      "control": false
+    },
+    {
+      "id": "wt-s14",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "The tests for total() read the real rates.json. Give them their own rates so a change to that file can't break them.",
+      "control": false
+    },
+    {
+      "id": "wt-s15",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "delegate",
+      "half": "heldout",
+      "fixture": "wt-cart-js",
+      "text": "Hand the job of writing tests for cart.js to a subagent, then summarise what it covered.",
+      "control": false
+    },
+    {
+      "id": "wt-s16",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Increase test coverage for pricing.py.",
+      "control": false
+    },
+    {
+      "id": "wt-n01",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Run the test suite and tell me what fails.",
+      "control": false
+    },
+    {
+      "id": "wt-n02",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Add pytest-cov to the project config so coverage is reported on every run.",
+      "control": false
+    },
+    {
+      "id": "wt-n03",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Rename the variable sub in total() to net_amount.",
+      "control": false
+    },
+    {
+      "id": "wt-n04",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "wt-cart-js",
+      "text": "Add a JSDoc comment to every function in cart.js.",
+      "control": false
+    },
+    {
+      "id": "wt-n05",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "wt-pricing-py",
+      "text": "Raise the minimum Python version in pyproject.toml to 3.11.",
+      "control": false
+    },
+    {
+      "id": "wt-n06",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Make the test runner run tests in parallel with pytest-xdist.",
+      "control": false
+    },
+    {
+      "id": "wt-n07",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "wt-cart-js",
+      "text": "What does node --test do differently from jest? Just explain, don't change anything.",
+      "control": false
+    },
+    {
+      "id": "wt-n08",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Refactor total() in pricing.py into smaller functions without changing its behaviour. Leave the tests alone.",
+      "control": false
+    },
+    {
+      "id": "wt-n09",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Fix the spelling mistake in the README.",
+      "control": false
+    },
+    {
+      "id": "wt-n10",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "wt-pricing-py",
+      "text": "Explain how the shipping rule in pricing.py works.",
+      "control": false
+    },
+    {
+      "id": "op-s01",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "Why did my Claude Code bill jump this month? I mostly use the agents in .claude/agents.",
+      "control": false
+    },
+    {
+      "id": "op-s02",
+      "skill": "skill-optimizer",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "/context shows about 40k tokens in skills before I type anything. The release-checklist skill in skills/ is mine. Can you help?",
+      "control": false
+    },
+    {
+      "id": "op-s03",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "opt-codex",
+      "text": "My Codex custom agents in .codex/agents cost a lot per run. What can I cut?",
+      "control": false
+    },
+    {
+      "id": "op-s04",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "My Claude Code subagents burn a lot of tokens. Is there a skill or plugin that can audit my subagents and make them cheaper? Audit the ones in .claude/agents and tell me what is wrong. Do not edit files.",
+      "control": true
+    },
+    {
+      "id": "op-s05",
+      "skill": "skill-optimizer",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "My SKILL.md files are too long and eat my context window. Shrink skills/release-checklist/SKILL.md without losing any of its instructions.",
+      "control": true
+    },
+    {
+      "id": "op-s06",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "dev",
+      "fixture": "opt-codex",
+      "text": "I have Codex custom agents in .codex/agents/*.toml. Find out what is wrong with them and how to optimize them. Do not edit files.",
+      "control": true
+    },
+    {
+      "id": "op-s07",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "Each Task launch costs me about 20k tokens up front. What is going on with my agents?",
+      "control": false
+    },
+    {
+      "id": "op-s08",
+      "skill": "skill-optimizer",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "My skill in skills/release-checklist gets loaded a lot and it is expensive. Make it cheaper to load.",
+      "control": false
+    },
+    {
+      "id": "op-s09",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "opt-codex",
+      "text": "Codex keeps ignoring one of my agents in .codex/agents. Can you check them?",
+      "control": false
+    },
+    {
+      "id": "op-s10",
+      "skill": "skill-optimizer",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "I hit context limits early in my sessions and I suspect my own skill in skills/. Look into it.",
+      "control": false
+    },
+    {
+      "id": "op-s11",
+      "skill": "subagent-optimizer",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "Are the agents in .claude/agents set up sensibly for cost? Which model should each one use?",
+      "control": false
+    },
+    {
+      "id": "op-s12",
+      "skill": "skill-optimizer",
+      "kind": "should",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "Trim skills/release-checklist/SKILL.md, it has got bloated.",
+      "control": false
+    },
+    {
+      "id": "op-n01",
+      "skill": "skill-optimizer",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "Create a new skill in skills/ that formats commit messages.",
+      "control": false
+    },
+    {
+      "id": "op-n02",
+      "skill": "subagent-optimizer",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "Write a new subagent in .claude/agents that reviews SQL migrations.",
+      "control": false
+    },
+    {
+      "id": "op-n03",
+      "skill": "subagent-optimizer",
+      "kind": "near",
+      "half": "dev",
+      "fixture": "opt-claude",
+      "text": "Explain what a Claude Code subagent is and when to use one.",
+      "control": false
+    },
+    {
+      "id": "op-n04",
+      "skill": "skill-optimizer",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "Optimise the slowest function in scripts/report.py.",
+      "control": false
+    },
+    {
+      "id": "op-n05",
+      "skill": "subagent-optimizer",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "opt-codex",
+      "text": "Add a new Codex agent in .codex/agents for writing release notes.",
+      "control": false
+    },
+    {
+      "id": "op-n06",
+      "skill": "skill-optimizer",
+      "kind": "near",
+      "half": "heldout",
+      "fixture": "opt-claude",
+      "text": "What is the difference between a skill and a slash command?",
+      "control": false
+    },
+    {
+      "id": "wt-f01",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "fresh",
+      "fixture": "wt-pricing-py",
+      "text": "Register a pytest marker named slow in the project config so slow tests can be skipped with -m \"not slow\".",
+      "control": false
+    },
+    {
+      "id": "wt-f02",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "fresh",
+      "fixture": "wt-cart-js",
+      "text": "Split cart.js into two modules, one for totals and one for tax, without changing behaviour. Don't touch the tests.",
+      "control": false
+    },
+    {
+      "id": "wt-f03",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "fresh",
+      "fixture": "wt-pricing-py",
+      "text": "Add a GitHub Actions workflow that runs the test suite on every push.",
+      "control": false
+    },
+    {
+      "id": "wt-f04",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "fresh",
+      "fixture": "wt-cart-js",
+      "text": "Add an npm script called test:watch that reruns the tests whenever a file changes.",
+      "control": false
+    },
+    {
+      "id": "wt-f05",
+      "skill": "writing-tests-that-can-fail",
+      "kind": "near",
+      "half": "fresh",
+      "fixture": "wt-pricing-py",
+      "text": "Add type hints to every function in pricing.py. The existing tests must keep passing unchanged.",
+      "control": false
+    }
+  ],
+  "guard_words": [
+    "pricing",
+    "shipping",
+    "coupon",
+    "cart",
+    "bill",
+    "xdist",
+    "pytest-cov",
+    "release-checklist",
+    "rates.json",
+    "flaky"
+  ]
+}

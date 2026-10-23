@@ -1,0 +1,39 @@
+{
+  "skill-optimizer": {
+    "gap": {
+      "gap": false,
+      "prompts": []
+    }
+  },
+  "subagent-optimizer": {
+    "gap": {
+      "gap": false,
+      "prompts": []
+    }
+  },
+  "writing-tests-that-can-fail": {
+    "candidate": {
+      "near_false_opus": 0,
+      "near_false_total": 0,
+      "net_improved": 1,
+      "pooled_delta": 1,
+      "ship": false
+    },
+    "gap": {
+      "gap": true,
+      "prompts": [
+        "wt-s09",
+        "wt-s10",
+        "wt-s12",
+        "wt-s14"
+      ]
+    },
+    "snippet2": {
+      "near_false_opus": 0,
+      "near_false_total": 0,
+      "net_improved": 5,
+      "pooled_delta": 13,
+      "ship": true
+    }
+  }
+}

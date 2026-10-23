@@ -1,0 +1,5 @@
+{
+  "measured_with": "claude plugin details ionden-skills (CLI 2.1.308)",
+  "before": {"always_on_tokens": 746, "writing-tests-that-can-fail": 190, "skill-optimizer": 260, "subagent-optimizer": 300},
+  "after": {"always_on_tokens": 818, "writing-tests-that-can-fail": 270, "skill-optimizer": 260, "subagent-optimizer": 290}
+}

@@ -1,0 +1,75 @@
+## probe answer, current+snippet
+**Skills available:**
+
+- ionden-skills:skill-optimizer
+- ionden-skills:subagent-optimizer
+- ionden-skills:writing-tests-that-can-fail
+- dataviz
+- update-config
+- keybindings-help
+- code-review
+- simplify
+- fewer-permission-prompts
+- loop
+- schedule
+- claude-api
+- workflow-authoring
+- run
+- plugin-authoring
+- init
+- security-review
+
+**Instructions about writing or changing tests** (from the project's CLAUDE.md):
+
+"When you write, change or review tests, including the failing-test step of TDD, use the writing-tests-that-can-fail skill and follow it. When you hand test work to a subagent, tell it to use that skill too."
+
+## probe answer, current
+**Skills available:**
+
+- ionden-skills:skill-optimizer
+- ionden-skills:subagent-optimizer
+- ionden-skills:writing-tests-that-can-fail
+- dataviz
+- update-config
+- keybindings-help
+- code-review
+- simplify
+- fewer-permission-prompts
+- loop
+- schedule
+- claude-api
+- workflow-authoring
+- run
+- plugin-authoring
+- init
+- security-review
+
+**Instructions about writing or changing tests:**
+
+NONE
+
+I wasn't given any direct instructions on this. The only related item is the `ionden-skills:writing-tests-that-can-fail` skill. Its listing says when to use it, but I haven't loaded its contents, so I can't quote any test-writing rules from it.
+
+init tools: Task, Bash, CronCreate, CronDelete, CronList, DesignSync, Edit, EnterWorktree, ExitWorktree, ListAgents, Monitor, NotebookEdit, PushNotification, Read, RemoteTrigger, ReportFindings, ScheduleWakeup, SendMessage, Skill, TaskStop, ToolSearch, WebFetch, WebSearch, Workflow, Write
+init model: claude-sonnet-5-5
+
+## subagent types in the optimizer workspace
+Here are the subagent types I can launch with the Agent tool:
+
+- **claude**: Catch-all for tasks that don't fit a more specific agent. It has all tools.
+- **code-explorer**: Explores codebases and reports findings. It has all tools.
+- **Explore**: Read-only search agent for broad fan-out searches across many files, directories, or naming conventions. It locates code but doesn't review or audit it. It has all tools except Agent, Edit, Write, NotebookEdit, and a few others.
+- **general-purpose**: Researches complex questions, searches for code, and runs multi-step tasks. It has all tools.
+- **Plan**: Software architect agent that designs implementation plans, identifies critical files, and weighs trade-offs. It has the same read-only tool set as Explore.
+- **plan-reviewer**: Reviews security-sensitive changes before merge, such as authentication, deserialization, or subprocess calls. It traces trust boundaries and drafts a remediation plan. It can only use Read, Grep, Glob, Agent(verifier), and ExitPlanMode.
+- **statusline-setup**: Configures the user's Claude Code status line setting. It can only use Read and Edit.
+
+I can also use `"fork"` as a `subagent_type`. A fork inherits my full conversation context and runs on my model.
+
+## full session, wt-s02, opus, current
+{"arm": "current", "cli_version": "2.1.308", "cost_usd": 0.129663, "crowd": [], "date": "2026-10-22", "first_test_write_turn": 5, "half": "dev", "kind": "should", "load_turn": null, "load_via": null, "model": "opus", "outcome": "miss", "prompt_id": "wt-s02", "rep": 0, "resolved_model": "claude-opus-5-5", "skill": "writing-tests-that-can-fail"}
+event kinds: {"result": 1, "write": 6}
+assistant turns: 10
+
+## findings
+CLEAN

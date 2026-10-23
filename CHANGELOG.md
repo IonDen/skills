@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-23 (plugin 0.8.5)
+
+- The listing text now says who the plugin is for: people who run Claude Code or Codex and want to spend fewer tokens. The manifests, the marketplace entry, the Codex listing text and both READMEs lead with that. The skills themselves are unchanged.
+- The `writing-tests-that-can-fail` README has a new section, "Make it automatic", with two sentences to add to `CLAUDE.md`. On Claude Opus in Claude Code, across eight test requests, they took the skill from loading before the first test was written or handed off in 8 of 21 runs to 22 of 22. The wording was adjusted once after an earlier run on the same requests, so this is not a blind test. The skill loaded in none of 50 runs over ten nearby requests that need no test changes.
+- A new trigger eval in `evals/triggering/` runs Claude Code on small fixture projects and records whether each skill loads before its work starts. It also tested a longer description for `writing-tests-that-can-fail`, which did not meet the bar set before the run. Every skill description stays the same, and so does the plugin's always-on cost of about 746 tokens.
+- The validator now fails when the Claude and Codex manifests carry different descriptions.
+- The plugin version goes to 0.8.5.
+
 ## 2026-10-07 (plugin 0.8.4)
 
 - Links to absolute URLs in the three skill READMEs, the repository README and the publishing guide are now written as `[text](<https://...>)`. Some tool that reads the raw Markdown and pulls out the URL kept the closing `)` and the punctuation after it, so a link followed by punctuation, such as the ones to the eval results, became a GitHub page that doesn't exist. The angle brackets should end the address before the `)`. On GitHub the links look and work the same. The `SKILL.md` files are unchanged; the skill READMEs change only their link syntax.

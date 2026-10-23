@@ -205,6 +205,8 @@ def check_plugin(root: Path) -> list[str]:
                 problems.append(f"{rel}: version missing or empty")
     if len(set(versions.values())) > 1:
         problems.append(f"plugin version differs: {versions}")
+    if isinstance(claude, dict) and isinstance(codex, dict) and claude.get("description") != codex.get("description"):
+        problems.append("plugin.json description differs between .claude-plugin and .codex-plugin")
     if isinstance(market, dict):
         sources = [p.get("source") for p in market.get("plugins", []) if isinstance(p, dict)]
         if sources != [f"./{P}"]:

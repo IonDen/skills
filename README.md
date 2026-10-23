@@ -5,15 +5,15 @@
 [![skills.sh](<https://skills.sh/b/IonDen/skills>)](<https://skills.sh/IonDen/skills>)
 [![Claude plugin directory: listed](<https://img.shields.io/badge/Claude_plugin_directory-listed-0d9488>)](<https://claude.ai/customize/plugins/id/ca97a97b-2635-413b-8e0e-e7fa82076699%40anthropic-plugin-directory>)
 
-A small catalogue of agent skills I use day to day. Each skill is a folder with a `SKILL.md` that Claude Code and Codex load only when a task needs it. A skill lands here when I could not find a good public equivalent.
+A small catalogue of agent skills I use day to day, for people who run Claude Code or Codex and want to spend fewer tokens. Two skills make your agents and skills cheaper to load; the third keeps the tests your agent writes honest. Each skill is a folder with a `SKILL.md`. A skill lands here when I could not find a good public equivalent.
 
 ## Skills
 
 | Skill | What it does |
 |---|---|
 | [subagent-optimizer](plugins/ionden-skills/skills/subagent-optimizer/) | For agent definitions: Claude Code subagents (`.claude/agents/*.md`) and Codex custom agents (`.codex/agents/*.toml`). Audits them and cuts what each agent costs to launch: a tight `tools` allowlist for Claude agents, no keys that make Codex skip an agent, less prompt bloat, a model and reasoning effort that fit the job. One real agent went from 20,122 to 13,962 launch tokens with the same result. |
-| [skill-optimizer](plugins/ionden-skills/skills/skill-optimizer/) | For agent skills, the folders with a `SKILL.md`. Cuts a skill's `SKILL.md` down without losing an instruction: freezes every rule, anchor and literal in the original, then gates a rewrite against that freeze and rejects or asks rather than guessing. On five real skills it cut 1.2% to 3.5% of the body, 2.3% overall, kept every requirement it extracted, and listed the cuts it was unsure of instead of making them ([evidence](evals/skill-optimizer/recorded/2026-09-24-real-skills/)). |
-| [writing-tests-that-can-fail](plugins/ionden-skills/skills/writing-tests-that-can-fail/) | For writing, reviewing and fixing tests in any language. Keeps tests real: they exercise real behaviour rather than mocks, cover what matters and every condition in it, fail on the bug they exist to catch, and stay untouched when the code is what's wrong. Given the same prompts, Claude Haiku without the skill mocked both collaborators in 3 of 3 Python suites and copied expected values from the code's constants in 2 of 3; with the skill, 0 of 3 did either ([evidence](evals/writing-tests-that-can-fail/)). |
+| [skill-optimizer](plugins/ionden-skills/skills/skill-optimizer/) | For agent skills, the folders with a `SKILL.md`. Cuts a skill's `SKILL.md` down without losing an instruction, so it costs fewer tokens each time it loads: freezes every rule, anchor and literal in the original, then gates a rewrite against that freeze and rejects or asks rather than guessing. On five real skills it cut 1.2% to 3.5% of the body, 2.3% overall, kept every requirement it extracted, and listed the cuts it was unsure of instead of making them ([evidence](evals/skill-optimizer/recorded/2026-09-24-real-skills/)). |
+| [writing-tests-that-can-fail](plugins/ionden-skills/skills/writing-tests-that-can-fail/) | For writing, reviewing and fixing tests in any language. Keeps tests real: they exercise real behaviour rather than mocks, cover what matters and every condition in it, fail on the bug they exist to catch, and stay untouched when the code is what's wrong. Given the same prompts, Claude Haiku without the skill mocked both collaborators in 3 of 3 Python suites and copied expected values from the code's constants in 2 of 3; with the skill, 0 of 3 did either ([evidence](evals/writing-tests-that-can-fail/)). In our Claude Code tests, two sentences in `CLAUDE.md` made it load far more often when tests were written ([how](plugins/ionden-skills/skills/writing-tests-that-can-fail/README.md#make-it-automatic)). |
 
 ## Install
 
@@ -32,7 +32,7 @@ npx skills update
 
 Most agents share `.agents/skills`, so the CLI installs there by default. Claude Code reads `.claude/skills` instead, which is why `-a claude-code` is on the lines above: without it the CLI asks which agents you want and Claude Code is not pre-selected. Pass `--copy` if you would rather have real files than symlinks.
 
-Claude apps (claude.ai, the desktop and mobile apps, Cowork): the plugin is [listed in Claude's plugin directory](<https://claude.ai/customize/plugins/id/ca97a97b-2635-413b-8e0e-e7fa82076699%40anthropic-plugin-directory>). Add it there, and it also becomes available in your Claude Code sessions.
+Claude's plugin directory: the plugin is [listed there](<https://claude.ai/customize/plugins/id/ca97a97b-2635-413b-8e0e-e7fa82076699%40anthropic-plugin-directory>). Add it on claude.ai, and it becomes available in your Claude Code sessions.
 
 Claude Code, as a plugin:
 

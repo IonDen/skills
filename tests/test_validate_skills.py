@@ -228,6 +228,7 @@ ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect widt
 
 def make_plugin(root: Path, names: list[str], *, codex_skills="./skills/", claude_skills=OMIT,
                 source=f"./{PLUGIN}", claude_version="0.8.0", codex_version="0.8.0",
+                claude_description="Skills.", codex_description="Skills.",
                 readme=LISTING, license=True, icon=ICON):
     """A valid plugin at PLUGIN. claude_skills=OMIT leaves the Claude `skills` key out (the valid
     form; None writes an explicit null); codex_skills=None leaves the Codex `skills` key out."""
@@ -236,10 +237,10 @@ def make_plugin(root: Path, names: list[str], *, codex_skills="./skills/", claud
     sk = root / PLUGIN
     (sk / ".claude-plugin").mkdir(parents=True)
     (sk / ".codex-plugin").mkdir(parents=True)
-    claude = {"name": "p", "version": claude_version}
+    claude = {"name": "p", "version": claude_version, "description": claude_description}
     if claude_skills is not OMIT:
         claude["skills"] = claude_skills
-    codex = {"name": "p", "version": codex_version}
+    codex = {"name": "p", "version": codex_version, "description": codex_description}
     if codex_skills is not None:
         codex["skills"] = codex_skills
     (sk / ".claude-plugin" / "plugin.json").write_text(json.dumps(claude))
@@ -296,6 +297,13 @@ def test_check_plugin_rejects_version_drift(validate, tmp_path):
     # Bug caught: bumping one manifest and not the other.
     root = make_plugin(tmp_path, ["a-skill"], codex_version="0.6.0")
     assert any("version" in p for p in validate.check_plugin(root))
+
+
+def test_claude_and_codex_descriptions_match(validate, tmp_path):
+    # Bug caught: rewriting the listing description in one manifest and not the other.
+    root = make_plugin(tmp_path, ["a-skill"], codex_description="Old skills text.")
+    assert ("plugin.json description differs between .claude-plugin and .codex-plugin"
+            in validate.check_plugin(root))
 
 
 def test_check_plugin_rejects_marketplace_source_at_repo_root(validate, tmp_path):

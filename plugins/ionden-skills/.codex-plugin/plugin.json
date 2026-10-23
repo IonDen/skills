@@ -1,7 +1,7 @@
 {
   "name": "ionden-skills",
-  "description": "Agent skills for Claude Code and OpenAI Codex. subagent-optimizer audits Claude Code subagents and Codex custom agents for tool allowlists, keys Codex rejects, prompt bloat, model and effort, and launch token cost; skill-optimizer cuts a skill's own SKILL.md without losing an instruction; writing-tests-that-can-fail keeps tests real, in any language: real behaviour, every condition, and a failure on the bug they exist to catch.",
-  "version": "0.8.4",
+  "description": "Agent skills for people who run Claude Code or OpenAI Codex and want to spend fewer tokens. subagent-optimizer cuts what each Claude Code subagent or Codex custom agent costs to launch: a tight tool allowlist, a shorter prompt, a model and effort that fit the job, and none of the keys that make Codex skip an agent. skill-optimizer shortens a SKILL.md, so it costs fewer tokens each time it loads, without losing an instruction. writing-tests-that-can-fail is for everyday coding, in any language: tests that exercise real behaviour and fail on the bug they exist to catch.",
+  "version": "0.8.5",
   "author": {
     "name": "Denis Ineshin",
     "url": "https://github.com/IonDen"
@@ -11,20 +11,20 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "IonDen Skills",
-    "shortDescription": "Audit agents, skills and tests",
-    "longDescription": "Three skills for developers who maintain agent definitions, reusable skills and test suites.\n\nSubagent Optimizer audits Claude Code subagents and Codex custom agents for prompt size, tool permissions and unsupported settings. It reports proposed changes before editing.\n\nSkill Optimizer shortens a SKILL.md while checking that its rules, commands and thresholds survive the rewrite. It keeps uncertain cuts for you to decide.\n\nWriting Tests That Can Fail guides writing, reviewing and fixing tests in any language. Each test must exercise real behaviour and fail on a specific bug.\n\nThe scripted workflows need access to the files you select and a shell with Python 3.10 or later. Parsing Codex TOML files requires Python 3.11 or later. Python helpers are included and have no package dependencies. The plugin has no MCP server, accounts or telemetry; its bundled scripts make no network requests. The assistant can use script output in your session, where the host's data handling settings apply.",
+    "shortDescription": "Leaner agents and skills, tests that catch bugs",
+    "longDescription": "Two skills for developers who run Claude Code or Codex and want to spend fewer tokens on their agents and skills, plus a testing skill for everyday coding.\n\nSubagent Optimizer audits Claude Code subagents and Codex custom agents and cuts what each one costs to launch: prompt size, tool permissions, model and effort, and settings Codex rejects. It reports proposed changes before editing.\n\nSkill Optimizer shortens a SKILL.md, so it costs fewer tokens each time it loads, while checking that its rules, commands and thresholds survive the rewrite. It keeps uncertain cuts for you to decide.\n\nWriting Tests That Can Fail guides writing, reviewing and fixing tests in any language. Each test must exercise real behaviour and fail on a specific bug. Its README has two sentences you can add to AGENTS.md that ask for the skill whenever tests are written. Their effect in Codex has not been measured.\n\nThe scripted workflows need access to the files you select and a shell with Python 3.10 or later. Parsing Codex TOML files requires Python 3.11 or later. Python helpers are included and have no package dependencies. The plugin has no MCP server, accounts or telemetry; its bundled scripts make no network requests. The assistant can use script output in your session, where the host's data handling settings apply.",
     "developerName": "Denis Ineshin",
     "category": "Developer Tools",
     "capabilities": [
-      "Audit agent definitions",
-      "Shorten skills while checking instructions",
-      "Write and review tests"
+      "Cut agent launch token cost",
+      "Shorten skills without losing instructions",
+      "Write and review tests that catch bugs"
     ],
     "websiteURL": "https://github.com/IonDen/skills",
     "supportURL": "https://github.com/IonDen/skills/issues",
     "privacyPolicyURL": "https://github.com/IonDen/skills/blob/main/plugins/ionden-skills/README.md#privacy",
     "defaultPrompt": [
-      "Audit my Codex custom agent definitions and propose changes.",
+      "Audit my Codex custom agents and cut what they cost to launch.",
       "Shorten this SKILL.md while preserving every instruction.",
       "Review my tests for bugs they would fail to catch."
     ],

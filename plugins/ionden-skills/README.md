@@ -1,10 +1,10 @@
 # ionden-skills
 
-Three agent skills for Claude Code and OpenAI Codex. Each one loads only when a task needs it.
+Three agent skills for people who run Claude Code or OpenAI Codex and want to spend fewer tokens. Two of them make your agents and skills cheaper to load. The third is for everyday coding: it keeps the tests your agent writes honest. Installing the plugin from claude.ai adds it to Claude Code.
 
-- `subagent-optimizer` audits Claude Code subagents and Codex custom agents. It sets a tight `tools` allowlist, removes keys that make Codex skip an agent, cuts prompt bloat, and picks a model and effort that fit the job. It reports first and edits nothing until you say so.
-- `skill-optimizer` shortens a skill's `SKILL.md` without losing an instruction. It freezes every rule, command and threshold before rewriting, and a gate rejects any rewrite that drops one.
-- `writing-tests-that-can-fail` keeps tests honest in any language: each test exercises real behaviour and fails on the bug it exists to catch.
+- `subagent-optimizer` audits Claude Code subagents and Codex custom agents and cuts what each one costs to launch. It sets a tight `tools` allowlist, removes keys that make Codex skip an agent, cuts prompt bloat, and picks a model and effort that fit the job. It reports first and edits nothing until you say so.
+- `skill-optimizer` shortens a skill's `SKILL.md` without losing an instruction, so the skill costs fewer tokens each time it loads. It freezes every rule, command and threshold before rewriting, and a gate rejects any rewrite that drops one.
+- `writing-tests-that-can-fail` keeps tests honest in any language: each test exercises real behaviour and fails on the bug it exists to catch. You call the two optimizers when you need them. This one should load whenever an agent writes tests. In our Claude Code tests, two sentences in `CLAUDE.md` made it load far more often: see [Make it automatic](<https://github.com/IonDen/skills/tree/main/plugins/ionden-skills/skills/writing-tests-that-can-fail#make-it-automatic>).
 
 ## What runs
 

@@ -4,6 +4,18 @@ An agent skill for Claude Code and OpenAI Codex that works in any language. It a
 
 Triggers: "write tests", "add unit tests", "review these tests", "make the tests pass", "fix the failing test", "increase coverage", "mock this".
 
+## Make it automatic
+
+The skill loads on its own when you ask for tests by name. When the tests come with a feature, a bug fix or a flaky-test repair, an agent often writes them without it. To ask for the skill whenever tests are written, add these two sentences to `~/.claude/CLAUDE.md` (all your projects) or to a project's `CLAUDE.md`:
+
+```markdown
+Before you write or edit test code, including the failing-test step of TDD, use the writing-tests-that-can-fail skill and follow it. When you hand test work to a subagent, tell it to use that skill too.
+```
+
+We measured this with Claude Opus in Claude Code (version 2.1.308, October 2026), with the sentences in a project `CLAUDE.md`, on eight test requests, three runs each. Leaving out runs that ended without touching a test, the skill was in use before the first test was written or handed off in 8 of 21 runs without the sentences and in 22 of 22 runs with them. This is not a blind test: we reworded the sentences once after an earlier run on the same eight requests, to stop them loading the skill where it wasn't needed. We also ran ten requests that sit close to test work but need no test changes, such as adding a CI workflow or refactoring with the tests left alone, five runs each. Five of the ten played no part in choosing the wording. The skill loaded in none of these runs, 50 with the sentences and 50 without. The method and every run are in [`evals/triggering/`](<https://github.com/IonDen/skills/tree/main/evals/triggering/>).
+
+For Codex, put the same sentences in `~/.codex/AGENTS.md` or a project's `AGENTS.md`. We have not measured their effect there.
+
 ## Why this exists
 
 Coding agents are rewarded for green tests, and it shows. Across more than 1.2 million commits, 36% of the commits coding agents made added mocks to tests, against 26% of other commits ([Hora and Robbes, 2026](<https://arxiv.org/abs/2602.00409>)). Generated tests tend to take their expected values from whatever the code returns now, bugs included ([Konstantinou et al.](<https://arxiv.org/abs/2410.21136>)). When a test won't pass, models return the expected value directly or edit the test to match the output ([Claude 3.7 Sonnet system card](<https://assets.anthropic.com/m/785e231869ea8b3b/original/claude-3-7-sonnet-system-card.pdf>); [ImpossibleBench](<https://arxiv.org/abs/2510.20270>)). A suite built that way is green and catches little. One study found suites with 100% line coverage and a 4% mutation score ([MUTGEN](<https://arxiv.org/abs/2506.02954>)).
